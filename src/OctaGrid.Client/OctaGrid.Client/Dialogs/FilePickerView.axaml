@@ -1,0 +1,121 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Dialogs.FilePickerView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:OctaGrid.Client.Converters"
+    xmlns:converters="using:Avalonia.Data.Converters"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    MinWidth="350"
+    MinHeight="150"
+    MaxWidth="650"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:FilePickerViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="{DynamicResource Gap.CardContent}">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource Gap.CardContent}">
+            <Button
+                MinWidth="{DynamicResource Space10}"
+                Classes="icon"
+                Command="{Binding CancelCommand}">
+                <PathIcon Data="{DynamicResource arrow-left-regular}" />
+            </Button>
+            <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Classes="title"
+                Text="Files" />
+            <StackPanel
+                Grid.Column="2"
+                HorizontalAlignment="Right"
+                Classes="inline">
+                <Button
+                    MinWidth="{DynamicResource Space10}"
+                    Classes="icon"
+                    Command="{Binding ConfirmCommand}"
+                    IsEnabled="{Binding SelectedItem, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                    <PathIcon Data="{DynamicResource print-regular}" />
+                </Button>
+                <Button
+                    MinWidth="{DynamicResource Space10}"
+                    Classes="icon"
+                    Command="{Binding DeleteFileCommand}"
+                    IsEnabled="{Binding SelectedItem, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                    <PathIcon Data="{DynamicResource delete-regular}" />
+                </Button>
+                <Button
+                    MinWidth="{DynamicResource Space10}"
+                    Classes="icon"
+                    Click="UploadFileButton_Click">
+                    <PathIcon Data="{DynamicResource upload-regular}" />
+                </Button>
+            </StackPanel>
+        </Grid>
+        <Border
+            Grid.Row="1"
+            Padding="0"
+            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+            Classes="divided"
+            IsVisible="{Binding !IsFilesLoading}" />
+        <ProgressBar
+            Grid.Row="2"
+            IsIndeterminate="True"
+            IsVisible="{Binding IsFilesLoading}" />
+
+        <ListBox
+            Grid.Row="3"
+            ItemsSource="{Binding Files}"
+            SelectedItem="{Binding SelectedItem}">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid
+                        Height="50"
+                        ColumnDefinitions="Auto,*"
+                        RowDefinitions="*,Auto">
+                        <Border
+                            Grid.RowSpan="2"
+                            Width="{Binding $self.Bounds.Height}"
+                            Margin="0,0,8,0"
+                            Padding="0"
+                            Background="{DynamicResource SystemAltMediumColor}"
+                            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                            BorderThickness="1"
+                            Classes="tile">
+
+                            <Grid>
+                                <PathIcon
+                                    Width="24"
+                                    Height="24"
+                                    VerticalAlignment="Center"
+                                    Data="{StaticResource cube-regular}"
+                                    IsVisible="{Binding ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}" />
+
+                                <Image
+                                    IsVisible="{Binding !ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
+                                    Source="{Binding ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}"
+                                    Stretch="UniformToFill">
+                                    <ToolTip.Tip>
+                                        <Image Source="{Binding ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}" />
+                                    </ToolTip.Tip>
+                                </Image>
+                            </Grid>
+                        </Border>
+                        <TextBlock
+                            Grid.Column="1"
+                            Classes="lead mono"
+                            Text="{Binding Metadata.FileName}"
+                            ToolTip.Tip="{Binding Metadata.FileName}" />
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Classes="small secondary">
+                            <Run Text="{Binding Metadata.MaterialType}" />
+                            •<Run Text="{Binding Metadata.NozzleDiameter}" />
+                            •<Run Text="{Binding Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay}" />
+                        </TextBlock>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</UserControl>

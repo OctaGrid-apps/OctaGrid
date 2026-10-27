@@ -1,0 +1,118 @@
+﻿<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:converters="using:Avalonia.Data.Converters">
+
+    <ControlTheme x:Key="{x:Type controls:SettingsCard}" TargetType="controls:SettingsCard">
+        <Setter Property="Background" Value="{DynamicResource SystemAltMediumLowColor}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="{DynamicResource Padding.Card}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusLg}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border
+                    Padding="{TemplateBinding Padding}"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding CornerRadius}">
+                    <Grid RowDefinitions="Auto,Auto,Auto">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource Gap.Form}">
+                            <PathIcon
+                                x:Name="PART_Icon"
+                                Grid.Column="0"
+                                Width="20"
+                                Height="20"
+                                VerticalAlignment="Center"
+                                Data="{TemplateBinding Icon}"
+                                IsVisible="{TemplateBinding Icon,
+                                                            Converter={x:Static converters:ObjectConverters.IsNotNull}}" />
+
+                            <StackPanel
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Spacing="{DynamicResource Space0_5}">
+                                <ContentPresenter
+                                    x:Name="PART_HeaderPresenter"
+                                    Content="{TemplateBinding Header}"
+                                    ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                    FontSize="{DynamicResource Font.Size.Body}"
+                                    FontWeight="{DynamicResource Font.Weight.Regular}"
+                                    IsVisible="{TemplateBinding Header,
+                                                                Converter={x:Static converters:ObjectConverters.IsNotNull}}"
+                                    LineHeight="{DynamicResource Font.LineHeight.Body}"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Classes="caption secondary"
+                                    IsVisible="{TemplateBinding Description,
+                                                                Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}"
+                                    Text="{TemplateBinding Description}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <ContentPresenter
+                                x:Name="PART_ContentPresenter"
+                                Grid.Column="2"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+                        </Grid>
+
+                        <!--  Built-in Restart Required Banner  -->
+                        <Border
+                            Grid.Row="1"
+                            Margin="0,12,0,0"
+                            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                            Classes="divided"
+                            IsVisible="{TemplateBinding IsRestartRequired}">
+                            <StackPanel Classes="inline">
+                                <PathIcon
+                                    Width="8"
+                                    Height="8"
+                                    VerticalAlignment="Center"
+                                    Data="{StaticResource circle-filled}"
+                                    Foreground="{DynamicResource SystemControlBackgroundAccentBrush}" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Classes="caption secondary"
+                                    Text="Requires restart to apply" />
+                                <HyperlinkButton
+                                    Padding="{DynamicResource Padding.IconButton}"
+                                    VerticalAlignment="Center"
+                                    Command="{TemplateBinding RestartCommand}">
+                                    <StackPanel Classes="inline" Spacing="{DynamicResource Space1}">
+                                        <PathIcon
+                                            Width="12"
+                                            Height="12"
+                                            VerticalAlignment="Center"
+                                            Data="{StaticResource arrow-clockwise-regular}" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Classes="caption"
+                                            Text="Restart" />
+                                    </StackPanel>
+                                </HyperlinkButton>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  Optional Custom Footer  -->
+                        <Panel Grid.Row="2" IsVisible="{TemplateBinding Footer, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                            <Border
+                                Margin="0,12,0,0"
+                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                Classes="divided"
+                                IsVisible="{TemplateBinding IsFooterVisible}">
+                                <ContentPresenter Content="{TemplateBinding Footer}" ContentTemplate="{TemplateBinding FooterTemplate}" />
+                            </Border>
+                        </Panel>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+</ResourceDictionary>

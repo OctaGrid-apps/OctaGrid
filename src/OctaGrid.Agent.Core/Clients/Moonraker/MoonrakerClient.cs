@@ -1,0 +1,380 @@
+using System.Net.WebSockets;
+using System.Text.Json;
+using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Printers;
+using StreamJsonRpc;
+
+namespace OctaGrid.Agent.Core.Clients.Moonraker;
+
+public class MoonrakerClient : IDeviceClient, IThumbnailProvider
+{
+    private const string DefaultGCodeRoot = "gcodes";
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(10);
+
+    private static readonly object SubscribeParams = new
+    {
+        objects = new
+        {
+            webhooks = new[] { "state", "state_message" },
+            extruder = new[] { "temperature", "target" },
+            heater_bed = new[] { "temperature", "target" },
+            print_stats = new[] { "filename", "state", "total_duration", "print_duration", "info" },
+            display_status = new[] { "progress" }
+        }
+    };
+
+    private readonly MoonrakerFileClient _fileClient;
+    private readonly DeviceProfile _profile;
+
+    // Single-flight: while one query is pending, further triggers join it instead of queueing more
+    // requests behind it. Against a frozen Moonraker every extra request would just wait for the
+    // same timeout, and they'd pile up with each view switch.
+    private readonly object _queryGate = new();
+
+    private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
+    private JsonRpc? _jsonRpc;
+    private MoonrakerListener? _listener;
+
+    private Task? _queryInFlight;
+
+    public MoonrakerClient(DeviceProfile profile)
+    {
+        _profile = profile;
+        _fileClient = new MoonrakerFileClient(profile.ConnectionString);
+    }
+
+    public Guid DeviceId => _profile.DeviceId;
+
+    public async Task DeleteFileAsync(string fileName, CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.delete_file", new { path = $"{DefaultGCodeRoot}/{fileName}" }, cancellationToken: cancellationToken);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
+    }
+
+    public async Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
+
+        var filePaths = files.EnumerateArray().Select(f => f.GetProperty("path").GetString()).Where(x => !string.IsNullOrWhiteSpace(x));
+
+        var metadata = new List<PrintMetadata>(filePaths.Count());
+
+        foreach (var filePath in filePaths)
+        {
+            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, filePath!, cancellationToken).ConfigureAwait(false);
+            metadata.Add(new PrintMetadata(fileMetadata.FileName, fileMetadata.FileSize, fileMetadata.MaterialType, fileMetadata.NozzleDiameter, fileMetadata.EstimatedTimeSeconds));
+        }
+
+        return metadata;
+    }
+
+    // Unlike TriggerInitialStateAsync/QueryStateAsync above, this result goes straight back to the
+    // caller rather than arriving later via telemetry, so — unlike those — the caller's
+    // cancellationToken is honoured (MoonrakerFileClient still bounds the RPC with its own timeout).
+    public async Task<PrintThumbnail?> GetThumbnailAsync(string fileName, CancellationToken cancellationToken)
+    {
+        // Captured once, same reasoning as QueryStateAsync: the session can end (and null these)
+        // while the call is in flight.
+        var rpc = _jsonRpc;
+        var listener = _listener;
+        if (rpc is null)
+        {
+            return null;
+        }
+
+        // ToDo: Cache the result for the current file name
+        var result = await MoonrakerFileClient.GetFileMetadataAsync(rpc, fileName, cancellationToken).ConfigureAwait(false);
+
+        listener?.OnFileMetadata(result.EstimatedTimeSeconds);
+
+        if (result.ThumbnailFilePath is null)
+        {
+            return null;
+        }
+
+        var thumbnail = await _fileClient.DownloadBestThumbnailAsync(fileName, result.ThumbnailFilePath, cancellationToken).ConfigureAwait(false);
+        return thumbnail;
+    }
+
+    public async Task PausePrintJobAsync(CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.pause", cancellationToken: cancellationToken);
+    }
+
+    public async Task ResumePrintJobAsync(CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.resume", cancellationToken: cancellationToken);
+    }
+
+    public async Task RunAsync(ITelemetryService telemetryService, CancellationToken cancellationToken)
+    {
+        var uri = BuildUri(_profile.ConnectionString);
+        var delay = _reconnectDelay;
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var connected = false;
+            try
+            {
+                using var ws = new ClientWebSocket();
+                // Ping every 15s AND fail the socket if no pong arrives within the timeout. Without a
+                // timeout a frozen peer is never detected (the socket just looks open forever), so
+                // pending requests hang and the reconnect loop below never gets a chance to run.
+                ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+                ws.Options.KeepAliveTimeout = TimeSpan.FromSeconds(10);
+
+                using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    connectCts.CancelAfter(ConnectTimeout);
+                    await ws.ConnectAsync(uri, connectCts.Token).ConfigureAwait(false);
+                }
+
+                connected = true;
+                await RunSessionAsync(DeviceId, ws, telemetryService, cancellationToken).ConfigureAwait(false);
+                //_logger.LogInformation("Moonraker connection to {Uri} closed", uri);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception)
+            {
+                //_logger.LogWarning(ex, "Moonraker connection to {Uri} failed", uri);
+            }
+
+            if (!connected)
+            {
+                telemetryService.Send(new Protocol.Messaging.PrinterTelemetry(DeviceId) { State = Protocol.Messaging.UniversalPrinterState.Offline });
+            }
+
+            // Reset backoff after a successful connection, otherwise grow it.
+            delay = connected
+                ? _reconnectDelay
+                : TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxReconnectDelay.Ticks));
+
+            try
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    public async Task StartPrintJobAsync(string fileName, CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.start", new { filename = fileName }, cancellationToken: cancellationToken);
+    }
+
+    public async Task StopPrintJobAsync(CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.cancel", cancellationToken: cancellationToken);
+    }
+
+    // Deliberately independent of RunAsync/_jsonRpc/_listener: this runs before the printer is
+    // saved, so there is no session (and may never be one, if the test fails). It opens its own
+    // socket and RPC channel, confirms the peer actually answers JSON-RPC (not just that the port
+    // is open), and tears both down — never touching the instance fields the live session owns.
+    public async Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = BuildUri(_profile.ConnectionString);
+
+            using var ws = new ClientWebSocket();
+            if (_profile.Settings.TryGetValue("ApiKey", out var apiKey) && !string.IsNullOrEmpty(apiKey))
+            {
+                // Moonraker's [authorization] block can require this on the websocket upgrade itself.
+                ws.Options.SetRequestHeader("X-Api-Key", apiKey);
+            }
+
+            try
+            {
+                using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                connectCts.CancelAfter(ConnectTimeout);
+                await ws.ConnectAsync(uri, connectCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return ConnectionTestResult.Fail($"Timed out connecting to {uri}.");
+            }
+            catch (WebSocketException ex)
+            {
+                return ConnectionTestResult.Fail(ex.InnerException?.Message ?? ex.Message);
+            }
+
+            // A reachable websocket isn't proof it's actually Moonraker — confirm it answers JSON-RPC.
+            var handler = new WebSocketMessageHandler(ws, new SystemTextJsonFormatter());
+            var rpc = new JsonRpc(handler);
+            rpc.StartListening();
+
+            try
+            {
+                var call = rpc.InvokeWithParameterObjectAsync<JsonElement>("server.info", argument: null, cancellationToken: CancellationToken.None);
+                await call.WaitAsync(QueryTimeout, cancellationToken).ConfigureAwait(false);
+                return ConnectionTestResult.Ok();
+            }
+            catch (TimeoutException)
+            {
+                return ConnectionTestResult.Fail("Connected, but the server did not answer in time.");
+            }
+            catch (Exception ex) when (ex is ConnectionLostException or RemoteInvocationException)
+            {
+                return ConnectionTestResult.Fail($"Connected, but the request failed: {ex.Message}");
+            }
+            finally
+            {
+                await CloseQuietlyAsync(ws).ConfigureAwait(false);
+                rpc.Dispose();
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Last-resort net: a connection test must report failure, never crash the caller.
+            return ConnectionTestResult.Fail(ex.Message);
+        }
+    }
+
+    public Task TriggerInitialStateAsync(CancellationToken cancellationToken)
+    {
+        lock (_queryGate)
+        {
+            if (_queryInFlight is { IsCompleted: false })
+            {
+                return _queryInFlight;
+            }
+
+            return _queryInFlight = QueryStateAsync();
+        }
+    }
+
+    public Task UploadFileAsync(Stream stream, string fileName, CancellationToken cancellationToken)
+    {
+        return _fileClient.UploadFileAsync(stream, fileName, cancellationToken);
+    }
+
+    private static Uri BuildUri(string connectionString) => new($"ws://{connectionString}/websocket");
+
+    private static async Task CloseQuietlyAsync(ClientWebSocket ws)
+    {
+        if (ws.State != WebSocketState.Open)
+        {
+            return;
+        }
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Shutting down", cts.Token)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // Best effort only.
+        }
+    }
+
+    private async Task QueryStateAsync()
+    {
+        // Capture once: the session can end (and null these) while the call is in flight.
+        var rpc = _jsonRpc;
+        var listener = _listener;
+        if (rpc is null || listener is null)
+        {
+            return;
+        }
+
+        // The result is delivered through the listener (telemetry), not returned to the caller, so
+        // the caller's token deliberately does NOT cancel the query. A UI command being superseded
+        // (view switch → Loaded fires again → toolkit cancels the previous run) must not abort a
+        // request already on the wire, or the printer state would never arrive. The query is
+        // bounded by its own timeout instead.
+        // WaitAsync(timeout) rather than a cancellation token: StreamJsonRpc keeps waiting for the
+        // server's reply after a cancel, so a token would NOT release us from a frozen peer.
+        var call = rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.objects.query", SubscribeParams, CancellationToken.None);
+
+        try
+        {
+            var initialStatus = await call.WaitAsync(QueryTimeout).ConfigureAwait(false);
+            listener.OnStatusUpdate(initialStatus, DateTime.UtcNow.Millisecond);
+        }
+        catch (TimeoutException)
+        {
+            // The abandoned call faults when the connection is disposed below; observe it.
+            _ = call.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+
+            // No answer within the timeout: the connection is frozen, not merely slow. Tear it down
+            // so the session ends and RunAsync reconnects + re-subscribes (which pushes fresh
+            // state), rather than leaving a dead session that every later trigger would hit too.
+            // Not thrown: callers are UI commands and can't do anything useful with it.
+            rpc.Dispose();
+        }
+        catch (Exception ex) when (ex is ConnectionLostException or ObjectDisposedException)
+        {
+            // The connection dropped/restarted mid-request. The reconnect re-subscribes and pushes
+            // fresh state, so there is nothing to retry here.
+        }
+    }
+
+    private async Task RunSessionAsync(Guid deviceId, ClientWebSocket ws, ITelemetryService telemetryService, CancellationToken ct)
+    {
+        _listener = new MoonrakerListener(deviceId, telemetryService);
+        var handler = new WebSocketMessageHandler(ws, new SystemTextJsonFormatter());
+        var rpc = new JsonRpc(handler, _listener);
+        _jsonRpc = rpc;
+        rpc.StartListening();
+
+        // Everything after StartListening is inside the try, so a failed or hung subscribe still
+        // tears the connection down (and the fields are cleared) instead of leaking a dead session.
+        try
+        {
+            // Bounded: a peer that accepts the socket but never answers must not hang the session.
+            var subscribeCall = rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.objects.subscribe", SubscribeParams, CancellationToken.None);
+            var initialStatus = await subscribeCall.WaitAsync(QueryTimeout, ct).ConfigureAwait(false);
+            _listener.OnStatusUpdate(initialStatus, DateTime.UtcNow.Millisecond);
+
+            // Completes when the connection drops. No polling needed.
+            await rpc.Completion.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            await CloseQuietlyAsync(ws).ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            // Don't leave the fields pointing at a disposed connection: TriggerInitialStateAsync
+            // would keep invoking on it and get its pending calls cancelled.
+            _jsonRpc = null;
+            _listener = null;
+            rpc.Dispose();
+        }
+    }
+}

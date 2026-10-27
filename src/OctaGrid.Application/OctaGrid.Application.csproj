@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OctaGrid.Data.Abstractions\OctaGrid.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\OctaGrid.Protocol\OctaGrid.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>

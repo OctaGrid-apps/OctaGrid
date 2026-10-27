@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>OctaGrid.Client.Desktop</RootNamespace>
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\OctaGrid.Client\Assets\OctaGrid-logo.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Meziantou.Framework.Win32.CredentialManager" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Local mode's composition (SQLite, the printer agent) is only ever wired up here, in the
+         Desktop head's own Program.cs — never in the shared OctaGrid.Client UI project. -->
+    <ProjectReference Include="..\OctaGrid.Client\OctaGrid.Client.csproj" />
+    <ProjectReference Include="..\..\OctaGrid.Client.Local\OctaGrid.Client.Local.csproj" />
+  </ItemGroup>
+
+  <!-- Automatically sync Package.appxmanifest Identity Version with Nerdbank.GitVersioning -->
+  <Target Name="SyncPackageAppxManifestVersion"
+          DependsOnTargets="GetBuildVersion"
+          BeforeTargets="BeforeBuild;BeforePublish"
+          Condition="Exists('Package.appxmanifest')">
+    <PropertyGroup>
+      <TargetAppxVersion Condition="'$(BuildVersionSimple)' != ''">$(BuildVersionSimple).0</TargetAppxVersion>
+      <TargetAppxVersion Condition="'$(TargetAppxVersion)' == '' And '$(AssemblyFileVersion)' != ''">$(AssemblyFileVersion)</TargetAppxVersion>
+      <TargetAppxVersion Condition="'$(TargetAppxVersion)' == ''">1.0.0.0</TargetAppxVersion>
+    </PropertyGroup>
+    <XmlPeek
+      XmlInputPath="Package.appxmanifest"
+      Query="/x:Package/x:Identity/@Version"
+      Namespaces="&lt;Namespace Prefix='x' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;">
+      <Output TaskParameter="Result" PropertyName="CurrentAppxVersion" />
+    </XmlPeek>
+    <XmlPoke
+      Condition="'$(CurrentAppxVersion)' != '$(TargetAppxVersion)'"
+      XmlInputPath="Package.appxmanifest"
+      Query="/x:Package/x:Identity/@Version"
+      Value="$(TargetAppxVersion)"
+      Namespaces="&lt;Namespace Prefix='x' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;" />
+  </Target>
+</Project>

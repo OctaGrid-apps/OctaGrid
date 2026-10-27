@@ -1,0 +1,99 @@
+﻿<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls.Dialogs"
+    xmlns:converters="using:Avalonia.Data.Converters">
+    <Design.PreviewWith>
+        <Border Width="400" Height="400">
+            <controls:OverlayDialog DialogCommands="{x:Static controls:DialogCommands.OkCancel}" Header="Test">
+                <ComboBox ItemsSource="Hello World" />
+            </controls:OverlayDialog>
+        </Border>
+    </Design.PreviewWith>
+
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#1A000000" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FF2C2C2C" />
+            <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#24FFFFFF" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- <ControlTheme x:Key="{x:Type controls:DialogHost}" TargetType="controls:DialogHost"> -->
+    <!--     <Setter Property="Template"> -->
+    <!--         <ControlTemplate> -->
+    <!--  <ContentPresenter HorizontalAlignment="Stretch"  -->
+    <!--  VerticalAlignment="Stretch"  -->
+    <!--  Background="{TemplateBinding Background}"  -->
+    <!--  Content="{TemplateBinding Content}" />  -->
+    <!--         </ControlTemplate> -->
+    <!--     </Setter> -->
+    <!-- </ControlTheme> -->
+
+    <ControlTheme x:Key="{x:Type controls:OverlayDialog}" TargetType="controls:OverlayDialog">
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource OverlayDialogBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource OverlayDialogBackground}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <controls:DialogHost
+                    x:Name="OverlayBorder"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Background="{TemplateBinding OverlayBrush}">
+
+                    <Border
+                        Margin="{DynamicResource Margin.DialogInset}"
+                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        Classes="card">
+                        <Grid RowDefinitions="Auto, *, Auto" RowSpacing="{DynamicResource Gap.Form}">
+                            <ContentPresenter
+                                Content="{TemplateBinding Header}"
+                                ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                FontSize="{DynamicResource Font.Size.Lead}"
+                                FontWeight="{DynamicResource Font.Weight.SemiBold}"
+                                Foreground="{DynamicResource SystemControlBackgroundAccentBrush}"
+                                IsVisible="{TemplateBinding Header,
+                                                            Converter={x:Static converters:ObjectConverters.IsNotNull}}" />
+
+                            <ContentPresenter
+                                Grid.Row="1"
+                                Background="Transparent"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+
+                            <ItemsControl
+                                Grid.Row="2"
+                                HorizontalAlignment="Center"
+                                ItemsSource="{TemplateBinding DialogCommands}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemSpacing="{DynamicResource Gap.Inline}" Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="controls:DialogCommand">
+                                        <Button
+                                            Command="{Binding Command, TargetNullValue={x:Null}}"
+                                            CommandParameter="{Binding DialogResult}"
+                                            Content="{Binding Caption}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Border>
+                </controls:DialogHost>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+</ResourceDictionary>

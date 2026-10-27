@@ -1,0 +1,233 @@
+<UserControl
+    x:Class="OctaGrid.Client.Controls.PrinterDashboardCard"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:conv="using:OctaGrid.Client.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    d:DesignWidth="400"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:PrinterDashboardCardViewModel"
+    mc:Ignorable="d">
+    <Design.DataContext>
+        <vm:PrinterStatusWidget />
+    </Design.DataContext>
+
+    <!--
+        Only the states specific to this card's start/pause icon. The generic PathIcon default
+        (16x16) is app-wide — see Styles/Styles.axaml — so this control stays usable on its own.
+    -->
+    <UserControl.Styles>
+        <Style Selector="PathIcon.startPause">
+            <Setter Property="Data" Value="{StaticResource play-regular}" />
+        </Style>
+        <Style Selector="PathIcon.startPause.printing">
+            <Setter Property="Data" Value="{StaticResource pause-regular}" />
+        </Style>
+        <Style Selector="PathIcon.startPause.paused">
+            <Setter Property="Data" Value="{StaticResource pause-filled}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border
+        Width="400"
+        Background="{DynamicResource SystemAltMediumLowColor}"
+        BorderBrush="{DynamicResource SystemBaseMediumColor}"
+        BorderThickness="1"
+        Classes="card">
+        <StackPanel Classes="card-content">
+            <StackPanel Classes="inline" Orientation="Horizontal">
+                <Border
+                    Width="{Binding $self.Bounds.Height}"
+                    Background="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Background}}"
+                    BorderBrush="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RadiusSm}">
+                    <PathIcon Data="{StaticResource print-regular}" Foreground="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}" />
+                </Border>
+                <StackPanel>
+                    <TextBlock Classes="subtitle" Text="{Binding Item.Name}" />
+
+                    <controls:PrinterStateBadge
+                        VerticalAlignment="Top"
+                        DockPanel.Dock="Right"
+                        State="{Binding Item.State}" />
+                </StackPanel>
+            </StackPanel>
+
+            <Grid
+                Height="80"
+                ColumnDefinitions="Auto,*,Auto,Auto"
+                RowDefinitions="Auto,*,Auto">
+                <Border
+                    Grid.RowSpan="3"
+                    Width="{Binding $self.Bounds.Height}"
+                    Margin="0,0,8,0"
+                    Padding="0"
+                    Background="{DynamicResource SystemBaseLowColor}"
+                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                    BorderThickness="1"
+                    Classes="tile">
+                    <Grid>
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding Item.ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
+                            Spacing="{DynamicResource Gap.CardContent}">
+                            <PathIcon
+                                Width="24"
+                                Height="24"
+                                Data="{StaticResource cube-regular}" />
+                            <TextBlock
+                                Classes="overline"
+                                FontSize="9"
+                                Text="NO PREVIEW"
+                                TextAlignment="Center" />
+                        </StackPanel>
+                        <Image
+                            IsVisible="{Binding !Item.ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
+                            Source="{Binding Item.ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}"
+                            Stretch="UniformToFill">
+                            <ToolTip.Tip>
+                                <Image Source="{Binding Item.ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}" />
+                            </ToolTip.Tip>
+                        </Image>
+                    </Grid>
+                </Border>
+                <TextBlock
+                    Grid.Column="1"
+                    Grid.ColumnSpan="3"
+                    Classes="caption mono"
+                    Text="{Binding Item.PrintFileName}"
+                    ToolTip.Tip="{Binding Item.PrintFileName}" />
+
+                <StackPanel
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Classes="inline">
+                    <TextBlock Classes="display" Text="{Binding Item.Progress, StringFormat='{}{0:P0}'}" />
+                    <TextBlock VerticalAlignment="Bottom" Classes="small secondary">
+                        <Run Text="{Binding Item.PrintTime, StringFormat='{}{0:HH:mm:ss}'}" />
+                        <LineBreak />
+                        <Run Text="{Binding Item.PrintTimeTotal, StringFormat='{}{0:HH:mm:ss}'}" />
+                    </TextBlock>
+                </StackPanel>
+                <PathIcon
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    Margin="0,0,8,0"
+                    Data="{StaticResource layer-regular}" />
+                <TextBlock
+                    Grid.Row="1"
+                    Grid.Column="3"
+                    VerticalAlignment="Center"
+                    Classes="caption secondary">
+                    <Run Text="{Binding Item.CurrentLayer, TargetNullValue='---'}" />
+                    <Run Text="/" />
+                    <Run Text="{Binding Item.TotalLayerCount, TargetNullValue='---'}" />
+                </TextBlock>
+                <ProgressBar
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="3"
+                    Height="4"
+                    Background="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Background}}"
+                    Foreground="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}"
+                    Maximum="1"
+                    Minimum="0"
+                    ShowProgressText="False"
+                    Value="{Binding Item.Progress}" />
+            </Grid>
+            <Border
+                Padding="{DynamicResource Padding.Chip}"
+                Background="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Background}}"
+                BorderBrush="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusSm}"
+                IsVisible="{Binding Item.StateMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Foreground="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}" Text="{Binding Item.StateMessage}">
+                    <ToolTip.Tip>
+                        <ListBox ItemsSource="{Binding Item.StateMessages}" />
+                    </ToolTip.Tip>
+                </TextBlock>
+            </Border>
+
+            <UniformGrid ColumnSpacing="{DynamicResource Gap.CardContent}" Rows="1">
+                <Border Background="{DynamicResource SystemBaseLowColor}" Classes="tile">
+                    <StackPanel Classes="gap-0_5">
+                        <TextBlock
+                            HorizontalAlignment="Left"
+                            Classes="overline"
+                            Text="HOTEND" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            Classes="metric"
+                            Text="{Binding Item.NozzleTemperature, StringFormat='{}{0:F1}°'}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Classes="small secondary"
+                            Text="{Binding Item.NozzleTargetTemperature, StringFormat='{}{0:F1}°'}" />
+                    </StackPanel>
+                </Border>
+                <Border Background="{DynamicResource SystemBaseLowColor}" Classes="tile">
+                    <StackPanel Classes="gap-0_5">
+                        <TextBlock
+                            HorizontalAlignment="Left"
+                            Classes="overline"
+                            Text="BED" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            Classes="metric"
+                            Text="{Binding Item.BedTemperature, StringFormat='{}{0:F1}°'}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Classes="small secondary"
+                            Text="{Binding Item.BedTargetTemperature, StringFormat='{}{0:F1}°'}" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <Border BorderBrush="{DynamicResource SystemBaseMediumColor}" Classes="divided">
+                <StackPanel
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    Classes="inline">
+
+                    <Button
+                        MinWidth="{DynamicResource Space10}"
+                        HorizontalContentAlignment="Center"
+                        Classes="icon"
+                        Command="{Binding ShowPrinterFilesCommand}"
+                        IsEnabled="{Binding Item.CanStop}">
+                        <PathIcon Data="{StaticResource stop-regular}" />
+                    </Button>
+                    <Button
+                        MinWidth="{DynamicResource Space10}"
+                        HorizontalContentAlignment="Center"
+                        Classes="icon"
+                        Command="{Binding StopButtonClickedCommand}"
+                        IsEnabled="{Binding Item.CanStop}">
+                        <PathIcon Data="{StaticResource stop-regular}" />
+                    </Button>
+
+                    <Button
+                        MinWidth="{DynamicResource Space10}"
+                        HorizontalContentAlignment="Center"
+                        Classes="icon"
+                        Command="{Binding StartPauseButtonClickedCommand}"
+                        IsEnabled="{Binding Item.CanStartPause}">
+                        <PathIcon
+                            Classes="startPause"
+                            Classes.paused="{Binding Item.IsPaused}"
+                            Classes.printing="{Binding Item.IsPrinting}" />
+                    </Button>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

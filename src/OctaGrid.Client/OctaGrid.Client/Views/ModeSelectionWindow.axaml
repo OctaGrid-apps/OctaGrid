@@ -1,0 +1,46 @@
+﻿<Window
+    x:Class="OctaGrid.Client.Views.ModeSelectionWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Title="ModeSelectionWindow"
+    Padding="{DynamicResource Padding.Dialog}"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    x:DataType="vm:ModeSelectionViewModel"
+    mc:Ignorable="d">
+    <StackPanel
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Classes="page-sections">
+        <TextBlock
+            HorizontalAlignment="Center"
+            Classes="heading"
+            Text="Choose mode" />
+        <StackPanel
+            HorizontalAlignment="Center"
+            Classes="gap-4"
+            Orientation="Horizontal">
+            <Button
+                Width="150"
+                Height="150"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Command="{Binding ChooseLocalModeCommand}"
+                Content="Local" />
+            <Button
+                Width="150"
+                Height="150"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Command="{Binding ChooseRemoteModeCommand}"
+                Content="Remote" />
+        </StackPanel>
+        <CheckBox
+            HorizontalAlignment="Center"
+            Content="Ask on next launch"
+            IsChecked="{Binding AskOnNextLaunch}" />
+    </StackPanel>
+</Window>

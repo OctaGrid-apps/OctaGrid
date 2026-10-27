@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+    xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+    IgnorableNamespaces="uap rescap desktop mp">
+    <Identity Name="OctaGrid.OctaGrid" Publisher="CN=8D9CE064-901D-44B7-85FE-9AF30A86A5AE"
+        Version="1.0.1.0" ProcessorArchitecture="neutral" />
+    <mp:PhoneIdentity PhoneProductId="a8f09d84-c80d-4a0b-8d19-e58f28c1192a"
+        PhonePublisherId="00000000-0000-0000-0000-000000000000" />
+    <Properties>
+        <DisplayName>OctaGrid</DisplayName>
+        <PublisherDisplayName>OctaGrid</PublisherDisplayName>
+        <Logo>Assets\StoreLogo.png</Logo>
+        <Description>Modern, cross-platform 3D printer management dashboard</Description>
+    </Properties>
+    <Dependencies>
+        <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0"
+            MaxVersionTested="10.0.26100.0" />
+    </Dependencies>
+    <Resources>
+        <Resource Language="en-US" />
+    </Resources>
+    <Applications>
+        <Application Id="OctaGrid" Executable="OctaGrid.Client.Desktop.exe"
+            EntryPoint="Windows.FullTrustApplication">
+            <uap:VisualElements DisplayName="OctaGrid"
+                Description="Modern 3D printer management dashboard" BackgroundColor="transparent"
+                Square150x150Logo="Assets\Square150x150Logo.png"
+                Square44x44Logo="Assets\Square44x44Logo.png">
+                <uap:DefaultTile
+                    Wide310x150Logo="Assets\Wide310x150Logo.png"
+                    Square71x71Logo="Assets\SmallTile.png"
+                    Square310x310Logo="Assets\LargeTile.png" />
+                <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#0F1113" />
+            </uap:VisualElements>
+        </Application>
+    </Applications>
+    <Capabilities>
+        <rescap:Capability Name="runFullTrust" />
+        <Capability Name="internetClient" />
+        <Capability Name="privateNetworkClientServer" />
+    </Capabilities>
+</Package>

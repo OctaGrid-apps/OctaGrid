@@ -1,0 +1,68 @@
+# Auto-detect text files and normalize line endings to LF on checkout and commit.
+* text=auto eol=lf
+
+## .NET & C# Source Files
+*.cs diff=csharp text eol=lf
+*.axaml text eol=lf
+*.xaml text eol=lf
+*.csproj text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.sln text eol=crlf
+*.slnx text eol=lf
+
+## Configuration & Markup
+*.json text eol=lf
+*.xml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.editorconfig text eol=lf
+*.gitattributes text eol=lf
+*.gitignore text eol=lf
+*.dockerignore text eol=lf
+*.appxmanifest text eol=lf
+*.manifest text eol=lf
+
+## Scripts
+# Linux / macOS shell scripts must strictly use LF
+*.sh text eol=lf
+# PowerShell scripts
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf
+# Windows command / batch files require CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+## Media & Image Assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf
+*.webp binary
+
+## Fonts
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+## Certificates & Keys
+*.pfx binary
+*.cer binary
+*.snk binary
+*.p12 binary
+
+## Compiled Binaries & Packages
+*.dll binary
+*.exe binary
+*.pdb binary
+*.pri binary
+*.msix binary
+*.msixbundle binary
+*.appx binary
+*.zip binary

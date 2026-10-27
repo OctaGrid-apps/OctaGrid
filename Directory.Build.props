@@ -1,0 +1,23 @@
+<Project>
+  <!-- Shared by every project in the solution, so these settings can't drift per-project the way
+       they had (OctaGrid.Client/OctaGrid.Client.Desktop were missing ImplicitUsings while every
+       other project had it). Project-specific settings (OutputType, RootNamespace, etc.) stay in
+       each individual .csproj. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Product>OctaGrid</Product>
+    <Company>OctaGrid</Company>
+    <Authors>OctaGrid Contributors</Authors>
+    <Copyright>Copyright (c) 2026 OctaGrid</Copyright>
+    <Description>Modern, cross-platform 3D printer management dashboard</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+    <UpToDateCheckInput Include="version.json" Condition="Exists('version.json')" />
+    <UpToDateCheckInput Include="$(MSBuildThisFileDirectory)version.json" Condition="Exists('$(MSBuildThisFileDirectory)version.json')" />
+  </ItemGroup>
+</Project>

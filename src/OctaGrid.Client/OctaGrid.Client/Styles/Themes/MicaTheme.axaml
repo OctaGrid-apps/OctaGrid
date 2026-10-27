@@ -1,0 +1,149 @@
+﻿<!--
+    OctaGrid.Client — Windows Mica Theme.
+    Designed for Windows 11 where Window uses TransparencyLevelHint="Mica" and Background="Transparent".
+    Uses translucent white overlays (#05FFFFFF - #24FFFFFF) so the OS Mica surface shows through.
+-->
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <!--  1. Placeholder & Secondary Foreground (separate from BaseMedium)  -->
+                    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#9E000000" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#9E000000" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#B3000000" />
+                    <SolidColorBrush x:Key="ComboBoxPlaceHolderForeground" Color="#9E000000" />
+                    <SolidColorBrush x:Key="TabItemHeaderForegroundUnselected" Color="#9E000000" />
+                    <SolidColorBrush x:Key="MenuFlyoutItemKeyboardAcceleratorTextForeground" Color="#9E000000" />
+
+                    <!--  2. Hovered Outlines (separate from BaseMediumHigh)  -->
+                    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#29000000" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#29000000" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#29000000" />
+
+                    <!--  3. Arrow / Glyph colors  -->
+                    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#9E000000" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocused" Color="#C8000000" />
+                    <SolidColorBrush x:Key="TextControlButtonForeground" Color="#9E000000" />
+
+                    <!--  4. ComboBox Selected Item (subtle translucent highlight)  -->
+                    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#0F000000" />
+                    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#17000000" />
+                    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="#0A000000" />
+                    <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#FF000000" />
+                    <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="#FF000000" />
+                    <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed" Color="#D0000000" />
+
+                    <!--  5. NavigationRail Mica Surface Brushes  -->
+                    <SolidColorBrush x:Key="NavigationRailPaneBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="NavigationRailContentBackground" Color="#80FFFFFF" />
+                    <SolidColorBrush x:Key="NavigationRailContentBorderBrush" Color="#0F000000" />
+                    <SolidColorBrush x:Key="NavigationRailItemForeground" Color="#5C5C5C" />
+                    <SolidColorBrush x:Key="NavigationRailItemPointerOverBackground" Color="#0A000000" />
+                    <SolidColorBrush x:Key="NavigationRailItemPointerOverForeground" Color="#000000" />
+                    <SolidColorBrush x:Key="NavigationRailItemSelectedBackground" Color="#12000000" />
+                    <SolidColorBrush x:Key="NavigationRailAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+
+                    <!--  6. OverlayDialog Surface Brushes (opaque floating surface)  -->
+                    <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#1A000000" />
+
+                    <!--  7. SettingsExpander Sub-Card Surface Brush  -->
+                    <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#80FFFFFF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <!--  1. Separate Placeholder & Secondary Foreground from BaseMedium (#10FFFFFF)  -->
+                    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#78FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#78FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#99FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxPlaceHolderForeground" Color="#78FFFFFF" />
+                    <SolidColorBrush x:Key="TabItemHeaderForegroundUnselected" Color="#78FFFFFF" />
+                    <SolidColorBrush x:Key="MenuFlyoutItemKeyboardAcceleratorTextForeground" Color="#78FFFFFF" />
+
+                    <!--  2. Separate Hovered Outlines from BaseMediumHigh (#78FFFFFF)  -->
+                    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#24FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#24FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#24FFFFFF" />
+
+                    <!--  3. Explicitly control Arrow / Glyph colors  -->
+                    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#78FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocused" Color="#B0FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlButtonForeground" Color="#78FFFFFF" />
+
+                    <!--  4. ComboBox Selected Item Colors (subtle translucent highlight instead of solid yellow)  -->
+                    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#14FFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="#0FFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed" Color="#D0FFFFFF" />
+
+                    <!--  5. NavigationRail Mica Surface Brushes  -->
+                    <SolidColorBrush x:Key="NavigationRailPaneBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="NavigationRailContentBackground" Color="#05FFFFFF" />
+                    <SolidColorBrush x:Key="NavigationRailContentBorderBrush" Color="#18FFFFFF" />
+                    <SolidColorBrush x:Key="NavigationRailItemForeground" Color="#C5C5C5" />
+                    <SolidColorBrush x:Key="NavigationRailItemPointerOverBackground" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="NavigationRailItemPointerOverForeground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavigationRailItemSelectedBackground" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="NavigationRailAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+
+                    <!--  6. OverlayDialog Surface Brushes (opaque floating surface over Mica window)  -->
+                    <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FF2C2C2C" />
+                    <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#24FFFFFF" />
+
+                    <!--  7. SettingsExpander Sub-Card Surface Brush  -->
+                    <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#02FFFFFF" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+    <FluentTheme>
+        <FluentTheme.Palettes>
+            <ColorPaletteResources
+                x:Key="Light"
+                AltHigh="#05000000"
+                AltMedium="#08000000"
+                AltMediumLow="White"
+                BaseHigh="Black"
+                BaseLow="#08000000"
+                BaseMedium="#10000000"
+                BaseMediumHigh="#78000000"
+                BaseMediumLow="#36000000"
+                ChromeDisabledLow="#FFA6A6A6"
+                ChromeMedium="#FFF3F3F3"
+                ChromeMediumLow="#FFF3F3F3"
+                ListLow="#08000000"
+                ListMedium="#03000000" />
+
+            <ColorPaletteResources
+                x:Key="Dark"
+                AltHigh="#05FFFFFF"
+                AltMedium="#08FFFFFF"
+                AltMediumLow="#05FFFFFF"
+                BaseHigh="White"
+                BaseLow="#08FFFFFF"
+                BaseMedium="#10FFFFFF"
+                BaseMediumHigh="#78FFFFFF"
+                BaseMediumLow="#36FFFFFF"
+                ChromeDisabledLow="#FF595858"
+                ChromeMedium="#FF2C2C2C"
+                ChromeMediumLow="#FF2C2C2C"
+                ListLow="#08FFFFFF"
+                ListMedium="#03FFFFFF" />
+        </FluentTheme.Palettes>
+    </FluentTheme>
+
+    <!--  Make Avalonia 12's drawn title bar transparent so Window Mica backdrop shows through  -->
+    <Style Selector="WindowDrawnDecorations:has-titlebar /template/ Panel#PART_TitleBar">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!--  Prevent ContentPage from drawing an extra AltHigh (#05FFFFFF) background on its PART_ContentPresenter  -->
+    <Style Selector="ContentPage">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+</Styles>

@@ -1,0 +1,99 @@
+﻿<Window
+    x:Class="OctaGrid.Client.Views.IdentityView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Padding="{DynamicResource Padding.Dialog}"
+    d:DesignHeight="450"
+    d:DesignWidth="600"
+    x:DataType="vm:IdentityViewModel"
+    mc:Ignorable="d">
+    <Grid Width="400">
+        <StackPanel VerticalAlignment="Center" Classes="form">
+            <TextBlock
+                HorizontalAlignment="Center"
+                Classes="heading"
+                Text="Sign in to OctaGrid" />
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="small secondary" Text="Email" />
+                <TextBox PlaceholderText="you@example.com" Text="{Binding Email}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="small secondary" Text="Password" />
+                <TextBox PasswordChar="*" Text="{Binding Password}" />
+            </StackPanel>
+
+            <TextBlock
+                Classes="small"
+                Foreground="Red"
+                IsVisible="{Binding HasError}"
+                Text="{Binding ErrorMessage}"
+                TextWrapping="Wrap" />
+
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Classes="primary"
+                Command="{Binding SignInCommand}"
+                Content="Sign in" />
+
+            <Button
+                HorizontalAlignment="Center"
+                Background="Transparent"
+                BorderThickness="0"
+                Command="{Binding SwitchToSignUpCommand}"
+                Content="Need an account? Sign up" />
+        </StackPanel>
+        <StackPanel
+            VerticalAlignment="Center"
+            Classes="form"
+            IsVisible="False">
+            <TextBlock
+                HorizontalAlignment="Center"
+                Classes="heading"
+                Text="Create your OctaGrid account"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="small secondary" Text="Name" />
+                <TextBox PlaceholderText="Jane Doe" Text="{Binding Name}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="small secondary" Text="Email" />
+                <TextBox PlaceholderText="you@example.com" Text="{Binding Email}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="small secondary" Text="Password" />
+                <TextBox PasswordChar="*" Text="{Binding Password}" />
+            </StackPanel>
+
+            <TextBlock
+                Classes="small"
+                Foreground="Red"
+                IsVisible="{Binding HasError}"
+                Text="{Binding ErrorMessage}"
+                TextWrapping="Wrap" />
+
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Classes="primary"
+                Command="{Binding SignUpCommand}"
+                Content="Sign up" />
+
+            <Button
+                HorizontalAlignment="Center"
+                Background="Transparent"
+                BorderThickness="0"
+                Command="{Binding SwitchToSignInCommand}"
+                Content="Already have an account? Sign in" />
+        </StackPanel>
+    </Grid>
+</Window>

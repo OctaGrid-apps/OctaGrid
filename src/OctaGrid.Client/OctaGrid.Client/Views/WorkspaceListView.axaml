@@ -1,0 +1,136 @@
+﻿<ContentPage
+    x:Class="OctaGrid.Client.Views.WorkspaceListView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    xmlns:ws="using:OctaGrid.Protocol.Workspaces"
+    controls:NavigationRail.Icon="{StaticResource grid-dots-regular}"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:WorkspaceListViewModel"
+    Background="Transparent"
+    Header="Workspaces"
+    mc:Ignorable="d">
+    <Design.DataContext>
+        <vm:WorkspaceListViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="{DynamicResource Gap.PageSection}">
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock
+                VerticalAlignment="Center"
+                Classes="title"
+                Text="Workspaces" />
+            <Button
+                Grid.Column="1"
+                Classes="primary"
+                Command="{Binding CreateWorkspaceCommand}">
+                <StackPanel Classes="inline">
+                    <PathIcon Width="12" Data="{StaticResource add-regular}" />
+                    <TextBlock VerticalAlignment="Center" Text="New Workspace" />
+                </StackPanel>
+            </Button>
+        </Grid>
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Workspaces}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel
+                        ItemSpacing="{DynamicResource Gap.CardGrid}"
+                        LineSpacing="{DynamicResource Gap.CardGrid}"
+                        Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <ItemsControl.DataTemplates>
+                <DataTemplate x:DataType="ws:WorkspaceSummaryResponse">
+                    <Border
+                        Background="{DynamicResource SystemAltMediumLowColor}"
+                        BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                        BorderThickness="1"
+                        Classes="card"
+                        CornerRadius="{DynamicResource RadiusXl}">
+                        <StackPanel MinWidth="300" Classes="card-content">
+                            <DockPanel>
+                                <Button
+                                    VerticalAlignment="Top"
+                                    AutomationProperties.Name="More options"
+                                    BorderBrush="Transparent"
+                                    Classes="icon"
+                                    DockPanel.Dock="Right">
+                                    <PathIcon
+                                        Width="12"
+                                        Height="12"
+                                        Data="{StaticResource more-vertical-regular}" />
+                                    <Button.Flyout>
+                                        <MenuFlyout>
+                                            <MenuItem
+                                                Command="{Binding $parent[ContentPage].((vm:WorkspaceListViewModel)DataContext).EditWorkspaceCommand}"
+                                                CommandParameter="{Binding}"
+                                                Header="Rename">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{StaticResource edit-regular}" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem CommandParameter="{Binding}" Header="Delete">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{StaticResource delete-regular}" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <TextBlock Classes="title" Text="{Binding Name}" />
+                            </DockPanel>
+
+                            <UniformGrid ColumnSpacing="{DynamicResource Gap.CardContent}" Rows="1">
+                                <Border
+                                    Background="{DynamicResource SystemBaseLowColor}"
+                                    Classes="tile"
+                                    ToolTip.Tip="Members">
+                                    <StackPanel Classes="gap-0_5">
+                                        <PathIcon Data="{StaticResource people-regular}" />
+                                        <TextBlock
+                                            Classes="body secondary"
+                                            Text="{Binding UsersCount}"
+                                            TextAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Background="{DynamicResource SystemBaseLowColor}"
+                                    Classes="tile"
+                                    ToolTip.Tip="Printers">
+                                    <StackPanel Classes="gap-0_5">
+                                        <PathIcon Data="{StaticResource print-regular}" />
+                                        <TextBlock
+                                            Classes="body secondary"
+                                            Text="{Binding PrintersCount}"
+                                            TextAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Background="{DynamicResource SystemBaseLowColor}"
+                                    Classes="tile"
+                                    ToolTip.Tip="Agents">
+                                    <StackPanel Classes="gap-0_5">
+                                        <PathIcon Data="{StaticResource agents-regular}" />
+                                        <TextBlock
+                                            Classes="body secondary"
+                                            Text="{Binding AgentsCount}"
+                                            TextAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.DataTemplates>
+        </ItemsControl>
+    </Grid>
+</ContentPage>

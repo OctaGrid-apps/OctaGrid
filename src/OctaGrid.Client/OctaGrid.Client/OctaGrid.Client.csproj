@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>OctaGrid.Client</RootNamespace>
+    <AvaloniaHotReloadEnableFileWatcher>true</AvaloniaHotReloadEnableFileWatcher>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="System.Reactive" />
+    <PackageReference Include="Xaml.Behaviors.Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Deliberately NOT Client.Local or Agent.Core — those are Desktop-only (SQLite, the printer
+         agent runtime). The shared UI depends only on IAgentHost/IUsersClient/etc. from
+         Client.Contracts, and OctaGrid.Application for the telemetry message contracts
+         (IMessagePublisher/ITelemetryStream) LocalMessageHandler implements. Enforced by these
+         references, not convention, so a future non-desktop head can't accidentally pull in
+         either. -->
+    <ProjectReference Include="..\..\OctaGrid.Client.Contracts\OctaGrid.Client.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Controls\NavigationView\NavigationRail.axaml.cs">
+      <DependentUpon>NavigationRail.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Dialogs\FilePickerView.axaml.cs">
+      <DependentUpon>FilePickerView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Dialogs\EditDashboardView.axaml.cs">
+      <DependentUpon>EditDashboardView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\AgentListView.axaml.cs">
+      <DependentUpon>AgentListView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\DashboardsView.axaml.cs">
+      <DependentUpon>DashboardsView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\PrinterListView.axaml.cs">
+      <DependentUpon>PrinterListView.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\WorkspaceListView.axaml.cs">
+      <DependentUpon>WorkspaceListView.axaml</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <Target Name="FormatAxaml" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Debug' AND '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet xstyler -d &quot;$(MSBuildProjectDirectory)&quot; -r -l Minimal"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          IgnoreExitCode="true" />
+  </Target>
+</Project>

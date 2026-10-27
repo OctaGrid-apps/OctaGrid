@@ -1,0 +1,168 @@
+using System.Text.Json;
+using OctaGrid.Protocol.Messaging;
+using StreamJsonRpc;
+
+namespace OctaGrid.Agent.Core.Clients.Moonraker;
+
+public class MoonrakerListener
+{
+    private readonly Guid _deviceId;
+    private readonly PrinterTelemetry _printerTelemetry;
+    private readonly ITelemetryService _telemetryService;
+    private string? _printState;
+    private string? _webhooksState;
+
+    public MoonrakerListener(Guid deviceId, ITelemetryService telemetryService)
+    {
+        _deviceId = deviceId;
+        _telemetryService = telemetryService;
+        _printerTelemetry = new PrinterTelemetry(_deviceId);
+    }
+
+    // The file/thumbnail flow (MoonrakerFileClient) asks for this instead of duplicating the
+    // print_stats tracking that already happens below.
+    public string? CurrentFileName => _printerTelemetry.PrintStatus.FileName;
+
+    /// <summary>
+    /// Folds server.files.metadata's "estimated_time" into telemetry. Called by MoonrakerFileClient
+    /// after a metadata query made for the thumbnail flow — this is the only place PrinterTelemetry
+    /// is mutated, so the file client itself stays free of telemetry concerns.
+    /// </summary>
+    public void OnFileMetadata(double? estimatedTimeSeconds)
+    {
+        if (estimatedTimeSeconds is not { } seconds)
+        {
+            return;
+        }
+
+        var value = TimeOnly.FromTimeSpan(TimeSpan.FromSeconds(seconds));
+        if (_printerTelemetry.PrintStatus.EstimatedPrintTime != value)
+        {
+            _printerTelemetry.PrintStatus.EstimatedPrintTime = value;
+            _telemetryService.Send(_printerTelemetry);
+        }
+    }
+
+    [JsonRpcMethod("notify_gcode_response")]
+    public void OnGcodeResponse(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.String)
+        {
+            return;
+        }
+
+        if (!AddStateMessage(payload.GetString()))
+        {
+            return;
+        }
+        _telemetryService.Send(_printerTelemetry);
+    }
+
+    [JsonRpcMethod("notify_klippy_disconnected")]
+    public void OnKlippyDisconnected()
+    {
+        Console.WriteLine("Warning: Klippy disconnected from Moonraker!");
+    }
+
+    [JsonRpcMethod("notify_klippy_ready")]
+    public void OnKlippyReady()
+    {
+        Console.WriteLine("[Moonraker Alert] Klippy is ready.");
+    }
+
+    [JsonRpcMethod("notify_klippy_shutdown")]
+    public void OnKlippyShutdown()
+    {
+        Console.WriteLine("[Moonraker Alert] Klippy has entered shutdown state.");
+    }
+
+    [JsonRpcMethod("notify_proc_stat_update")]
+    public void OnProcStatusUpdate(JsonElement status)
+    {
+    }
+
+    [JsonRpcMethod("notify_status_update")]
+    public void OnStatusUpdate(JsonElement payload, double eventTime)
+    {
+        var status = payload.TryGetProperty("status", out var inner) ? inner : payload;
+        if (status.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var t = _printerTelemetry;
+        var changed = false;
+        var stateChanged = false;
+
+        if (status.TryGetProperty("webhooks", out var webhooks))
+        {
+            stateChanged |= webhooks.Update("state", _webhooksState, v => _webhooksState = v);
+            string? stateMessage = null;
+            changed |= webhooks.Update("state_message", stateMessage, v => stateMessage = v);
+            AddStateMessage(stateMessage);
+        }
+
+        if (status.TryGetProperty("extruder", out var extruder))
+        {
+            changed |= extruder.Update("temperature", t.NozzleTemperature, v => t.NozzleTemperature = v);
+            changed |= extruder.Update("target", t.NozzleTargetTemperature, v => t.NozzleTargetTemperature = v);
+        }
+
+        if (status.TryGetProperty("heater_bed", out var bed))
+        {
+            changed |= bed.Update("temperature", t.BedTemperature, v => t.BedTemperature = v);
+            changed |= bed.Update("target", t.BedTargetTemperature, v => t.BedTargetTemperature = v);
+        }
+
+        if (status.TryGetProperty("display_status", out var display))
+        {
+            changed |= display.Update("progress", t.PrintStatus.Progress, v => t.PrintStatus.Progress = v, digits: 3);
+        }
+
+        if (status.TryGetProperty("print_stats", out var print))
+        {
+            changed |= print.Update("filename", t.PrintStatus.FileName, v => t.PrintStatus.FileName = v);
+            changed |= print.Update("print_duration", t.PrintStatus.PrintTime, v => t.PrintStatus.PrintTime = v);
+            changed |= print.Update("total_duration", t.PrintStatus.PrintTimeTotal, v => t.PrintStatus.PrintTimeTotal = v);
+            stateChanged |= print.Update("state", _printState, v => _printState = v);
+
+            if (print.TryGetProperty("info", out var info))
+            {
+                changed |= info.Update("total_layer", t.PrintStatus.LayersCount, v => t.PrintStatus.LayersCount = v);
+                changed |= info.Update("current_layer", t.PrintStatus.CurrentLayer, v => t.PrintStatus.CurrentLayer = v);
+            }
+        }
+
+        if (stateChanged)
+        {
+            // Named: both are plain strings, so a swapped call would compile and silently misreport.
+            var printerState = Extensions.ToPrinterState(printStatsState: _printState, klippyState: _webhooksState);
+            if (t.State != printerState)
+            {
+                t.State = printerState;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _telemetryService.Send(t);
+        }
+    }
+
+    private bool AddStateMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var t = _printerTelemetry;
+        t.StateMessages.Push(new PrinterStateMessage(message));
+        if (t.StateMessages.Count > 10)
+        {
+            t.StateMessages.Pop();
+        }
+        return true;
+    }
+}

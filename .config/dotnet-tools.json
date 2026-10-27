@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "dotnet-ef": {
+      "version": "10.0.12",
+      "commands": [
+        "dotnet-ef"
+      ],
+      "rollForward": false
+    },
+    "xamlstyler.console": {
+      "version": "3.2501.8",
+      "commands": [
+        "xstyler"
+      ],
+      "rollForward": false
+    },
+    "dotnet-outdated-tool": {
+      "version": "4.8.1",
+      "commands": [
+        "dotnet-outdated"
+      ],
+      "rollForward": false
+    },
+    "dotnet-depends": {
+      "version": "0.8.0",
+      "commands": [
+        "dotnet-depends"
+      ],
+      "rollForward": false
+    },
+    "nbgv": {
+      "version": "3.10.94",
+      "commands": [
+        "nbgv"
+      ],
+      "rollForward": false
+    }
+  }
+}

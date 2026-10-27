@@ -1,0 +1,134 @@
+<ContentPage
+    x:Class="OctaGrid.Client.Views.SettingsView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    controls:NavigationRail.Icon="{StaticResource settings-regular}"
+    d:DesignHeight="800"
+    d:DesignWidth="1600"
+    x:DataType="vm:SettingsViewModel"
+    Background="Transparent"
+    Header="Settings"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel
+            MaxWidth="1024"
+            HorizontalAlignment="Stretch"
+            Classes="page-sections">
+
+            <TextBlock Classes="title" Text="Settings" />
+
+            <!--  Mode Section  -->
+            <controls:SettingsGroup Header="Mode" IsVisible="False">
+                <controls:SettingsExpander
+                    Description="Define how application will work - locally or with a server"
+                    Header="Application mode"
+                    Icon="{StaticResource virtual-network-regular}"
+                    IsExpanded="True"
+                    IsRestartRequired="{Binding IsClientModeApplied}"
+                    RestartCommand="{Binding RestartAppCommand}">
+                    <controls:SettingsExpander.Content>
+                        <ComboBox
+                            DisplayMemberBinding="{Binding DisplayText}"
+                            ItemsSource="{Binding AppClientModes}"
+                            SelectedItem="{Binding SelectedAppClientMode}" />
+                    </controls:SettingsExpander.Content>
+
+                    <controls:SettingsCard
+                        Description="Remote server address"
+                        Header="Server host"
+                        Icon="{StaticResource server-link-regular}"
+                        IsVisible="{Binding IsRemoteMode}">
+                        <TextBox MinWidth="240" PlaceholderText="https://server_address.com" />
+                    </controls:SettingsCard>
+
+                    <controls:SettingsCard Header="Ask on app startup" Icon="{StaticResource task-list-square-regular}">
+                        <ToggleSwitch
+                            IsChecked="{Binding AskClientModeOnAppStart}"
+                            OffContent="Disabled"
+                            OnContent="Enabled" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander>
+            </controls:SettingsGroup>
+
+            <!--  Appearance Section  -->
+            <controls:SettingsGroup Header="Appearance">
+                <controls:SettingsCard
+                    Description="Application appearance"
+                    Header="Theme"
+                    Icon="{StaticResource paint-brush-regular}">
+                    <ComboBox
+                        DisplayMemberBinding="{Binding DisplayText}"
+                        ItemsSource="{Binding AppElementThemes}"
+                        SelectedItem="{Binding SelectedAppElementTheme}" />
+                </controls:SettingsCard>
+
+                <controls:SettingsCard
+                    Description="Window transparency level"
+                    Header="Transparency level"
+                    Icon="{StaticResource square-hint-sparkles-regular}"
+                    IsVisible="False">
+                    <ComboBox
+                        DisplayMemberBinding="{Binding DisplayText}"
+                        ItemsSource="{Binding WindowTransparencyLevels}"
+                        SelectedItem="{Binding SelectedWindowTransparencyLevel}" />
+                </controls:SettingsCard>
+            </controls:SettingsGroup>
+
+            <!--  Language Section  -->
+            <controls:SettingsGroup Header="Language" IsVisible="False">
+                <controls:SettingsCard Header="App language" Icon="{StaticResource local-language-globe-regular}">
+                    <ComboBox SelectedIndex="0">
+                        <ComboBox.Items>
+                            <ComboBoxItem Content="English" />
+                        </ComboBox.Items>
+                    </ComboBox>
+                </controls:SettingsCard>
+            </controls:SettingsGroup>
+
+            <!--  Update Section  -->
+            <controls:SettingsGroup Header="Updates">
+                <controls:SettingsCard
+                    Description="No updates available"
+                    Header="Check for update"
+                    Icon="{StaticResource sync-regular}">
+                    <Button Content="Check for updates" />
+                </controls:SettingsCard>
+            </controls:SettingsGroup>
+
+            <!--  About  -->
+            <controls:SettingsGroup Header="About">
+                <controls:SettingsExpander
+                    Description="{Binding AppVersion}"
+                    Header="OctaGrid"
+                    Icon="{StaticResource virtual-network-regular}"
+                    IsExpanded="False">
+                    <controls:SettingsExpander.Content>
+                        <TextBlock Text="More" />
+                    </controls:SettingsExpander.Content>
+
+                    <controls:SettingsCard>
+                        <controls:SettingsCard.Header>
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                <TextBlock>
+                                    <Run Text="Version" />
+                                    <LineBreak />
+                                    <Run Text="GitHub" />
+                                </TextBlock>
+                                <SelectableTextBlock Grid.Column="1" Classes="secondary">
+                                    <Run Text="{Binding InfoVersion}" />
+                                    <LineBreak />
+                                    <Run Text="https://github.com" />
+                                </SelectableTextBlock>
+                            </Grid>
+                        </controls:SettingsCard.Header>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander>
+            </controls:SettingsGroup>
+        </StackPanel>
+    </ScrollViewer>
+</ContentPage>

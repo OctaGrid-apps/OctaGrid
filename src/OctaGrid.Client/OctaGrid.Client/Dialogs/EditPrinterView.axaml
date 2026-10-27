@@ -1,0 +1,83 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.EditPrinterView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:OctaGrid.Client.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:EditPrinterViewModel"
+    mc:Ignorable="d">
+    <Grid
+        Width="400"
+        RowDefinitions="*,Auto"
+        RowSpacing="{DynamicResource Gap.Form}">
+        <StackPanel Classes="form">
+            <StackPanel Classes="field">
+                <Label Content="Printer Name" Target="printerName" />
+                <TextBox x:Name="printerName" Text="{Binding Item.Name}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <Label Content="Printer Address" Target="printerUrl" />
+                <TextBox
+                    x:Name="printerUrl"
+                    PlaceholderText="192.168.0.1"
+                    Text="{Binding Item.Address}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <Label Content="API Key" Target="apiKey" />
+                <TextBox x:Name="apiKey" Text="{Binding Item.ApiKey}" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="Auto, *" ColumnSpacing="{DynamicResource Gap.IconLabel}">
+                <Label
+                    VerticalAlignment="Center"
+                    Content="Connection protocol:"
+                    Target="connectionProtocol" />
+                <ComboBox
+                    x:Name="connectionProtocol"
+                    Grid.Column="1"
+                    HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding PrinterConnectionProtocols}"
+                    SelectedItem="{Binding Item.ConnectionProtocol}" />
+            </Grid>
+
+            <ToggleSwitch
+                IsChecked="{Binding Item.IsEnabled}"
+                OffContent="Disabled"
+                OnContent="Enabled" />
+
+            <StackPanel Classes="field">
+                <Button
+                    HorizontalAlignment="Left"
+                    Command="{Binding TestConnectionCommand}"
+                    Content="Test connection"
+                    IsEnabled="{Binding CanTestPritnerConnection}" />
+                <TextBlock
+                    Classes="small"
+                    Foreground="{Binding TestResultStateKey, Converter={x:Static conv:StateBrushConverter.Foreground}}"
+                    IsVisible="{Binding HasTestResult}"
+                    Text="{Binding TestResultMessage}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button Command="{Binding CancelCommand}" Content="Cancel" />
+            <Button
+                Classes="primary"
+                Command="{Binding ConfirmCommand}"
+                Content="OK"
+                IsEnabled="{Binding !Item.HasErrors}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

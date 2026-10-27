@@ -1,0 +1,35 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Dialogs.EditWorkspaceView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    MinWidth="350"
+    MinHeight="150"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:EditWorkspaceViewModel">
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <StackPanel Classes="field">
+            <Label Content="Workspace Name" Target="workspaceName" />
+            <TextBox
+                x:Name="workspaceName"
+                VerticalAlignment="Center"
+                Text="{Binding Item.Name}"
+                TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button Command="{Binding CancelCommand}" Content="Cancel" />
+            <Button
+                Classes="primary"
+                Command="{Binding ConfirmCommand}"
+                Content="OK"
+                IsEnabled="{Binding !Item.HasErrors}" />
+        </StackPanel>
+    </Grid>
+
+</UserControl>

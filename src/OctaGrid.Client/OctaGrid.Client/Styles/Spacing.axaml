@@ -1,0 +1,125 @@
+﻿<!--
+OctaGrid.Client — spacing, radius and control-size tokens.
+See SPACING.md for the rules behind these values.
+
+Two layers:
+1. Primitives  (Space*, Radius*)  — the scale. Only change these to re-tune the whole app.
+2. Semantic    (Gap.*, Padding.*) — what views and styles actually reference.
+
+Views should reference SEMANTIC keys. Primitives exist so semantic values stay on the grid.
+
+Merge into App.axaml:
+<Application.Resources>
+<ResourceDictionary>
+<ResourceDictionary.MergedDictionaries>
+<ResourceInclude Source="avares://OctaGrid.Client/Styles/Tokens/Spacing.axaml" />
+</ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>
+</Application.Resources>-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        ═══════════════ 1. PRIMITIVE SCALE (4px base) ═══════════════
+        Name = step, value = step × 4px.  Space1_5 / Space0_5 are the only half-steps.
+    -->
+    <x:Double x:Key="Space0">0</x:Double>
+    <x:Double x:Key="Space0_5">2</x:Double>
+    <x:Double x:Key="Space1">4</x:Double>
+    <x:Double x:Key="Space1_5">6</x:Double>
+    <x:Double x:Key="Space2">8</x:Double>
+    <x:Double x:Key="Space3">12</x:Double>
+    <x:Double x:Key="Space4">16</x:Double>
+    <x:Double x:Key="Space5">20</x:Double>
+    <x:Double x:Key="Space6">24</x:Double>
+    <x:Double x:Key="Space8">32</x:Double>
+    <x:Double x:Key="Space10">40</x:Double>
+    <x:Double x:Key="Space12">48</x:Double>
+    <x:Double x:Key="Space16">64</x:Double>
+
+    <!--  ═══════════════ RADIUS ═══════════════  -->
+    <CornerRadius x:Key="RadiusNone">0</CornerRadius>
+    <CornerRadius x:Key="RadiusSm">4</CornerRadius>
+    <!--  indicators, tags  -->
+    <CornerRadius x:Key="RadiusMd">8</CornerRadius>
+    <!--  buttons, inputs, nav items, icon tiles  -->
+    <CornerRadius x:Key="RadiusLg">12</CornerRadius>
+    <!--  popups, menus, settings cards  -->
+    <CornerRadius x:Key="RadiusLgTop">12,12,0,0</CornerRadius>
+    <!--  top card in a stacked group  -->
+    <CornerRadius x:Key="RadiusLgBottom">0,0,12,12</CornerRadius>
+    <!--  bottom card in a stacked group  -->
+    <CornerRadius x:Key="RadiusXl">16</CornerRadius>
+    <!--  cards, dialogs  -->
+    <CornerRadius x:Key="RadiusFull">999</CornerRadius>
+    <!--  chips, toggles, avatars  -->
+
+    <!--  ═══════════════ CONTROL HEIGHTS ═══════════════  -->
+    <x:Double x:Key="ControlHeightSm">28</x:Double>
+    <!--  chips, small inline buttons  -->
+    <x:Double x:Key="ControlHeightMd">36</x:Double>
+    <!--  default buttons, inputs, nav items  -->
+    <x:Double x:Key="ControlHeightLg">44</x:Double>
+    <!--  touch-first / primary CTAs  -->
+
+    <!--
+        ═══════════════ 2. SEMANTIC — GAPS (StackPanel.Spacing etc.) ═══════════════
+        Rule: the gap BETWEEN groups is always larger than the gap INSIDE a group.
+    -->
+    <x:Double x:Key="Gap.Hairline">2</x:Double>
+    <!--  Space0_5 · nav item list, stacked settings cards  -->
+    <x:Double x:Key="Gap.KeyValue">6</x:Double>
+    <!--  Space1_5 · label/value rows  -->
+    <x:Double x:Key="Gap.Inline">8</x:Double>
+    <!--  Space2 · icon+text, chips, toolbar buttons  -->
+    <x:Double x:Key="Gap.IconLabel">12</x:Double>
+    <!--  Space3 · 38px icon tile + title block, nav icon + text  -->
+    <x:Double x:Key="Gap.CardContent">12</x:Double>
+    <!--  Space3 · sections inside a card  -->
+    <x:Double x:Key="Gap.CardGrid">20</x:Double>
+    <!--  Space5 · between cards  -->
+    <x:Double x:Key="Gap.PageSection">24</x:Double>
+    <!--  Space6 · header → filters → grid  -->
+    <x:Double x:Key="Gap.FormField">4</x:Double>
+    <!--  Space1 · label → its input  -->
+    <x:Double x:Key="Gap.Form">16</x:Double>
+    <!--  Space4 · between fields, and fields → dialog actions  -->
+
+    <!--  ═══════════════ 2. SEMANTIC — PADDING (Thickness: L,T,R,B or H,V) ═══════════════  -->
+    <Thickness x:Key="Padding.Page">32,24</Thickness>
+    <!--  Space8 h / Space6 v  -->
+    <Thickness x:Key="Padding.Sidebar">12,20</Thickness>
+    <!--  Space3 h / Space5 v  -->
+    <Thickness x:Key="Padding.Card">16</Thickness>
+    <!--  Space4  -->
+    <Thickness x:Key="Padding.SettingsSubCard">48,12,16,12</Thickness>
+    <!--  Space12 left indent, Space3 v, Space4 right  -->
+    <Thickness x:Key="Padding.Dialog">24</Thickness>
+    <!--  Space6  -->
+    <Thickness x:Key="Padding.NavItem">12,8</Thickness>
+    <!--  Space3 / Space2  -->
+    <Thickness x:Key="Padding.SectionLabel">12,0,12,8</Thickness>
+    <Thickness x:Key="Padding.Button">16,8</Thickness>
+    <!--  Space4 / Space2  -->
+    <Thickness x:Key="Padding.ButtonSm">12,6</Thickness>
+    <!--  Space3 / Space1_5  -->
+    <Thickness x:Key="Padding.Input">12,8</Thickness>
+    <!--  Space3 / Space2  -->
+    <Thickness x:Key="Padding.Chip">12,6</Thickness>
+    <!--  Space3 / Space1_5  -->
+    <Thickness x:Key="Padding.IconButton">4</Thickness>
+    <!--  Space1  -->
+    <Thickness x:Key="Padding.DividedSection">0,12,0,0</Thickness>
+    <!--  top padding under a divider  -->
+    <Thickness x:Key="Padding.Tile">12</Thickness>
+    <!--  Space3 · stat tiles inside a card  -->
+    <Thickness x:Key="Padding.Badge">8,2</Thickness>
+    <!--  Space2 / Space0_5 · status pills  -->
+
+    <!--  ═══════════════ 2. SEMANTIC — MARGIN (use sparingly; prefer Gap.*) ═══════════════  -->
+    <Thickness x:Key="Margin.SidebarBrand">8,4,8,20</Thickness>
+    <Thickness x:Key="Margin.SidebarSwitcher">0,0,0,16</Thickness>
+    <Thickness x:Key="Margin.ToolbarDivider">4,0</Thickness>
+    <Thickness x:Key="Margin.DialogInset">24</Thickness>
+    <!--  gap between an overlay dialog and the window edge  -->
+
+</ResourceDictionary>

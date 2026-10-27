@@ -1,0 +1,31 @@
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="State.Default.Background" Color="#0B0D16" />
+    <SolidColorBrush x:Key="State.Default.Foreground" Color="#b4bcc5" />
+
+    <SolidColorBrush x:Key="State.Printing.Background" Color="#1c322c" />
+    <SolidColorBrush x:Key="State.Printing.Foreground" Color="#3ddc97" />
+
+    <SolidColorBrush x:Key="State.Preparing.Background" Color="#242833" />
+    <SolidColorBrush x:Key="State.Preparing.Foreground" Color="#8C9BFF" />
+
+    <SolidColorBrush x:Key="State.Paused.Background" Color="#322d21" />
+    <SolidColorBrush x:Key="State.Paused.Foreground" Color="#f5b83d" />
+
+    <SolidColorBrush x:Key="State.Completed.Background" Color="#243033" />
+    <SolidColorBrush x:Key="State.Completed.Foreground" Color="#8cfff5" />
+
+    <SolidColorBrush x:Key="State.Idle.Background" Color="#292d32" />
+    <SolidColorBrush x:Key="State.Idle.Foreground" Color="#a9b8c8" />
+
+    <SolidColorBrush x:Key="State.Cancelled.Background" Color="#333224" />
+    <SolidColorBrush x:Key="State.Cancelled.Foreground" Color="#FFC38C" />
+
+    <SolidColorBrush x:Key="State.Error.Background" Color="#332426" />
+    <SolidColorBrush x:Key="State.Error.Foreground" Color="#ff8a8a" />
+
+    <SolidColorBrush x:Key="State.Failed.Background" Color="#33242e" />
+    <SolidColorBrush x:Key="State.Failed.Foreground" Color="#ff8ab4" />
+
+    <SolidColorBrush x:Key="State.Offline.Background" Color="#262b31" />
+    <SolidColorBrush x:Key="State.Offline.Foreground" Color="#b4bcc5" />
+</ResourceDictionary>

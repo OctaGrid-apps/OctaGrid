@@ -1,0 +1,52 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Views.MainView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:views="using:OctaGrid.Client.Views"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:MainViewModel"
+    mc:Ignorable="d">
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <controls:NavigationRail HideHeaderWhenSelected="True">
+
+        <controls:NavigationRailItem>
+            <views:DashboardsView />
+        </controls:NavigationRailItem>
+
+        <controls:NavigationRailItem>
+            <views:PrinterListView />
+        </controls:NavigationRailItem>
+
+        <controls:NavigationRailItem IsVisible="{Binding IsRemoteMode}">
+            <views:AgentListView />
+        </controls:NavigationRailItem>
+
+        <controls:NavigationRailItem IsVisible="{Binding IsRemoteMode}">
+            <views:WorkspaceListView />
+        </controls:NavigationRailItem>
+
+        <controls:NavigationRail.FooterItems>
+            <controls:NavigationRailItem
+                Header="Account"
+                Icon="{StaticResource person-regular}"
+                IsVisible="{Binding IsRemoteMode}">
+                <TextBlock Text="Account view" />
+            </controls:NavigationRailItem>
+
+            <controls:NavigationRailItem>
+                <views:SettingsView />
+            </controls:NavigationRailItem>
+        </controls:NavigationRail.FooterItems>
+
+    </controls:NavigationRail>
+</UserControl>

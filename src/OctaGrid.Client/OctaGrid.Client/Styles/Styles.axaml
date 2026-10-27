@@ -1,0 +1,277 @@
+﻿<!--
+OctaGrid.Client — spacing style classes.
+Requires Spacing.axaml merged into Application.Resources.
+
+Include AFTER the theme so these setters win:
+<Application.Styles>
+<FluentTheme />
+<StyleInclude Source="avares://OctaGrid.Client/Styles/SpacingStyles.axaml" />
+</Application.Styles>
+
+DynamicResource is used on purpose: swapping the token dictionary at runtime
+(e.g. a Compact density) re-flows every view without touching markup.-->
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls">
+
+    <Design.PreviewWith>
+        <Border
+            Width="480"
+            Background="#0B0D12"
+            Classes="page">
+            <StackPanel Classes="page-sections">
+                <StackPanel Classes="inline">
+                    <Button Classes="primary" Content="New printer" />
+                    <ToggleButton
+                        Classes="chip"
+                        Content="All · 4"
+                        IsChecked="True" />
+                    <ToggleButton Classes="chip" Content="Online · 2" />
+                </StackPanel>
+                <Border
+                    Background="#12151D"
+                    BorderBrush="#232837"
+                    BorderThickness="1"
+                    Classes="card">
+                    <StackPanel Classes="card-content">
+                        <TextBlock Text="Voron 2.4" />
+                        <Border BorderBrush="#1E222C" Classes="divided">
+                            <StackPanel Classes="key-value">
+                                <TextBlock Text="Address   192.168.0.1" />
+                                <TextBlock Text="Protocol  Moonraker" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+
+    <!--  ═══════════════ SEMANTIC STACKS (prefer these) ═══════════════  -->
+    <Style Selector="Rectangle.card-dashed">
+        <Setter Property="StrokeDashArray" Value="6,3" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="Stroke" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="RadiusX" Value="16" />
+        <Setter Property="RadiusY" Value="16" />
+    </Style>
+
+    <Style Selector="StackPanel.page-sections">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.PageSection}" />
+    </Style>
+
+    <Style Selector="StackPanel.card-content">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.CardContent}" />
+    </Style>
+
+    <Style Selector="StackPanel.key-value">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.KeyValue}" />
+    </Style>
+
+    <Style Selector="StackPanel.nav">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.Hairline}" />
+    </Style>
+
+    <!--  Stacked Windows 11-style settings cards: 2px gap + automatic top/middle/bottom corner radii  -->
+    <Style Selector="StackPanel.settings-group">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.Hairline}" />
+    </Style>
+
+    <Style Selector="StackPanel.settings-group &gt; controls|SettingsCard">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusNone}" />
+    </Style>
+
+    <Style Selector="StackPanel.settings-group &gt; controls|SettingsCard:nth-child(1)">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusLgTop}" />
+    </Style>
+
+    <Style Selector="StackPanel.settings-group &gt; controls|SettingsCard:nth-last-child(1)">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusLgBottom}" />
+    </Style>
+
+    <Style Selector="StackPanel.settings-group &gt; controls|SettingsCard:nth-child(1):nth-last-child(1)">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusLg}" />
+    </Style>
+
+    <!--  Expandable Windows 11-style sub-settings items: indented, recessed, and without corner radii  -->
+    <Style Selector="StackPanel.settings-expander-items">
+        <Setter Property="Spacing" Value="{DynamicResource Space0}" />
+    </Style>
+
+    <Style Selector="controls|SettingsExpander controls|SettingsCard">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusNone}" />
+        <Setter Property="Padding" Value="{DynamicResource Padding.SettingsSubCard}" />
+        <Setter Property="Background" Value="{DynamicResource SettingsExpanderItemBackground}" />
+        <Setter Property="BorderThickness" Value="1,0,1,1" />
+    </Style>
+
+    <Style Selector="controls|SettingsExpander controls|SettingsCard /template/ PathIcon#PART_Icon">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+    </Style>
+
+    <!--  Form: fields (each a .field) separated by the larger gap; label→input stays tight  -->
+    <Style Selector="StackPanel.form">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.Form}" />
+    </Style>
+
+    <Style Selector="StackPanel.field">
+        <Setter Property="Spacing" Value="{DynamicResource Gap.FormField}" />
+    </Style>
+
+    <!--  Horizontal row of peers: chips, toolbar buttons, icon + text  -->
+    <Style Selector="StackPanel.inline">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="{DynamicResource Gap.Inline}" />
+    </Style>
+
+    <!--  Icon tile + title block, nav icon + label  -->
+    <Style Selector="StackPanel.icon-label">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="{DynamicResource Gap.IconLabel}" />
+    </Style>
+
+    <!--
+        ═══════════════ PRIMITIVE STACKS (escape hatch) ═══════════════
+        Use only when no semantic class fits; if you use one twice for the
+        same purpose, add a semantic token instead.
+    -->
+
+    <Style Selector="StackPanel.gap-0_5">
+        <Setter Property="Spacing" Value="{DynamicResource Space0_5}" />
+    </Style>
+    <Style Selector="StackPanel.gap-1">
+        <Setter Property="Spacing" Value="{DynamicResource Space1}" />
+    </Style>
+    <Style Selector="StackPanel.gap-1_5">
+        <Setter Property="Spacing" Value="{DynamicResource Space1_5}" />
+    </Style>
+    <Style Selector="StackPanel.gap-2">
+        <Setter Property="Spacing" Value="{DynamicResource Space2}" />
+    </Style>
+    <Style Selector="StackPanel.gap-3">
+        <Setter Property="Spacing" Value="{DynamicResource Space3}" />
+    </Style>
+    <Style Selector="StackPanel.gap-4">
+        <Setter Property="Spacing" Value="{DynamicResource Space4}" />
+    </Style>
+    <Style Selector="StackPanel.gap-5">
+        <Setter Property="Spacing" Value="{DynamicResource Space5}" />
+    </Style>
+    <Style Selector="StackPanel.gap-6">
+        <Setter Property="Spacing" Value="{DynamicResource Space6}" />
+    </Style>
+    <Style Selector="StackPanel.gap-8">
+        <Setter Property="Spacing" Value="{DynamicResource Space8}" />
+    </Style>
+
+    <!--  ═══════════════ SURFACES ═══════════════  -->
+
+    <Style Selector="Border.page">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Page}" />
+    </Style>
+
+    <Style Selector="Border.sidebar">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Sidebar}" />
+    </Style>
+
+    <Style Selector="Border.card">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Card}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusXl}" />
+        <!--<Setter Property="BoxShadow" Value="3 3 20 0 #13FFFFFF" />-->
+    </Style>
+
+    <Style Selector="Border.dialog">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Dialog}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusXl}" />
+    </Style>
+
+    <!--  Section inside a card separated by a top hairline (Address/Protocol block, footer row)  -->
+    <Style Selector="Border.divided">
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="{DynamicResource Padding.DividedSection}" />
+    </Style>
+
+    <!--  38px icon tile in card headers  -->
+    <Style Selector="Border.icon-tile">
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+    </Style>
+
+    <!--  Stat tile inside a card (temperatures). Radius is smaller than the card's (nested-radius rule).  -->
+    <Style Selector="Border.tile">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Tile}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+    </Style>
+
+    <!--  Status pill  -->
+    <Style Selector="Border.badge">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Badge}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusFull}" />
+    </Style>
+
+    <!--  ═══════════════ CONTROLS ═══════════════  -->
+
+    <!--  App-wide default: an icon that doesn't say otherwise is 16x16.  -->
+    <Style Selector="PathIcon">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+    </Style>
+
+    <!--  Default button. Exact type match only: ToggleButton/RadioButton (chips, nav) are not affected.  -->
+    <Style Selector="Button">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Button}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeightMd}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+    </Style>
+
+    <Style Selector="Button.primary">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Button}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeightMd}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+    </Style>
+
+    <Style Selector="Button.small">
+        <Setter Property="Padding" Value="{DynamicResource Padding.ButtonSm}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeightSm}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+    </Style>
+
+    <Style Selector="Button.icon">
+        <Setter Property="Padding" Value="{DynamicResource Padding.IconButton}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+    </Style>
+
+    <!--  Sidebar entries: covers Button, ToggleButton and RadioButton (all derive from Button)  -->
+    <Style Selector=":is(Button).nav">
+        <Setter Property="Padding" Value="{DynamicResource Padding.NavItem}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeightMd}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+
+    <Style Selector="ToggleButton.chip">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Chip}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeightSm}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusFull}" />
+    </Style>
+
+    <Style Selector="TextBox.search">
+        <Setter Property="Padding" Value="{DynamicResource Padding.Input}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeightMd}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+    </Style>
+
+    <Style Selector="TextBlock.section-label">
+        <Setter Property="Margin" Value="{DynamicResource Padding.SectionLabel}" />
+    </Style>
+
+</Styles>

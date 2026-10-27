@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/OctaGrid.Agent/">
+    <Project Path="src/OctaGrid.Agent.Core/OctaGrid.Agent.Core.csproj" Id="8f6a0461-fa6d-49f3-961c-e129921dde52" />
+  </Folder>
+  <Folder Name="/OctaGrid.Client.UI/">
+    <Project Path="src/OctaGrid.Client.Contracts/OctaGrid.Client.Contracts.csproj" Id="f014e502-9374-43f6-ab9d-d98ff9129f9e" />
+    <Project Path="src/OctaGrid.Client.Local/OctaGrid.Client.Local.csproj" Id="089ab7db-fb3b-4b2e-becd-33745718da6b" />
+    <Project Path="src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj" />
+    <Project Path="src/OctaGrid.Client/OctaGrid.Client/OctaGrid.Client.csproj" />
+  </Folder>
+  <Folder Name="/OctaGrid.Shared/">
+    <Project Path="src/OctaGrid.Application/OctaGrid.Application.csproj" Id="93bebeb9-9414-4254-a1b7-be3e45b0bd0d" />
+    <Project Path="src/OctaGrid.Data.Abstractions/OctaGrid.Data.Abstractions.csproj" Id="ebc25056-0332-42fa-a9b6-1e78a0049461" />
+    <Project Path="src/OctaGrid.Protocol/OctaGrid.Protocol.csproj" Id="4473a0fa-df2f-4022-b7cc-39255c4f889d" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="LICENSE.txt" />
+  </Folder>
+</Solution>

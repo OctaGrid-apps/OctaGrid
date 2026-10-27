@@ -1,0 +1,242 @@
+<#
+.SYNOPSIS
+    Builds MSIX packages for OctaGrid desktop client (x64 and arm64) and signs them.
+
+.PARAMETER Architectures
+    Architectures to target. Defaults to @('x64', 'arm64').
+
+.PARAMETER Configuration
+    Build configuration. Defaults to 'Release'.
+
+.PARAMETER OutputDir
+    Root directory where published files and .msix packages will be placed. Defaults to 'artifacts'.
+
+.PARAMETER Bundle
+    Whether to produce a combined .msixbundle containing all built architectures. Defaults to true.
+
+.PARAMETER Sign
+    Whether to sign the packages with a code signing certificate. Defaults to true.
+#>
+[CmdletBinding()]
+param(
+    [string[]]$Architectures = @('x64', 'arm64'),
+    [string]$Configuration = 'Release',
+    [string]$OutputDir = 'artifacts',
+    [switch]$Bundle = $true,
+    [switch]$Sign = $true
+)
+
+$ErrorActionPreference = 'Stop'
+
+$repoRoot = $PSScriptRoot
+$projectPath = Join-Path $repoRoot "src\OctaGrid.Client\OctaGrid.Client.Desktop\OctaGrid.Client.Desktop.csproj"
+$manifestSource = Join-Path $repoRoot "src\OctaGrid.Client\OctaGrid.Client.Desktop\Package.appxmanifest"
+$assetsSource = Join-Path $repoRoot "src\OctaGrid.Client\OctaGrid.Client.Desktop\Assets"
+
+# Ensure output directory exists
+$resolvedOutputDir = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputDir))
+if (-not (Test-Path $resolvedOutputDir)) {
+    New-Item -ItemType Directory -Force -Path $resolvedOutputDir | Out-Null
+}
+
+# Read publisher from manifest
+[xml]$manifestXml = Get-Content $manifestSource
+$publisher = $manifestXml.Package.Identity.Publisher
+
+# Locate makeappx.exe and signtool.exe
+$makeappx = $null
+$nugetRoot = Join-Path $env:USERPROFILE ".nuget\packages\microsoft.windows.sdk.buildtools"
+if (Test-Path $nugetRoot) {
+    $tools = Get-ChildItem -Path $nugetRoot -Filter "makeappx.exe" -Recurse -ErrorAction SilentlyContinue |
+             Where-Object { $_.FullName -match "\\x64\\makeappx\.exe$" } |
+             Sort-Object -Property FullName -Descending
+    if ($tools -and $tools.Count -gt 0) {
+        $makeappx = $tools[0].FullName
+    }
+}
+
+if (-not $makeappx) {
+    $sdkRoots = @(
+        "C:\Program Files (x86)\Windows Kits\10\bin",
+        "C:\Program Files\Windows Kits\10\bin"
+    )
+    foreach ($sdk in $sdkRoots) {
+        if (Test-Path $sdk) {
+            $tools = Get-ChildItem -Path $sdk -Filter "makeappx.exe" -Recurse -ErrorAction SilentlyContinue |
+                     Where-Object { $_.FullName -match "\\x64\\makeappx\.exe$" } |
+                     Sort-Object -Property FullName -Descending
+            if ($tools -and $tools.Count -gt 0) {
+                $makeappx = $tools[0].FullName
+                break
+            }
+        }
+    }
+}
+
+if (-not $makeappx) {
+    $cmd = Get-Command "makeappx.exe" -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $makeappx = $cmd.Source
+    }
+}
+
+if (-not $makeappx) {
+    throw "makeappx.exe could not be found. Please ensure Microsoft.Windows.SDK.BuildTools is restored or Windows SDK is installed."
+}
+
+$signtool = Join-Path (Split-Path $makeappx) "signtool.exe"
+$makepri = Join-Path (Split-Path $makeappx) "makepri.exe"
+Write-Host "==> Using MakeAppx: $makeappx" -ForegroundColor Cyan
+if (Test-Path $makepri) {
+    Write-Host "==> Using MakePri:  $makepri" -ForegroundColor Cyan
+}
+if (Test-Path $signtool) {
+    Write-Host "==> Using SignTool: $signtool" -ForegroundColor Cyan
+}
+
+# Resolve or create signing certificate if signing requested
+$cert = $null
+if ($Sign) {
+    $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq $publisher } | Select-Object -First 1
+    if (-not $cert) {
+        Write-Host "--> Creating self-signed developer certificate for '$publisher'..." -ForegroundColor Yellow
+        $cert = New-SelfSignedCertificate -Type Custom `
+            -Subject $publisher `
+            -KeyUsage DigitalSignature `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")
+
+        # Automatically add to TrustedPeople for CurrentUser
+        $tpStore = [System.Security.Cryptography.X509Certificates.X509Store]::new("TrustedPeople", "CurrentUser")
+        $tpStore.Open("ReadWrite")
+        $tpStore.Add($cert)
+        $tpStore.Close()
+    }
+
+    # Ensure public certificate is exported to output directory for easy installation
+    $cerPath = Join-Path $resolvedOutputDir "OctaGrid-Dev.cer"
+    Export-Certificate -Cert $cert -FilePath $cerPath -Force | Out-Null
+    Write-Host "--> Developer certificate exported to: $cerPath" -ForegroundColor Green
+}
+
+$builtPackages = @()
+
+foreach ($arch in $Architectures) {
+    $rid = "win-$arch"
+    $publishDir = Join-Path $resolvedOutputDir "publish\$rid"
+    $msixPath = Join-Path $resolvedOutputDir "OctaGrid-$arch.msix"
+
+    Write-Host "`n========================================================" -ForegroundColor Green
+    Write-Host "  Building MSIX for $arch (RID: $rid)" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+
+    Write-Host "--> Publishing $rid (self-contained)..." -ForegroundColor Yellow
+    dotnet publish $projectPath -c $Configuration -r $rid --self-contained true -o $publishDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed for $rid."
+    }
+
+    # Ensure Assets are present in publish directory
+    $publishAssetsDir = Join-Path $publishDir "Assets"
+    if (-not (Test-Path $publishAssetsDir) -and (Test-Path $assetsSource)) {
+        Copy-Item -Recurse -Force $assetsSource $publishAssetsDir
+    }
+
+    # Prepare AppxManifest.xml with target architecture
+    $appxManifestPath = Join-Path $publishDir "AppxManifest.xml"
+    $manifestContent = Get-Content $manifestSource -Raw
+    $manifestContent = $manifestContent -replace 'ProcessorArchitecture="[^"]*"', "ProcessorArchitecture=""$arch"""
+    [System.IO.File]::WriteAllText($appxManifestPath, $manifestContent, [System.Text.Encoding]::UTF8)
+
+    # Generate resources.pri if makepri is available (required when Assets use qualifiers like .scale-100, .scale-200, etc.)
+    if (Test-Path $makepri) {
+        Write-Host "--> Indexing package resources with MakePri..." -ForegroundColor Yellow
+        $priConfigFile = Join-Path $publishDir "priconfig.xml"
+        $priOutputFile = Join-Path $publishDir "resources.pri"
+        & $makepri createconfig /cf $priConfigFile /dq "en-US" /o /pv "10.0.0" | Out-Null
+        & $makepri new /pr $publishDir /cf $priConfigFile /of $priOutputFile /o | Out-Null
+        if (Test-Path $priConfigFile) {
+            Remove-Item -Force $priConfigFile
+        }
+    }
+
+    if (Test-Path $msixPath) {
+        Remove-Item -Force $msixPath
+    }
+
+    Write-Host "--> Packaging MSIX with MakeAppx..." -ForegroundColor Yellow
+    & $makeappx pack /d $publishDir /p $msixPath /o
+    if ($LASTEXITCODE -ne 0) {
+        throw "makeappx pack failed for $arch."
+    }
+
+    if ($Sign -and (Test-Path $signtool) -and $cert) {
+        Write-Host "--> Signing $msixPath..." -ForegroundColor Yellow
+        & $signtool sign /sha1 $cert.Thumbprint /fd SHA256 $msixPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "signtool sign failed for $msixPath."
+        }
+    }
+
+    $packageItem = Get-Item $msixPath
+    $builtPackages += $packageItem
+    $sizeMb = [math]::Round($packageItem.Length / 1MB, 2)
+    Write-Host "--> Generated & Signed: $($packageItem.Name) ($sizeMb MB)" -ForegroundColor Green
+}
+
+# Create bundle if requested and multiple packages exist
+if ($Bundle -and ($builtPackages.Count -gt 1)) {
+    $bundlePath = Join-Path $resolvedOutputDir "OctaGrid.msixbundle"
+    $bundleInputDir = Join-Path $resolvedOutputDir "_bundle_temp"
+    
+    Write-Host "`n========================================================" -ForegroundColor Green
+    Write-Host "  Creating MSIX Bundle" -ForegroundColor Green
+    Write-Host "========================================================" -ForegroundColor Green
+
+    if (Test-Path $bundleInputDir) {
+        Remove-Item -Recurse -Force $bundleInputDir
+    }
+    New-Item -ItemType Directory -Force -Path $bundleInputDir | Out-Null
+
+    if (Test-Path $bundlePath) {
+        Remove-Item -Force $bundlePath
+    }
+
+    try {
+        foreach ($pkg in $builtPackages) {
+            Copy-Item $pkg.FullName $bundleInputDir
+        }
+
+        & $makeappx bundle /d $bundleInputDir /p $bundlePath /o
+        if ($LASTEXITCODE -ne 0) {
+            throw "makeappx bundle failed."
+        }
+
+        if ($Sign -and (Test-Path $signtool) -and $cert) {
+            Write-Host "--> Signing $bundlePath..." -ForegroundColor Yellow
+            & $signtool sign /sha1 $cert.Thumbprint /fd SHA256 $bundlePath
+            if ($LASTEXITCODE -ne 0) {
+                throw "signtool sign failed for $bundlePath."
+            }
+        }
+
+        $bundleItem = Get-Item $bundlePath
+        $bundleSizeMb = [math]::Round($bundleItem.Length / 1MB, 2)
+        Write-Host "--> Generated & Signed: $($bundleItem.Name) ($bundleSizeMb MB)" -ForegroundColor Green
+    }
+    finally {
+        if (Test-Path $bundleInputDir) {
+            Remove-Item -Recurse -Force $bundleInputDir
+        }
+    }
+}
+
+Write-Host "`n========================================================" -ForegroundColor Cyan
+Write-Host "  MSIX Build Summary" -ForegroundColor Cyan
+Write-Host "========================================================" -ForegroundColor Cyan
+Get-ChildItem -Path $resolvedOutputDir -Filter "*.msix*" | ForEach-Object {
+    $sizeMb = [math]::Round($_.Length / 1MB, 2)
+    Write-Host " - $($_.Name) [$sizeMb MB] -> $($_.FullName)" -ForegroundColor White
+}

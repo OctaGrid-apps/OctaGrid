@@ -1,0 +1,115 @@
+﻿<!--
+OctaGrid.Client — typography style classes (TextBlock).
+Requires Typography.axaml merged into Application.Resources.
+
+Include AFTER the theme so these setters win.
+Use ONE role class per TextBlock, then optional modifiers (secondary, mono):
+    <TextBlock Classes="subtitle" Text="Voron 2.4" />
+    <TextBlock Classes="small secondary" Text="CoreXY • 300×300" />-->
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.PreviewWith>
+        <StackPanel
+            Width="360"
+            Margin="16"
+            Spacing="8">
+            <TextBlock Classes="display" Text="64%" />
+            <TextBlock Classes="title" Text="Printers" />
+            <TextBlock Classes="heading" Text="Sign in to OctaGrid" />
+            <TextBlock Classes="subtitle" Text="Voron 2.4" />
+            <TextBlock Classes="lead" Text="Lead paragraph" />
+            <TextBlock Classes="body" Text="Body text, the default." />
+            <TextBlock Classes="small secondary" Text="CoreXY • 300×300" />
+            <TextBlock Classes="caption" Text="stealthburner_main_body.gcode" />
+            <TextBlock Classes="overline" Text="HOTEND" />
+            <TextBlock Classes="metric" Text="215.4" />
+            <TextBlock Classes="small mono" Text="192.168.0.12:7125" />
+        </StackPanel>
+    </Design.PreviewWith>
+
+    <!--  ═══════════════ ROLES ═══════════════  -->
+
+    <!--  Large numeric readout (print progress)  -->
+    <Style Selector="TextBlock.display">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Display}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Display}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+        <Setter Property="FontFeatures" Value="tnum" />
+    </Style>
+
+    <!--  Page title  -->
+    <Style Selector="TextBlock.title">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Title}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Title}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+    </Style>
+
+    <!--  Window / form heading (sign in, choose mode)  -->
+    <Style Selector="TextBlock.heading">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Heading}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Heading}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+    </Style>
+
+    <!--  Card title  -->
+    <Style Selector="TextBlock.subtitle">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Subtitle}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Subtitle}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+    </Style>
+
+    <!--  Emphasised body (dialog title, section heading inside a card)  -->
+    <Style Selector="TextBlock.lead">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Lead}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Lead}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+    </Style>
+
+    <!--  Default reading text  -->
+    <Style Selector="TextBlock.body">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Body}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Body}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.Regular}" />
+    </Style>
+
+    <!--  Supporting line under a title, status, key/value rows  -->
+    <Style Selector="TextBlock.small">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Small}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Small}" />
+    </Style>
+
+    <!--  Footnotes, file names, counters  -->
+    <Style Selector="TextBlock.caption">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Caption}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Caption}" />
+    </Style>
+
+    <!--  Tiny label above a value (HOTEND, BED). Write the text in capitals.  -->
+    <Style Selector="TextBlock.overline">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Caption}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Caption}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+        <Setter Property="LetterSpacing" Value="0.5" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+    </Style>
+
+    <!--  Numeric value (temperatures). Tabular figures so live updates don't jitter.  -->
+    <Style Selector="TextBlock.metric">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Lead}" />
+        <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Lead}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
+        <Setter Property="FontFeatures" Value="tnum" />
+    </Style>
+
+    <!--  ═══════════════ MODIFIERS ═══════════════  -->
+
+    <Style Selector="TextBlock.secondary">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+    </Style>
+
+    <!--  Machine values: addresses, file names, tokens  -->
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Family.Mono}" />
+    </Style>
+
+</Styles>

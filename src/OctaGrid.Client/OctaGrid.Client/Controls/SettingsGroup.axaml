@@ -1,0 +1,36 @@
+﻿<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:converters="using:Avalonia.Data.Converters">
+
+    <ControlTheme x:Key="{x:Type controls:SettingsGroup}" TargetType="controls:SettingsGroup">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate>
+                <StackPanel Spacing="{DynamicResource Space1}" />
+            </ItemsPanelTemplate>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Spacing="{DynamicResource Space2}">
+                    <StackPanel IsVisible="{TemplateBinding Header, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}" Spacing="{DynamicResource Space0_5}">
+                        <TextBlock
+                            Classes="lead"
+                            Text="{TemplateBinding Header}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Classes="caption secondary"
+                            IsVisible="{TemplateBinding Description,
+                                                        Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}"
+                            Text="{TemplateBinding Description}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ItemsPresenter x:Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+</ResourceDictionary>

@@ -1,0 +1,229 @@
+﻿<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:media="using:Avalonia.Media"
+    xmlns:views="using:OctaGrid.Client.Views">
+
+    <Design.PreviewWith>
+        <Border Width="700" Height="400">
+            <controls:NavigationRail>
+                <!--                <controls:NavigationRailItem>
+                <views:DashboardsView />
+                </controls:NavigationRailItem>
+
+                <controls:NavigationRailItem >
+                <views:PrinterListView />
+                </controls:NavigationRailItem>-->
+
+                <!--  3. Overrides BOTH Header and Icon directly on the menu item  -->
+                <controls:NavigationRailItem>
+                    <views:AgentListView />
+                </controls:NavigationRailItem>
+                <controls:NavigationRailItem>
+                    <views:AgentListView />
+                </controls:NavigationRailItem>
+            </controls:NavigationRail>
+        </Border>
+    </Design.PreviewWith>
+
+    <Styles.Resources>
+        <SolidColorBrush x:Key="NavigationRailPaneBackground" Color="Transparent" />
+        <SolidColorBrush x:Key="NavigationRailContentBorderBrush" Color="{DynamicResource SystemBaseMediumColor}" />
+        <SolidColorBrush x:Key="NavigationRailItemPointerOverBackground" Color="#05FFFFFF" />
+        <SolidColorBrush x:Key="NavigationRailItemPointerOverForeground" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="NavigationRailItemSelectedBackground" Color="#08FFFFFF" />
+        <SolidColorBrush x:Key="NavigationRailAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+
+        <!--  Template for each NavigationRailItem  -->
+        <DataTemplate
+            x:Key="NavigationRailItemTemplate"
+            x:DataType="controls:NavigationRailItem"
+            DataType="controls:NavigationRailItem">
+            <Grid
+                Width="64"
+                Height="56"
+                Background="Transparent">
+                <!--  Left vertical selection pill  -->
+                <Border
+                    x:Name="SelectionPill"
+                    Width="3"
+                    Height="20"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource NavigationRailAccentBrush}"
+                    CornerRadius="1.5"
+                    IsVisible="{Binding $parent[ListBoxItem].IsSelected}" />
+
+                <!--  Icon + Label Stack  -->
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="4">
+                    <Grid
+                        Width="24"
+                        Height="24"
+                        HorizontalAlignment="Center"
+                        IsVisible="{Binding EffectiveIcon, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <!--  Use ContentControl directly (not ContentPresenter) so DataContext is not overwritten by ContentPresenter.UpdateChild()  -->
+                        <ContentControl
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Content="{Binding EffectiveIcon}">
+                            <ContentControl.DataTemplates>
+                                <!--  1. Handles StreamGeometry and all other Avalonia Geometry types  -->
+                                <DataTemplate x:DataType="media:Geometry" DataType="media:Geometry">
+                                    <PathIcon
+                                        Width="20"
+                                        Height="20"
+                                        Data="{Binding}" />
+                                </DataTemplate>
+
+                                <!--  2. Handles SVG path data strings (e.g. "M10,20V14...")  -->
+                                <DataTemplate DataType="x:String">
+                                    <PathIcon
+                                        Width="20"
+                                        Height="20"
+                                        Data="{Binding}" />
+                                </DataTemplate>
+
+                                <!--  3. Handles bitmaps/images (e.g. user avatars or custom icons)  -->
+                                <DataTemplate x:DataType="media:IImage" DataType="media:IImage">
+                                    <Border
+                                        Width="24"
+                                        Height="24"
+                                        ClipToBounds="True"
+                                        CornerRadius="{Binding $parent[ListBoxItem].((controls:NavigationRailItem)DataContext).IconCornerRadius, FallbackValue=0}">
+                                        <Image Source="{Binding}" Stretch="UniformToFill" />
+                                    </Border>
+                                </DataTemplate>
+                            </ContentControl.DataTemplates>
+                        </ContentControl>
+
+                        <!--  Optional Notification Dot  -->
+                        <Ellipse
+                            Width="6"
+                            Height="6"
+                            Margin="0,-2,-4,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Fill="{DynamicResource NavigationRailAccentBrush}"
+                            IsVisible="{Binding ShowBadge}" />
+                    </Grid>
+
+                    <!--  Item Header Label  -->
+                    <TextBlock
+                        MaxWidth="60"
+                        HorizontalAlignment="Center"
+                        FontSize="10"
+                        Text="{Binding EffectiveHeader}"
+                        TextAlignment="Center"
+                        TextTrimming="CharacterEllipsis">
+                        <TextBlock.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                <Binding Path="!$parent[ListBoxItem].IsSelected" />
+                                <Binding Path="!$parent[controls:NavigationRail].HideHeaderWhenSelected" />
+                            </MultiBinding>
+                        </TextBlock.IsVisible>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </Styles.Resources>
+
+    <!--  ListBox Styling for the Rail  -->
+    <Style Selector="controls|NavigationRail ListBox.RailList">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="4,0" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+    </Style>
+
+    <Style x:DataType="controls:NavigationRailItem" Selector="controls|NavigationRail ListBox.RailList &gt; ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+        <Setter Property="IsVisible" Value="{Binding IsVisible}" />
+        <Setter Property="ToolTip.Tip" Value="{Binding EffectiveHeader}" />
+    </Style>
+
+    <!--  Hover state  -->
+    <Style Selector="controls|NavigationRail ListBox.RailList &gt; ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NavigationRailItemPointerOverBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource NavigationRailItemPointerOverForeground}" />
+    </Style>
+
+    <!--  Pressed state  -->
+    <Style Selector="controls|NavigationRail ListBox.RailList &gt; ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NavigationRailItemSelectedBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource NavigationRailItemPointerOverForeground}" />
+    </Style>
+
+    <!--  Selected state (including hover/pressed while selected)  -->
+    <Style Selector="controls|NavigationRail ListBox.RailList &gt; ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NavigationRailItemSelectedBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource NavigationRailAccentBrush}" />
+    </Style>
+
+    <!--  Main NavigationRail Control Template  -->
+    <Style Selector="controls|NavigationRail">
+        <Setter Property="Background" Value="{DynamicResource NavigationRailPaneBackground}" />
+        <Setter Property="PaneBackground" Value="{DynamicResource NavigationRailPaneBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NavigationRailContentBorderBrush}" />
+        <Setter Property="CornerRadius" Value="8,0,0,0" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid Background="{TemplateBinding Background}" ColumnDefinitions="Auto,*">
+                    <!--  Left Navigation Rail  -->
+                    <Border
+                        Grid.Column="0"
+                        Width="{TemplateBinding PaneWidth}"
+                        Background="{TemplateBinding PaneBackground}">
+                        <DockPanel LastChildFill="True">
+                            <!--  Optional Pane Header  -->
+                            <ContentPresenter
+                                x:Name="PART_PaneHeaderPresenter"
+                                Content="{TemplateBinding PaneHeader}"
+                                ContentTemplate="{TemplateBinding PaneHeaderTemplate}"
+                                DockPanel.Dock="Top"
+                                IsVisible="{TemplateBinding PaneHeader,
+                                                            Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                            <!--  Bottom-Pinned Footer Items  -->
+                            <ListBox
+                                x:Name="PART_FooterListBox"
+                                Classes="RailList"
+                                DockPanel.Dock="Bottom"
+                                ItemTemplate="{StaticResource NavigationRailItemTemplate}"
+                                ItemsSource="{TemplateBinding FooterItems}" />
+
+                            <!--  Top Menu Items  -->
+                            <ListBox
+                                x:Name="PART_TopListBox"
+                                Classes="RailList"
+                                ItemTemplate="{StaticResource NavigationRailItemTemplate}"
+                                ItemsSource="{TemplateBinding Items}" />
+                        </DockPanel>
+                    </Border>
+
+                    <!--  Right Content Frame  -->
+                    <Border
+                        Grid.Column="1"
+                        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        Classes="page"
+                        ClipToBounds="True"
+                        CornerRadius="8,0,0,0">
+                        <ContentPresenter x:Name="PART_ContentPresenter" Content="{TemplateBinding CurrentPage}" />
+                    </Border>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

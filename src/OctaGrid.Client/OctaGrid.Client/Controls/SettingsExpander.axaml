@@ -1,0 +1,156 @@
+﻿<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:converters="using:Avalonia.Data.Converters">
+
+    <ControlTheme x:Key="{x:Type controls:SettingsExpander}" TargetType="controls:SettingsExpander">
+        <Setter Property="Background" Value="{DynamicResource SystemAltMediumLowColor}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="{DynamicResource Padding.Card}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusLg}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate>
+                <StackPanel Classes="settings-expander-items" />
+            </ItemsPanelTemplate>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Spacing="{DynamicResource Space0}">
+                    <Border
+                        x:Name="PART_HeaderBorder"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <Grid RowDefinitions="Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{DynamicResource Gap.Form}">
+                                <PathIcon
+                                    Grid.Column="0"
+                                    Width="20"
+                                    Height="20"
+                                    VerticalAlignment="Center"
+                                    Data="{TemplateBinding Icon}"
+                                    IsVisible="{TemplateBinding Icon,
+                                                                Converter={x:Static converters:ObjectConverters.IsNotNull}}" />
+
+                                <StackPanel
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Spacing="{DynamicResource Space0_5}">
+                                    <TextBlock
+                                        Classes="body"
+                                        IsVisible="{TemplateBinding Header,
+                                                                    Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}"
+                                        Text="{TemplateBinding Header}"
+                                        TextWrapping="Wrap" />
+                                    <TextBlock
+                                        Classes="caption secondary"
+                                        IsVisible="{TemplateBinding Description,
+                                                                    Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}"
+                                        Text="{TemplateBinding Description}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <ContentPresenter
+                                    x:Name="PART_ActionPresenter"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    IsVisible="{TemplateBinding Content,
+                                                                Converter={x:Static converters:ObjectConverters.IsNotNull}}" />
+
+                                <PathIcon
+                                    x:Name="PART_ChevronIcon"
+                                    Grid.Column="3"
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Data="{StaticResource chevron-down-regular}"
+                                    RenderTransformOrigin="50%,50%">
+                                    <PathIcon.Transitions>
+                                        <Transitions>
+                                            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" />
+                                        </Transitions>
+                                    </PathIcon.Transitions>
+                                </PathIcon>
+                            </Grid>
+
+                            <!--  Built-in Restart Required Banner  -->
+                            <Border
+                                x:Name="PART_RestartBanner"
+                                Grid.Row="1"
+                                Margin="0,12,0,0"
+                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                Classes="divided"
+                                IsVisible="{TemplateBinding IsRestartRequired}">
+                                <StackPanel Classes="inline">
+                                    <PathIcon
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Data="{StaticResource circle-filled}"
+                                        Foreground="{DynamicResource SystemControlBackgroundAccentBrush}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Classes="caption secondary"
+                                        Text="Requires restart to apply" />
+                                    <HyperlinkButton
+                                        Padding="{DynamicResource Padding.IconButton}"
+                                        VerticalAlignment="Center"
+                                        Command="{TemplateBinding RestartCommand}">
+                                        <StackPanel Classes="inline" Spacing="{DynamicResource Space1}">
+                                            <PathIcon
+                                                Width="12"
+                                                Height="12"
+                                                VerticalAlignment="Center"
+                                                Data="{StaticResource arrow-clockwise-regular}" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Classes="caption"
+                                                Text="Restart" />
+                                        </StackPanel>
+                                    </HyperlinkButton>
+                                </StackPanel>
+                            </Border>
+
+                            <!--  Optional Custom Footer  -->
+                            <Panel
+                                x:Name="PART_FooterPresenter"
+                                Grid.Row="2"
+                                IsVisible="{TemplateBinding Footer,
+                                                            Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                                <Border
+                                    Margin="0,12,0,0"
+                                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                    Classes="divided"
+                                    IsVisible="{TemplateBinding IsFooterVisible}">
+                                    <ContentPresenter Content="{TemplateBinding Footer}" ContentTemplate="{TemplateBinding FooterTemplate}" />
+                                </Border>
+                            </Panel>
+                        </Grid>
+                    </Border>
+
+                    <ItemsPresenter
+                        x:Name="PART_ItemsPresenter"
+                        IsVisible="{TemplateBinding IsExpanded}"
+                        ItemsPanel="{TemplateBinding ItemsPanel}" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:expanded /template/ Border#PART_HeaderBorder">
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusLgTop}" />
+        </Style>
+
+        <Style Selector="^:expanded /template/ PathIcon#PART_ChevronIcon">
+            <Setter Property="RenderTransform" Value="rotate(180deg)" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

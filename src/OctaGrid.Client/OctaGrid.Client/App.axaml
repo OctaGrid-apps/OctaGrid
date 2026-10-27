@@ -1,0 +1,28 @@
+<Application
+    x:Class="OctaGrid.Client.App"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedThemeVariant="Default">
+    <!--  "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options.  -->
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://OctaGrid.Client/Controls/Dialogs/OverlayDialog.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Controls/SettingsCard.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Controls/SettingsGroup.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Controls/SettingsExpander.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Styles/Spacing.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Styles/Typography.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Styles/Icons.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Styles/StateColors.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <StyleInclude Source="avares://OctaGrid.Client/Styles/Styles.axaml" />
+        <StyleInclude Source="avares://OctaGrid.Client/Styles/TypographyStyles.axaml" />
+        <StyleInclude Source="avares://OctaGrid.Client/Controls/NavigationView/NavigationRail.axaml" />
+    </Application.Styles>
+</Application>

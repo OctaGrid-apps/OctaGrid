@@ -1,0 +1,54 @@
+﻿<!--
+    OctaGrid.Client — typography tokens.
+    See docs/TYPOGRAPHY.md for the rules behind these values.
+    
+    Two layers, same idea as Spacing.axaml:
+    1. Primitives (Font.Size.*, Font.LineHeight.*, Font.Weight.*) — the scale.
+    2. Roles are style classes (TypographyStyles.axaml); views use classes, not these numbers.
+    
+    Merged into Application.Resources in App.axaml.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        ═══════════════ FAMILIES ═══════════════
+        Base is Inter (registered by .WithInterFont() in Program.cs) and is the app-wide default,
+        so it needs no token. Mono is only for machine values: addresses, file names, keys.
+    -->
+    <FontFamily x:Key="Font.Family.Mono">Cascadia Mono, Consolas, Menlo, monospace</FontFamily>
+
+    <!--  ═══════════════ SIZE SCALE ═══════════════  -->
+    <x:Double x:Key="Font.Size.Caption">12</x:Double>
+    <x:Double x:Key="Font.Size.Small">13</x:Double>
+    <x:Double x:Key="Font.Size.Body">14</x:Double>
+    <x:Double x:Key="Font.Size.Lead">16</x:Double>
+    <x:Double x:Key="Font.Size.Subtitle">18</x:Double>
+    <x:Double x:Key="Font.Size.Heading">20</x:Double>
+    <x:Double x:Key="Font.Size.Title">24</x:Double>
+    <x:Double x:Key="Font.Size.Display">28</x:Double>
+
+    <!--  Line heights are multiples of 4 so text rows stay on the spacing grid.  -->
+    <x:Double x:Key="Font.LineHeight.Caption">16</x:Double>
+    <x:Double x:Key="Font.LineHeight.Small">20</x:Double>
+    <x:Double x:Key="Font.LineHeight.Body">20</x:Double>
+    <x:Double x:Key="Font.LineHeight.Lead">24</x:Double>
+    <x:Double x:Key="Font.LineHeight.Subtitle">24</x:Double>
+    <x:Double x:Key="Font.LineHeight.Heading">28</x:Double>
+    <x:Double x:Key="Font.LineHeight.Title">32</x:Double>
+    <x:Double x:Key="Font.LineHeight.Display">36</x:Double>
+
+    <!--  ═══════════════ WEIGHTS (only two in use: Regular for text, SemiBold for emphasis) ═══════════════  -->
+    <FontWeight x:Key="Font.Weight.Regular">Normal</FontWeight>
+    <FontWeight x:Key="Font.Weight.SemiBold">SemiBold</FontWeight>
+
+    <!--  ═══════════════ TEXT COLOURS ═══════════════  -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="Brush.TextSecondary" Color="#FF5B5B66" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="Brush.TextSecondary" Color="#FFA9A8B3" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+</ResourceDictionary>
