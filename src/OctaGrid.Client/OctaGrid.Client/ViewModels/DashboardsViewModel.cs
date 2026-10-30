@@ -3,6 +3,8 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -236,6 +238,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAppSettingsStore _appSettingsStore;
     private readonly ApplicationState _appState;
+    private readonly ILogger<DashboardsViewModel> _logger;
     private readonly IDashboardsClient _dashboardsClient;
     private readonly IPrintersClient _printersClient;
 
@@ -244,7 +247,8 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         App.Services.GetRequiredService<IDashboardsClient>(),
         App.Services.GetRequiredService<IPrintersClient>(),
         App.Services.GetRequiredService<IAppSettingsStore>(),
-        App.Services.GetRequiredService<ApplicationState>())
+        App.Services.GetRequiredService<ApplicationState>(),
+        App.Services.GetService<ILogger<DashboardsViewModel>>() ?? NullLogger<DashboardsViewModel>.Instance)
     {
     }
 
@@ -252,12 +256,15 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         IDashboardsClient dashboardsClient,
         IPrintersClient printersClient,
         IAppSettingsStore appSettingsStore,
-        ApplicationState appState)
+        ApplicationState appState,
+        ILogger<DashboardsViewModel>? logger = null)
     {
         _dashboardsClient = dashboardsClient;
         _printersClient = printersClient;
         _appSettingsStore = appSettingsStore;
         _appState = appState;
+        _logger = logger ?? NullLogger<DashboardsViewModel>.Instance;
+        _logger.LogDebug("DashboardsViewModel initialized");
     }
 
     [ObservableProperty]
@@ -269,22 +276,44 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     [ObservableProperty]
     public partial DashboardResponse? SelectedDashboard { get; set; }
 
+    partial void OnSelectedDashboardChanged(DashboardResponse? oldValue, DashboardResponse? newValue)
+    {
+        _logger.LogDebug("Selected dashboard changed: {OldDashboard} -> {NewDashboard}", oldValue?.Name ?? "None", newValue?.Name ?? "None");
+    }
+
     [RelayCommand]
     private async Task CreateDashboard(CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Opening Create Dashboard dialog");
         var dashboardViewModel = new EditDashboardViewModel();
 
         // Show the dialog and wait for the result.
         var result = await this.ShowOverlayDialogAsync("Create new dashboard", dashboardViewModel);
         if (result is null)
         {
+            _logger.LogInformation("Create dashboard flow cancelled (no dashboard created)");
             return;
         }
 
         const string DashboardType = "List";
         var workspaceId = _appState.GetWorkspaceId();
-        _ = await _dashboardsClient.CreateDashboard(workspaceId, new CreateDashboardRequest(result, DashboardType), cancellationToken);
-        await LoadData(cancellationToken);
+        _logger.LogInformation("Creating dashboard '{DashboardName}' (type: {DashboardType}) in workspace {WorkspaceId}", result, DashboardType, workspaceId);
+
+        try
+        {
+            _ = await _dashboardsClient.CreateDashboard(workspaceId, new CreateDashboardRequest(result, DashboardType), cancellationToken);
+            _logger.LogInformation("Dashboard '{DashboardName}' created successfully", result);
+            await LoadData(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Dashboard creation was aborted via cancellation token");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create dashboard '{DashboardName}' in workspace {WorkspaceId}", result, workspaceId);
+            throw;
+        }
     }
 
     [RelayCommand]
@@ -292,52 +321,78 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     {
         if (_appState.SelectedWorkspace is null)
         {
+            _logger.LogWarning("LoadData skipped: No workspace selected");
             return;
         }
 
         var workspaceId = _appState.GetWorkspaceId();
-        var response = await _dashboardsClient.GetDashboardList(workspaceId, cancellationToken);
-        Dashboards = new ObservableCollection<DashboardResponse>(response);
+        _logger.LogInformation("Loading dashboard data for workspace {WorkspaceId}", workspaceId);
 
-        if (response.Count == 0)
+        try
         {
-            _appSettingsStore.Update(s => s with { DefaultDashboard = null });
-            return;
-        }
+            var response = await _dashboardsClient.GetDashboardList(workspaceId, cancellationToken);
+            Dashboards = new ObservableCollection<DashboardResponse>(response);
+            _logger.LogInformation("Loaded {Count} dashboards for workspace {WorkspaceId}", response.Count, workspaceId);
 
-        if (SelectedDashboard is null)
-        {
-            var defaultDashoardId = _appSettingsStore.ClientSettings.DefaultDashboard;
-            if (defaultDashoardId is not null && response.Any(d => d.Id == defaultDashoardId))
+            if (response.Count == 0)
             {
-                SelectedDashboard = response.First(d => d.Id == defaultDashoardId);
+                _logger.LogInformation("Workspace has no dashboards, clearing DefaultDashboard setting");
+                _appSettingsStore.Update(s => s with { DefaultDashboard = null });
+                return;
+            }
+
+            if (SelectedDashboard is null)
+            {
+                var defaultDashoardId = _appSettingsStore.ClientSettings.DefaultDashboard;
+                if (defaultDashoardId is not null && response.Any(d => d.Id == defaultDashoardId))
+                {
+                    SelectedDashboard = response.First(d => d.Id == defaultDashoardId);
+                    _logger.LogDebug("Restored default dashboard: {DashboardName} ({DashboardId})", SelectedDashboard.Name, SelectedDashboard.Id);
+                }
+                else
+                {
+                    SelectNewDashboard(response.First());
+                }
             }
             else
             {
-                SelectNewDashboard(response.First());
+                if (!response.Any(d => d.Id == SelectedDashboard.Id))
+                {
+                    _logger.LogInformation("Previously selected dashboard ({DashboardId}) no longer exists; selecting first available", SelectedDashboard.Id);
+                    SelectNewDashboard(response.First());
+                }
             }
-        }
-        else
-        {
-            if (!response.Any(d => d.Id == SelectedDashboard.Id))
-            {
-                SelectNewDashboard(response.First());
-            }
-        }
 
-        var printers = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: true), cancellationToken);
-        Printers = new ObservableCollection<PrinterDashboardCardViewModel>(printers.Select(printer => new PrinterDashboardCardViewModel(new PrinterStatusWidget()
+            _logger.LogDebug("Loading enabled printers for workspace {WorkspaceId}", workspaceId);
+            var printers = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: true), cancellationToken);
+            Printers = new ObservableCollection<PrinterDashboardCardViewModel>(printers.Select(printer => new PrinterDashboardCardViewModel(new PrinterStatusWidget()
+            {
+                Id = printer.Id,
+                Name = printer.Name
+            })));
+            _logger.LogInformation("Loaded {Count} printers for workspace {WorkspaceId}", printers.Count, workspaceId);
+        }
+        catch (OperationCanceledException)
         {
-            Id = printer.Id,
-            Name = printer.Name
-        })));
+            _logger.LogInformation("Loading dashboard data was aborted via cancellation token");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load dashboard data for workspace {WorkspaceId}", workspaceId);
+            throw;
+        }
     }
 
     [RelayCommand]
-    private Task RefreshPrinters(CancellationToken cancellationToken) => LoadData(cancellationToken);
+    private Task RefreshPrinters(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Refreshing printers triggered");
+        return LoadData(cancellationToken);
+    }
 
     private void SelectNewDashboard(DashboardResponse dashboard)
     {
+        _logger.LogInformation("Selecting dashboard: {DashboardName} ({DashboardId})", dashboard.Name, dashboard.Id);
         SelectedDashboard = dashboard;
         _appSettingsStore.Update(s => s with { DefaultDashboard = dashboard.Id });
     }

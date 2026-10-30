@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Mime;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Protocol.Printers;
 using StreamJsonRpc;
 
@@ -12,17 +14,22 @@ namespace OctaGrid.Agent.Core.Clients.Moonraker;
 /// grows to also own HTTP and file-path logic. Knows nothing about PrinterTelemetry — it only
 /// parses Moonraker's response and returns plain values; the caller decides what to do with them.
 /// </summary>
-internal sealed class MoonrakerFileClient(string host)
+internal sealed class MoonrakerFileClient(string host, ILogger<MoonrakerFileClient>? logger = null)
 {
     // Shared across every call this instance makes (and safe to share across devices too, since
     // HttpClient is designed for concurrent reuse) — never `new HttpClient()` per request.
     private static readonly HttpClient Http = new();
 
     private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
+    private readonly ILogger<MoonrakerFileClient> _logger = logger ?? NullLogger<MoonrakerFileClient>.Instance;
 
     public readonly record struct FileMetadataResult(string FileName, int FileSize, string? MaterialType, double? NozzleDiameter, double? EstimatedTimeSeconds, string? ThumbnailFilePath);
 
-    public static async Task<FileMetadataResult> GetFileMetadataAsync(JsonRpc rpc, string fileName, CancellationToken cancellationToken)
+    public static async Task<FileMetadataResult> GetFileMetadataAsync(
+        JsonRpc rpc,
+        string fileName,
+        CancellationToken cancellationToken,
+        ILogger? logger = null)
     {
         var call = rpc.InvokeWithParameterObjectAsync<JsonElement>(
             "server.files.metadata", new { filename = fileName }, CancellationToken.None);
@@ -35,10 +42,12 @@ internal sealed class MoonrakerFileClient(string host)
         catch (TimeoutException)
         {
             _ = call.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            logger?.LogWarning("Timed out querying Moonraker metadata for file '{FileName}'", fileName);
             return default;
         }
         catch (Exception ex) when (ex is ConnectionLostException or ObjectDisposedException or RemoteInvocationException)
         {
+            logger?.LogDebug(ex, "Failed to query Moonraker metadata for file '{FileName}'", fileName);
             return default;
         }
 
@@ -75,6 +84,7 @@ internal sealed class MoonrakerFileClient(string host)
             using var response = await Http.GetAsync(url, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
+                _logger.LogDebug("Thumbnail download returned HTTP {StatusCode} for '{FileName}' on {Host}", (int)response.StatusCode, fileName, host);
                 return null;
             }
 
@@ -82,8 +92,9 @@ internal sealed class MoonrakerFileClient(string host)
             var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/png";
             return new PrintThumbnail(contentType, bytes);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            _logger.LogDebug(ex, "Failed to download thumbnail for '{FileName}' from {Host}", fileName, host);
             return null;
         }
     }
@@ -91,6 +102,7 @@ internal sealed class MoonrakerFileClient(string host)
     public async Task UploadFileAsync(Stream stream, string fileName, CancellationToken cancellationToken)
     {
         var url = $"http://{host}/server/files/upload";
+        _logger.LogInformation("Uploading file '{FileName}' to Moonraker host {Host}", fileName, host);
 
         try
         {
@@ -104,10 +116,12 @@ internal sealed class MoonrakerFileClient(string host)
             using var response = await Http.PostAsync(url, multipartContent, cancellationToken).ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();
+            _logger.LogInformation("Uploaded file '{FileName}' to Moonraker host {Host} successfully", fileName, host);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            // Handle network errors or non-success status codes (if EnsureSuccessStatusCode is used)
+            _logger.LogError(ex, "Failed to upload file '{FileName}' to Moonraker host {Host}", fileName, host);
+            throw;
         }
     }
 

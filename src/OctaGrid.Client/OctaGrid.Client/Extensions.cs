@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OctaGrid.Client.Models;
 
 namespace OctaGrid.Client;
@@ -35,6 +37,10 @@ public static class Extensions
         {
             throw new NotSupportedException();
         }
+
+        var logger = App.Services?.GetService<ILogger<App>>();
+        logger?.LogInformation("Restarting application...");
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             RestartMacOS();
@@ -100,6 +106,8 @@ public static class Extensions
 public static class Helper
 {
     private const string DefaultVersion = "1.0.0";
+
+    public static string LogsDirectory => Path.Combine(LocalDataFolder(), "logs");
 
     public static string GetAppVersion()
     {

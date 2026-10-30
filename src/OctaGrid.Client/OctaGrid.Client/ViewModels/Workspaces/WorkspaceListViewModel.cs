@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -12,19 +14,25 @@ namespace OctaGrid.Client.ViewModels;
 public partial class WorkspaceListViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly ApplicationState _appState;
+    private readonly ILogger<WorkspaceListViewModel> _logger;
     private readonly IWorkspacesClient _workspacesClient;
 
     // Design-time only — see MainViewModel's parameterless constructor for why this exists.
     public WorkspaceListViewModel() : this(
         App.Services.GetRequiredService<IWorkspacesClient>(),
-        App.Services.GetRequiredService<ApplicationState>())
+        App.Services.GetRequiredService<ApplicationState>(),
+        App.Services.GetService<ILogger<WorkspaceListViewModel>>() ?? NullLogger<WorkspaceListViewModel>.Instance)
     {
     }
 
-    public WorkspaceListViewModel(IWorkspacesClient workspacesClient, ApplicationState appState)
+    public WorkspaceListViewModel(
+        IWorkspacesClient workspacesClient,
+        ApplicationState appState,
+        ILogger<WorkspaceListViewModel>? logger = null)
     {
         _workspacesClient = workspacesClient;
         _appState = appState;
+        _logger = logger ?? NullLogger<WorkspaceListViewModel>.Instance;
     }
 
     [ObservableProperty]
@@ -45,8 +53,17 @@ public partial class WorkspaceListViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
-        _ = await _workspacesClient.CreateWorkspace(result.Name, cancellationToken);
-        await LoadData(cancellationToken);
+        try
+        {
+            _logger.LogInformation("Creating workspace '{WorkspaceName}'", result.Name);
+            _ = await _workspacesClient.CreateWorkspace(result.Name, cancellationToken);
+            await LoadData(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to create workspace '{WorkspaceName}'", result.Name);
+            throw;
+        }
     }
 
     [RelayCommand]
@@ -64,33 +81,51 @@ public partial class WorkspaceListViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
-        _ = await _workspacesClient.UpdateWorkspace(parameter.Id, result.Name, cancellationToken);
-        await LoadData(cancellationToken);
+        try
+        {
+            _logger.LogInformation("Updating workspace {WorkspaceId} name to '{WorkspaceName}'", parameter.Id, result.Name);
+            _ = await _workspacesClient.UpdateWorkspace(parameter.Id, result.Name, cancellationToken);
+            await LoadData(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to update workspace {WorkspaceId}", parameter.Id);
+            throw;
+        }
     }
 
     [RelayCommand]
     private async Task LoadData(CancellationToken cancellationToken)
     {
-        var response = await _workspacesClient.GetWorkspacesSummary(cancellationToken);
-        Workspaces = new ObservableCollection<WorkspaceSummaryResponse>(response);
-
-        if (_appState.SelectedWorkspace is not null)
+        try
         {
-            var workspace = Workspaces.FirstOrDefault(x => x.Id == _appState.SelectedWorkspace.Id);
-            if (workspace is not null)
+            var response = await _workspacesClient.GetWorkspacesSummary(cancellationToken);
+            Workspaces = new ObservableCollection<WorkspaceSummaryResponse>(response);
+            _logger.LogDebug("Loaded {WorkspaceCount} workspace summary item(s)", response.Count);
+
+            if (_appState.SelectedWorkspace is not null)
             {
+                var workspace = Workspaces.FirstOrDefault(x => x.Id == _appState.SelectedWorkspace.Id);
+                if (workspace is not null)
+                {
+                    SelectedWorkspace = workspace;
+                }
+            }
+            else if (_appState.SelectedWorkspace is null && Workspaces.Count == 1)
+            {
+                var workspace = Workspaces.First();
+                _appState.SelectedWorkspace = new Workspace()
+                {
+                    Id = workspace.Id,
+                    Name = workspace.Name
+                };
                 SelectedWorkspace = workspace;
             }
         }
-        else if (_appState.SelectedWorkspace is null && Workspaces.Count == 1)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var workspace = Workspaces.First();
-            _appState.SelectedWorkspace = new Workspace()
-            {
-                Id = workspace.Id,
-                Name = workspace.Name
-            };
-            SelectedWorkspace = workspace;
+            _logger.LogError(ex, "Failed to load workspace summaries");
+            throw;
         }
     }
 }

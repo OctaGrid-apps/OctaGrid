@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -10,16 +12,24 @@ namespace OctaGrid.Client.ViewModels;
 public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Printer>
 {
     private readonly IAgentCommandsService _agentCommands;
+    private readonly ILogger<EditPrinterViewModel> _logger;
 
     // Design-time only — see MainViewModel's parameterless constructor for why this exists.
-    public EditPrinterViewModel() : this(new PrinterViewModel(new Printer()), App.Services.GetRequiredService<IAgentCommandsService>())
+    public EditPrinterViewModel() : this(
+        new PrinterViewModel(new Printer()),
+        App.Services.GetRequiredService<IAgentCommandsService>(),
+        App.Services.GetService<ILogger<EditPrinterViewModel>>() ?? NullLogger<EditPrinterViewModel>.Instance)
     {
     }
 
-    public EditPrinterViewModel(PrinterViewModel printer, IAgentCommandsService agentCommands)
+    public EditPrinterViewModel(
+        PrinterViewModel printer,
+        IAgentCommandsService agentCommands,
+        ILogger<EditPrinterViewModel>? logger = null)
     {
         Item = printer;
         _agentCommands = agentCommands;
+        _logger = logger ?? NullLogger<EditPrinterViewModel>.Instance;
         PrinterConnectionProtocols = [
             "Moonraker",
             "BambuMqtt",
@@ -62,6 +72,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
     [RelayCommand]
     private void Cancel()
     {
+        _logger.LogDebug("EditPrinter dialog cancelled by user");
         this.ReturnResultFromOverlayDialog(null);
     }
 
@@ -71,6 +82,8 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         Item.Validate();
         if (!Item.HasErrors)
         {
+            _logger.LogDebug("EditPrinter dialog confirmed for printer '{PrinterName}' ({Protocol} @ {Endpoint})",
+                Item.Name, Item.ConnectionProtocol, Item.Address);
             this.ReturnResultFromOverlayDialog(Item.ToPrinter());
         }
     }
@@ -101,6 +114,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Connection test threw an exception for '{Endpoint}' ({Protocol})", Item.Address, Item.ConnectionProtocol);
             TestSucceeded = false;
             TestResultMessage = ex.Message;
         }

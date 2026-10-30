@@ -6,6 +6,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -25,8 +26,8 @@ public partial class App : Application
     {
         try
         {
-            services.AddLogging(builder => builder.AddConsole());
-            services.AddSingleton<IClientMessageHandler>(new MessageHandler());
+            services.AddLogging();
+            services.AddSingleton<IClientMessageHandler, MessageHandler>();
             services.AddSingleton<INotificationService, NotificationService>();
             services.AddSingleton<IByteArrayImageCache, ByteArrayImageCache>();
             services.AddSingleton<ApplicationState>();
@@ -41,15 +42,19 @@ public partial class App : Application
             services.AddTransient<WorkspaceListViewModel>();
             services.AddTransient<IdentityViewModel>();
             services.AddTransient<DashboardsViewModel>();
-            services.AddTransient<FilePickerViewModel>();
             services.AddTransient<SettingsViewModel>();
+            services.AddTransient<EditDashboardViewModel>();
 
             Services = services.BuildServiceProvider();
+
+            var logger = Services.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
+            logger.LogInformation("Application services registered successfully");
         }
         catch (Exception ex)
         {
             // Log to standard trace listeners (Debug window in IDE, or debugView.exe)
             Trace.TraceError(ex.ToString());
+            throw;
         }
     }
 
@@ -86,6 +91,9 @@ public partial class App : Application
             };
         }
 
+        var logger = Services.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
+        logger.LogInformation("Application initialized");
+
 #if DEBUG
         this.AttachDeveloperTools();
 #endif
@@ -93,6 +101,9 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        var logger = Services.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
+        logger.LogInformation("Framework initialization started with lifetime: {Lifetime}", ApplicationLifetime?.GetType().Name);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settingsStore = Services.GetRequiredService<IAppSettingsStore>();
@@ -105,9 +116,11 @@ public partial class App : Application
             });
 
             var settings = settingsStore.ClientSettings;
+            logger.LogInformation("Client settings loaded: Mode={Mode}, AskToSelectClientMode={AskToSelectClientMode}", settings.Mode, settings.AskToSelectClientMode);
 
             if (settings.Mode == ClientMode.Undefined)
             {
+                logger.LogInformation("Client mode is Undefined, showing ModeSelectionWindow");
                 desktop.MainWindow = new ModeSelectionWindow();
             }
             else
@@ -118,7 +131,12 @@ public partial class App : Application
                 var userResponse = usersClient.Me(CancellationToken.None).GetAwaiter().GetResult();
                 if (userResponse is null)
                 {
+                    logger.LogInformation("No authenticated user found, showing IdentityView");
                     desktop.MainWindow = new IdentityView();
+                }
+                else
+                {
+                    logger.LogInformation("Authenticated user found ({UserId}), preparing MainWindow", userResponse.Id);
                 }
                 // =============
 
@@ -129,7 +147,6 @@ public partial class App : Application
 
                 // Each mode registers what it needs running: Local hosts the in-process agent,
                 // Remote holds the server connection. App stays mode-agnostic.
-                var logger = Services.GetRequiredService<ILogger<App>>();
                 foreach (var runtime in Services.GetServices<IClientRuntime>())
                 {
                     _ = RunRuntimeAsync(runtime, logger, _cts.Token);
@@ -137,20 +154,24 @@ public partial class App : Application
 
                 desktop.Exit += (s, e) =>
                 {
+                    logger.LogInformation("Desktop application exit requested");
                     _cts.Cancel();
                     _cts.Dispose();
                 };
 
-                desktop.MainWindow = new MainWindow();
+                desktop.MainWindow ??= new MainWindow();
             }
+            logger.LogInformation("Applying theme {ElementTheme} to main window", settings.ElementTheme);
             desktop.MainWindow.ApplyTheme(settings);
         }
         else if (ApplicationLifetime is IActivityApplicationLifetime singleViewFactoryApplicationLifetime)
         {
+            logger.LogInformation("Configuring activity application lifetime main view factory");
             singleViewFactoryApplicationLifetime.MainViewFactory = () => new MainView();
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
+            logger.LogInformation("Configuring single view application lifetime main view");
             singleViewPlatform.MainView = new MainView();
         }
 
@@ -158,21 +179,26 @@ public partial class App : Application
         DataTemplates.Add(locator);
 
         base.OnFrameworkInitializationCompleted();
+        logger.LogInformation("Framework initialization completed");
     }
 
     // Fire-and-forget still needs its failures observed, otherwise a dead agent/connection is silent.
     private static async Task RunRuntimeAsync(IClientRuntime runtime, ILogger logger, CancellationToken cancellationToken)
     {
+        var runtimeName = runtime.GetType().Name;
         try
         {
+            logger.LogInformation("Client runtime {Runtime} starting", runtimeName);
             await runtime.StartAsync(cancellationToken);
+            logger.LogInformation("Client runtime {Runtime} finished", runtimeName);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            logger.LogInformation("Client runtime {Runtime} stopped due to cancellation", runtimeName);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Client runtime {Runtime} stopped unexpectedly", runtime.GetType().Name);
+            logger.LogError(ex, "Client runtime {Runtime} stopped unexpectedly", runtimeName);
         }
     }
 }

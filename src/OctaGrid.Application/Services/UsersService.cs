@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
 using OctaGrid.Protocol;
@@ -13,11 +15,13 @@ public sealed class UsersService
 {
     private readonly OctaGridContext _context;
     private readonly IPasswordHasher<User> _hasher;
+    private readonly ILogger<UsersService> _logger;
 
-    public UsersService(OctaGridContext context, IPasswordHasher<User> hasher)
+    public UsersService(OctaGridContext context, IPasswordHasher<User> hasher, ILogger<UsersService>? logger = null)
     {
         _context = context;
         _hasher = hasher;
+        _logger = logger ?? NullLogger<UsersService>.Instance;
     }
 
     public async Task<UserResponse> Create(CreateUserRequest request, CancellationToken cancellationToken)
@@ -29,6 +33,7 @@ public sealed class UsersService
 
         if (userExists is not null)
         {
+            _logger.LogWarning("User registration rejected: email '{Email}' is already registered", request.Email);
             throw new ValidationException(nameof(request.Email), "User with this email already exists.");
         }
 
@@ -42,6 +47,7 @@ public sealed class UsersService
         _context.Users.Add(user);
         await _context.SaveChangesAsync(cancellationToken);
 
+        _logger.LogInformation("Registered new user {UserId} ('{Email}')", user.Id, user.Email);
         return new UserResponse(user.Id, user.Name, user.Email);
     }
 
@@ -73,6 +79,8 @@ public sealed class UsersService
 
             await _context.Users.AddAsync(user, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Auto-provisioned default local user {UserId}", user.Id);
         }
 
         return new UserResponse(user.Id, user.Name, user.Email);
@@ -88,9 +96,11 @@ public sealed class UsersService
         // sign-in attempt reveal which emails have accounts.
         if (user is null || _hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
         {
+            _logger.LogWarning("Sign-in failed for email '{Email}'", request.Email);
             throw new AuthenticationException();
         }
 
+        _logger.LogInformation("User {UserId} signed in successfully", user.Id);
         return new UserResponse(user.Id, user.Name, user.Email);
     }
 

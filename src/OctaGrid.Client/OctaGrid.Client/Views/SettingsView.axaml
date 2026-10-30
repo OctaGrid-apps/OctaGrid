@@ -129,6 +129,16 @@
                     </controls:SettingsCard>
                 </controls:SettingsExpander>
             </controls:SettingsGroup>
+
+            <!--  Diagnostics & feedback  -->
+            <controls:SettingsGroup Header="Diagnostics &amp; feedback">
+                <controls:SettingsCard
+                    Description="Application logs"
+                    Header="Logs"
+                    Icon="{StaticResource folder-regular}">
+                    <Button Command="{Binding OpenLogsFolderCommand}" Content="Open logs folder" />
+                </controls:SettingsCard>
+            </controls:SettingsGroup>
         </StackPanel>
     </ScrollViewer>
 </ContentPage>

@@ -5,6 +5,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentFTP;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MQTTnet;
 using MQTTnet.Exceptions;
 using MQTTnet.Formatter;
@@ -49,14 +51,16 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
     private static readonly TimeSpan PushAllMinInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
     private readonly MqttClientFactory _factory = new();
+    private readonly ILogger<MqttClient> _logger;
     private readonly DeviceProfile _profile;
     private volatile IMqttClient? _client;
     private long _lastPushAll;
     private volatile string? _serial;
 
-    public MqttClient(DeviceProfile profile)
+    public MqttClient(DeviceProfile profile, ILogger<MqttClient>? logger = null)
     {
         _profile = profile;
+        _logger = logger ?? NullLogger<MqttClient>.Instance;
     }
 
     public Guid DeviceId => _profile.DeviceId;
@@ -80,6 +84,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
         _profile.Settings.TryGetValue("ApiKey", out var accessCode);
         if (string.IsNullOrEmpty(accessCode))
         {
+            _logger.LogWarning("Cannot list files on Bambu printer {DeviceId}: LAN access code is not configured", DeviceId);
             return [];
         }
 
@@ -91,6 +96,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
             SocketKeepAlive = true
         };
 
+        _logger.LogDebug("Connecting to FTPS on Bambu printer {DeviceId} ({Endpoint}) to list files", DeviceId, _profile.ConnectionString);
         var mainFtp = new AsyncFtpClient(_profile.ConnectionString, Username, accessCode, 990, ftpConfig);
         await mainFtp.Connect(cancellationToken);
         var items = await mainFtp.GetListing("/", cancellationToken);
@@ -103,6 +109,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
 
         if (threeMfFiles.Count == 0)
         {
+            _logger.LogDebug("No .3mf files found on Bambu printer {DeviceId}", DeviceId);
             await mainFtp.Disconnect(cancellationToken);
             return [];
         }
@@ -141,6 +148,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
                     client,
                     item,
                     extractThumbnail: true,
+                    logger: _logger,
                     cancellationToken: ct);
 
                 if (result.HasValue)
@@ -148,21 +156,24 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
                     results.Add(result.Value.Metadata);
                 }
             }
-            catch (Exception)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Log warning and continue so one corrupted 3MF doesn't break the whole directory scan
+                _logger.LogWarning(ex, "Failed to extract metadata from 3MF file '{FileName}' on device {DeviceId}", item.Name, DeviceId);
             }
             finally
             {
                 filesw.Stop();
                 var count = Interlocked.Increment(ref completedCount);
-                Console.WriteLine($"File: {count}, Time {filesw.ElapsedMilliseconds}. FileSize = {item.Size}");
+                _logger.LogDebug("Processed 3MF file #{FileIndex} '{FileName}' ({FileSize} bytes) in {ElapsedMs}ms on device {DeviceId}",
+                    count, item.Name, item.Size, filesw.ElapsedMilliseconds, DeviceId);
                 clientQueue.Enqueue(client);
             }
         });
 
         sw.Stop();
-        Console.WriteLine($"Total: {sw.ElapsedMilliseconds}");
+        _logger.LogInformation("Scanned {FileCount} 3MF file(s) on Bambu printer {DeviceId} in {ElapsedMs}ms",
+            threeMfFiles.Count, DeviceId, sw.ElapsedMilliseconds);
 
         foreach (var client in clients)
         {
@@ -205,6 +216,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
             var item = await ftp.GetObjectInfo(path, token: cancellationToken);
             if (item is null)
             {
+                _logger.LogDebug("3MF file '{FileName}' not found on Bambu printer {DeviceId} when fetching thumbnail", fileName, DeviceId);
                 return null;
             }
 
@@ -212,6 +224,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
                 ftp,
                 item,
                 extractThumbnail: true,
+                logger: _logger,
                 cancellationToken: cancellationToken);
 
             if (result?.Thumbnail is { Length: > 0 } thumbBytes)
@@ -221,8 +234,9 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
 
             return null;
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogDebug(ex, "Failed to fetch thumbnail for '{FileName}' on Bambu printer {DeviceId}", fileName, DeviceId);
             return null;
         }
         finally
@@ -246,6 +260,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
     {
         if (!TryGetEndpoint(out var host, out var port))
         {
+            _logger.LogWarning("Bambu printer {DeviceId} has invalid endpoint '{Endpoint}'", DeviceId, _profile.ConnectionString);
             ReportOffline(telemetryService, $"'{_profile.ConnectionString}' is not a valid printer address.");
             await WaitUntilCancelledAsync(cancellationToken).ConfigureAwait(false);
             return;
@@ -254,6 +269,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
         _profile.Settings.TryGetValue("ApiKey", out var accessCode);
         if (string.IsNullOrEmpty(accessCode))
         {
+            _logger.LogWarning("Bambu printer {DeviceId} ({Host}:{Port}) is missing LAN access code", DeviceId, host, port);
             ReportOffline(telemetryService, "The printer's LAN access code is not set.");
             await WaitUntilCancelledAsync(cancellationToken).ConfigureAwait(false);
             return;
@@ -268,9 +284,11 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
             string failure;
             try
             {
+                _logger.LogDebug("Connecting to Bambu MQTT broker on device {DeviceId} at {Host}:{Port}", DeviceId, host, port);
                 established = await RunSessionAsync(host, port, accessCode, telemetryService, cancellationToken)
                     .ConfigureAwait(false);
                 failure = "The connection to the printer was lost.";
+                _logger.LogInformation("Bambu MQTT session ended for device {DeviceId} at {Host}:{Port}", DeviceId, host, port);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -279,6 +297,8 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
             catch (Exception ex)
             {
                 failure = Describe(ex, host, port);
+                _logger.LogWarning(ex, "Bambu MQTT connection to {Host}:{Port} failed for device {DeviceId}: {FailureReason}",
+                    host, port, DeviceId, failure);
             }
 
             // A dropped session is a new outage and is always reported; repeated failed attempts of
@@ -295,6 +315,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
                 ? ReconnectDelay
                 : TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxReconnectDelay.Ticks));
 
+            _logger.LogDebug("Reconnecting to Bambu printer {DeviceId} in {DelaySeconds}s", DeviceId, delay.TotalSeconds);
             try
             {
                 await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
@@ -397,6 +418,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
         if (_serial is null && TryGetSerialFromTopic(e.ApplicationMessage.Topic, out var learned))
         {
             _serial = learned;
+            _logger.LogInformation("Learned serial number '{SerialNumber}' for Bambu printer {DeviceId}", learned, DeviceId);
             _ = RequestFullStateAsync(client, ct);
         }
 
@@ -456,6 +478,7 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
         }
         catch (Exception ex) when (ex is MqttCommunicationException or ObjectDisposedException or OperationCanceledException)
         {
+            _logger.LogDebug(ex, "Failed to publish pushall state request to Bambu printer {DeviceId}", DeviceId);
         }
     }
 
@@ -481,9 +504,10 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
             {
                 OnMessage(e, client, mapper, telemetryService, firstReport, ct);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
                 // A malformed report isn't worth dropping the connection over.
+                _logger.LogDebug(ex, "Ignored malformed JSON report from Bambu printer {DeviceId}", DeviceId);
             }
 
             return Task.CompletedTask;
@@ -540,6 +564,9 @@ internal sealed class MqttClient : IDeviceClient, IThumbnailProvider
             {
                 throw new InvalidOperationException($"The printer refused the subscription to '{reportTopic}'.");
             }
+
+            _logger.LogInformation("Connected and subscribed to Bambu printer {DeviceId} at {Host}:{Port} (topic: {Topic})",
+                DeviceId, host, port, reportTopic);
 
             await RequestFullStateAsync(client, ct).ConfigureAwait(false);
 
@@ -834,5 +861,5 @@ internal static class Payload
     }
 
     private static string NextSequenceId() =>
-                                                                                        Interlocked.Increment(ref _sequence).ToString(CultureInfo.InvariantCulture);
+        Interlocked.Increment(ref _sequence).ToString(CultureInfo.InvariantCulture);
 }

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
 using OctaGrid.Protocol;
@@ -11,11 +13,13 @@ public sealed class AuthService
 {
     private readonly OctaGridContext _context;
     private readonly IPasswordHasher<User> _hasher;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(OctaGridContext context, IPasswordHasher<User> hasher)
+    public AuthService(OctaGridContext context, IPasswordHasher<User> hasher, ILogger<AuthService>? logger = null)
     {
         _context = context;
         _hasher = hasher;
+        _logger = logger ?? NullLogger<AuthService>.Instance;
     }
 
     public async Task<UserResponse> ValidateUser(string userEmail, string password)
@@ -26,9 +30,11 @@ public sealed class AuthService
         var verificationResult = _hasher.VerifyHashedPassword(user, user.PasswordHash, password);
         if (verificationResult == PasswordVerificationResult.Failed)
         {
+            _logger.LogWarning("Authentication failed for user {UserId}: invalid password", user.Id);
             throw new AuthenticationException();
         }
 
+        _logger.LogInformation("User {UserId} authenticated successfully", user.Id);
         return new UserResponse(user.Id, user.Name, user.Email);
 
         //var claims = new[]

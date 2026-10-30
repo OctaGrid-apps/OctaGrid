@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data.Abstractions;
@@ -13,12 +15,14 @@ namespace OctaGrid.Application.Services;
 public sealed class PrintersService
 {
     private readonly OctaGridContext _context;
+    private readonly ILogger<PrintersService> _logger;
     private readonly IMessagePublisher _publisher;
 
-    public PrintersService(OctaGridContext context, IMessagePublisher publisher)
+    public PrintersService(OctaGridContext context, IMessagePublisher publisher, ILogger<PrintersService>? logger = null)
     {
         _context = context;
         _publisher = publisher;
+        _logger = logger ?? NullLogger<PrintersService>.Instance;
     }
 
     public async Task<PrinterResponse> Create(Guid userId, Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken)
@@ -50,6 +54,10 @@ public sealed class PrintersService
 
         await _context.Printers.AddAsync(printer, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.Protocol, printer.EndpointAddress, printer.Enabled, workspaceId, userId);
+
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
         return MapToResponse(printer);
@@ -64,6 +72,9 @@ public sealed class PrintersService
 
         _context.Printers.Remove(printer);
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Deleted printer {PrinterId} ('{PrinterName}') from workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.WorkspaceId, userId);
 
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Deleted, printer.WorkspaceId));
     }
@@ -147,6 +158,10 @@ public sealed class PrintersService
 
         printer.Enabled = state;
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Printer {PrinterId} ('{PrinterName}') enabled state set to {Enabled} in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, state, printer.WorkspaceId, userId);
+
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
     }
 
@@ -173,6 +188,9 @@ public sealed class PrintersService
         printer.Enabled = request.Enabled;
         await _context.SaveChangesAsync(cancellationToken);
 
+        _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.Protocol, printer.EndpointAddress, printer.Enabled, printer.WorkspaceId, userId);
+
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
         return MapToResponse(printer);
@@ -196,6 +214,9 @@ public sealed class PrintersService
 
         printer.Name = request.Name!;
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Updated printer identity {PrinterId} to '{PrinterName}' in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.WorkspaceId, userId);
 
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 

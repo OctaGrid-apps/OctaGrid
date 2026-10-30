@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 
@@ -7,13 +9,15 @@ namespace OctaGrid.Client.Desktop.Services;
 public class JsonClientSettingsStore : IAppSettingsStore
 {
     private const string SettingFileName = "octaGrid.config.json";
+    private readonly ILogger<JsonClientSettingsStore> _logger;
     private readonly string _settingsFilePath;
     private ClientSettings? _clientSettings;
     private bool _settingsIsLoaded;
     private ClientSettings? _startupSettings;
 
-    public JsonClientSettingsStore()
+    public JsonClientSettingsStore(ILogger<JsonClientSettingsStore>? logger = null)
     {
+        _logger = logger ?? NullLogger<JsonClientSettingsStore>.Instance;
         _settingsFilePath = Path.Combine(Helper.LocalDataFolder(), SettingFileName);
     }
 
@@ -58,6 +62,7 @@ public class JsonClientSettingsStore : IAppSettingsStore
             JsonSerializer.Serialize(fs, _clientSettings, JsonSerializerOptions.Web);
         }
 
+        _logger.LogInformation("Saved updated client settings to {SettingsPath}", _settingsFilePath);
         SettingsChanged?.Invoke(this, _clientSettings);
     }
 
@@ -65,12 +70,16 @@ public class JsonClientSettingsStore : IAppSettingsStore
     {
         using var fs = new FileStream(_settingsFilePath, FileMode.OpenOrCreate, FileAccess.Read);
         ClientSettings? response = null;
-        try
+        if (fs.Length > 0)
         {
-            response = JsonSerializer.Deserialize<ClientSettings>(fs, JsonSerializerOptions.Web);
-        }
-        catch (JsonException)
-        {
+            try
+            {
+                response = JsonSerializer.Deserialize<ClientSettings>(fs, JsonSerializerOptions.Web);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to deserialize client settings from {SettingsPath}, using defaults", _settingsFilePath);
+            }
         }
         _settingsIsLoaded = true;
         _clientSettings = response is null ? new ClientSettings() : response;

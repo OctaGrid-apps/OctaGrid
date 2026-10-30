@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
@@ -10,10 +12,12 @@ namespace OctaGrid.Application.Services;
 public sealed class AgentsService
 {
     private readonly OctaGridContext _context;
+    private readonly ILogger<AgentsService> _logger;
 
-    public AgentsService(OctaGridContext context)
+    public AgentsService(OctaGridContext context, ILogger<AgentsService>? logger = null)
     {
         _context = context;
+        _logger = logger ?? NullLogger<AgentsService>.Instance;
     }
 
     public async Task AddPrinter(Guid userId, Guid agentId, Guid printerId, CancellationToken cancellationToken)
@@ -28,6 +32,8 @@ public sealed class AgentsService
 
         if (agent.WorkspaceId != printer.WorkspaceId)
         {
+            _logger.LogWarning("Rejected linking printer {PrinterId} (workspace {PrinterWorkspaceId}) to agent {AgentId} (workspace {AgentWorkspaceId})",
+                printerId, printer.WorkspaceId, agentId, agent.WorkspaceId);
             throw new ValidationException(nameof(Agent), "Printer and agent should be in the same workspace");
         }
 
@@ -39,6 +45,9 @@ public sealed class AgentsService
 
         _context.PrinterAgents.Add(printerAgent);
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Assigned printer {PrinterId} to agent {AgentId} in workspace {WorkspaceId} by user {UserId}",
+            printerId, agentId, agent.WorkspaceId, userId);
     }
 
     public async Task<AgentResponse> Create(Guid userId, Guid workspaceId, CreateAgentRequest request, CancellationToken cancellationToken)
@@ -57,6 +66,9 @@ public sealed class AgentsService
 
         _context.Agents.Add(agent);
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Created agent {AgentId} ('{AgentName}') in workspace {WorkspaceId} by user {UserId}",
+            agent.Id, agent.Name, workspaceId, userId);
 
         return new AgentResponse(agent.Id, agent.Name, agent.Status.State.ToString(), agent.TokenPrefix, agent.Version);
     }
@@ -92,6 +104,9 @@ public sealed class AgentsService
 
         agent.Name = request.Name;
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Updated agent {AgentId} ('{AgentName}') in workspace {WorkspaceId} by user {UserId}",
+            agent.Id, agent.Name, agent.WorkspaceId, userId);
 
         var state = agent.Status is null ? nameof(AgentState.Unknown) : agent.Status.State.ToString();
         return new AgentResponse(agent.Id, agent.Name, state, agent.TokenPrefix, agent.Version);

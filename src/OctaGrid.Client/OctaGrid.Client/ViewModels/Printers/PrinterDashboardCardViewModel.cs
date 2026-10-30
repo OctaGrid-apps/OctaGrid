@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
 using OctaGrid.Protocol.Messaging;
@@ -13,21 +15,23 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 {
     private readonly IAgentCommandsService _agentCommands;
     private readonly IByteArrayImageCache _imageCache;
+    private readonly ILogger<PrinterDashboardCardViewModel> _logger;
 
-    public PrinterDashboardCardViewModel(PrinterStatusWidget item)
+    public PrinterDashboardCardViewModel(PrinterStatusWidget item, ILogger<PrinterDashboardCardViewModel>? logger = null)
     {
         Item = item;
         _agentCommands = App.Services.GetRequiredService<IAgentCommandsService>();
         _imageCache = App.Services.GetRequiredService<IByteArrayImageCache>();
+        _logger = logger ?? App.Services.GetService<ILogger<PrinterDashboardCardViewModel>>() ?? NullLogger<PrinterDashboardCardViewModel>.Instance;
 
         WeakReferenceMessenger.Default.Register<PrinterTelemetryData, Guid>(this, item.Id, HandlePrinterTelemetry);
-        _ = LoadData(CancellationToken.None).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        _ = LoadData(CancellationToken.None);
     }
 
     [ObservableProperty]
     public partial PrinterStatusWidget Item { get; private set; }
 
-    private async void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
+    private void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
     {
         if (message.Value.NozzleTemperature.HasValue)
         {
@@ -52,7 +56,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         if (message.Value.PrintStatus.FileName is not null)
         {
             Item.PrintFileName = message.Value.PrintStatus.FileName;
-            _ = TryGetThumbnail().ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            _ = TryGetThumbnail();
         }
 
         if (message.Value.PrintStatus.Progress.HasValue)
@@ -69,9 +73,16 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.StateMessages = new ObservableCollection<string>(message.Value.StateMessages.Select(sm => sm.Message));
     }
 
-    private Task LoadData(CancellationToken cancellationToken)
+    private async Task LoadData(CancellationToken cancellationToken)
     {
-        return _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);
+        try
+        {
+            await _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
+        }
     }
 
     [RelayCommand]
@@ -90,34 +101,55 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     [RelayCommand]
     private async Task StartPauseButtonClicked(CancellationToken cancellationToken)
     {
-        if (Item.State == UniversalPrinterState.Printing)
+        try
         {
-            await _agentCommands.PausePrintJobAsync(Item.Id, cancellationToken);
-        }
-        else if (Item.State == UniversalPrinterState.Paused)
-        {
-            await _agentCommands.ResumePrintJobAsync(Item.Id, cancellationToken);
-        }
-        else if (Item.State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
-                 or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed)
-        {
-            var dashboardViewModel = new FilePickerViewModel(Item.Id);
-            _ = dashboardViewModel.LoadDataCommand.ExecuteAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-
-            var result = await this.ShowOverlayDialogAsync(null, dashboardViewModel);
-            if (result is null)
+            if (Item.State == UniversalPrinterState.Printing)
             {
-                return;
+                _logger.LogInformation("User requested pause on printer {PrinterId} ('{PrinterName}')", Item.Id, Item.Name);
+                await _agentCommands.PausePrintJobAsync(Item.Id, cancellationToken);
             }
+            else if (Item.State == UniversalPrinterState.Paused)
+            {
+                _logger.LogInformation("User requested resume on printer {PrinterId} ('{PrinterName}')", Item.Id, Item.Name);
+                await _agentCommands.ResumePrintJobAsync(Item.Id, cancellationToken);
+            }
+            else if (Item.State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
+                     or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed)
+            {
+                var dashboardViewModel = new FilePickerViewModel(Item.Id);
+                _ = dashboardViewModel.LoadDataCommand.ExecuteAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
-            await _agentCommands.StartPrintJobAsync(Item.Id, result.FileName, cancellationToken);
+                var result = await this.ShowOverlayDialogAsync(null, dashboardViewModel);
+                if (result is null)
+                {
+                    return;
+                }
+
+                _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
+                    result.FileName, Item.Id, Item.Name);
+                await _agentCommands.StartPrintJobAsync(Item.Id, result.FileName, cancellationToken);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to execute Start/Pause command on printer {PrinterId} ('{PrinterName}')", Item.Id, Item.Name);
+            throw;
         }
     }
 
     [RelayCommand]
     private async Task StopButtonClicked(CancellationToken cancellationToken)
     {
-        await _agentCommands.StopPrintJobAsync(Item.Id, cancellationToken);
+        try
+        {
+            _logger.LogInformation("User requested stop print job on printer {PrinterId} ('{PrinterName}')", Item.Id, Item.Name);
+            await _agentCommands.StopPrintJobAsync(Item.Id, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to stop print job on printer {PrinterId} ('{PrinterName}')", Item.Id, Item.Name);
+            throw;
+        }
     }
 
     private async Task TryGetThumbnail()
@@ -127,18 +159,25 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             return;
         }
 
-        if (_imageCache.TryGetBytes(Item.PrintFileName, out var bytes) && bytes is not null)
+        try
         {
-            Item.ThumbnailData = bytes;
-        }
-        else
-        {
-            var response = await _agentCommands.GetThumbnailAsync(Item.Id, Item.PrintFileName, CancellationToken.None);
-            if (response is not null)
+            if (_imageCache.TryGetBytes(Item.PrintFileName, out var bytes) && bytes is not null)
             {
-                _imageCache.Add(Item.PrintFileName, response.Data);
-                Item.ThumbnailData = response.Data;
+                Item.ThumbnailData = bytes;
             }
+            else
+            {
+                var response = await _agentCommands.GetThumbnailAsync(Item.Id, Item.PrintFileName, CancellationToken.None);
+                if (response is not null)
+                {
+                    _imageCache.Add(Item.PrintFileName, response.Data);
+                    Item.ThumbnailData = response.Data;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to load thumbnail for file '{FileName}' on printer {PrinterId}", Item.PrintFileName, Item.Id);
         }
     }
 }

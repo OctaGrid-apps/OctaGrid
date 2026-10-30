@@ -4,6 +4,7 @@ using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Desktop.Services;
 using OctaGrid.Client.Local;
 using OctaGrid.Client.Services;
+using Serilog;
 
 namespace OctaGrid.Client.Desktop;
 
@@ -22,24 +23,41 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
-        var settingsStore = new JsonClientSettingsStore();
-        services.AddSingleton<IAppSettingsStore>(settingsStore);
-        services
-            .AddWebRtc();
+        DesktopLogging.Initialize();
+        Log.Information("Starting OctaGrid Desktop {Version}...", Helper.GetInfoVersion());
+        Log.Information("Logs directory: {LogsDirectory}", Helper.LogsDirectory);
 
-        //if (settingsStore.ClientSettings.Mode == ClientMode.Local)
+        try
         {
-            services.AddLocalMode();
-        }
-        //else if (settingsStore.ClientSettings.Mode == ClientMode.Remote)
-        //{
-        //    services.AddRemoteMode();
-        //}
+            var services = new ServiceCollection();
+            services.AddDesktopLogging();
+            services.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
+            services.AddSingleton<IAppSettingsStore, JsonClientSettingsStore>();
+            services
+                .AddWebRtc();
 
-        BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+            //if (settingsStore.ClientSettings.Mode == ClientMode.Local)
+            {
+                services.AddLocalMode();
+            }
+            //else if (settingsStore.ClientSettings.Mode == ClientMode.Remote)
+            //{
+            //    services.AddRemoteMode();
+            //}
+
+            BuildAvaloniaApp()
+                .StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "OctaGrid Desktop terminated unexpectedly");
+            throw;
+        }
+        finally
+        {
+            Log.Information("OctaGrid Desktop shutting down.");
+            Log.CloseAndFlush();
+        }
     }
 }
 

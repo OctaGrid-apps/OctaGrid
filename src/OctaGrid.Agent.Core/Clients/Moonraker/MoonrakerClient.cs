@@ -1,5 +1,7 @@
 using System.Net.WebSockets;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Printers;
 using StreamJsonRpc;
@@ -26,6 +28,8 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
     };
 
     private readonly MoonrakerFileClient _fileClient;
+    private readonly ILogger<MoonrakerClient> _logger;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly DeviceProfile _profile;
 
     // Single-flight: while one query is pending, further triggers join it instead of queueing more
@@ -39,10 +43,12 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
 
     private Task? _queryInFlight;
 
-    public MoonrakerClient(DeviceProfile profile)
+    public MoonrakerClient(DeviceProfile profile, ILoggerFactory? loggerFactory = null)
     {
         _profile = profile;
-        _fileClient = new MoonrakerFileClient(profile.ConnectionString);
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<MoonrakerClient>();
+        _fileClient = new MoonrakerFileClient(profile.ConnectionString, _loggerFactory.CreateLogger<MoonrakerFileClient>());
     }
 
     public Guid DeviceId => _profile.DeviceId;
@@ -52,6 +58,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         var rpc = _jsonRpc
             ?? throw new InvalidOperationException("Not connected to the printer.");
 
+        _logger.LogInformation("Deleting file '{FileName}' on Moonraker device {DeviceId}", fileName, DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.delete_file", new { path = $"{DefaultGCodeRoot}/{fileName}" }, cancellationToken: cancellationToken);
     }
 
@@ -66,18 +73,23 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         var rpc = _jsonRpc
             ?? throw new InvalidOperationException("Not connected to the printer.");
 
+        _logger.LogDebug("Listing files on Moonraker device {DeviceId}", DeviceId);
         var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
 
-        var filePaths = files.EnumerateArray().Select(f => f.GetProperty("path").GetString()).Where(x => !string.IsNullOrWhiteSpace(x));
+        var filePaths = files.EnumerateArray()
+            .Select(f => f.GetProperty("path").GetString())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
 
-        var metadata = new List<PrintMetadata>(filePaths.Count());
+        var metadata = new List<PrintMetadata>(filePaths.Count);
 
         foreach (var filePath in filePaths)
         {
-            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, filePath!, cancellationToken).ConfigureAwait(false);
+            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, filePath!, cancellationToken, _logger).ConfigureAwait(false);
             metadata.Add(new PrintMetadata(fileMetadata.FileName, fileMetadata.FileSize, fileMetadata.MaterialType, fileMetadata.NozzleDiameter, fileMetadata.EstimatedTimeSeconds));
         }
 
+        _logger.LogDebug("Retrieved metadata for {FileCount} file(s) on Moonraker device {DeviceId}", metadata.Count, DeviceId);
         return metadata;
     }
 
@@ -96,7 +108,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         }
 
         // ToDo: Cache the result for the current file name
-        var result = await MoonrakerFileClient.GetFileMetadataAsync(rpc, fileName, cancellationToken).ConfigureAwait(false);
+        var result = await MoonrakerFileClient.GetFileMetadataAsync(rpc, fileName, cancellationToken, _logger).ConfigureAwait(false);
 
         listener?.OnFileMetadata(result.EstimatedTimeSeconds);
 
@@ -114,6 +126,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         var rpc = _jsonRpc
             ?? throw new InvalidOperationException("Not connected to the printer.");
 
+        _logger.LogInformation("Pausing print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.pause", cancellationToken: cancellationToken);
     }
 
@@ -122,6 +135,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         var rpc = _jsonRpc
             ?? throw new InvalidOperationException("Not connected to the printer.");
 
+        _logger.LogInformation("Resuming print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.resume", cancellationToken: cancellationToken);
     }
 
@@ -142,6 +156,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
                 ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
                 ws.Options.KeepAliveTimeout = TimeSpan.FromSeconds(10);
 
+                _logger.LogDebug("Connecting to Moonraker device {DeviceId} at {Uri}", DeviceId, uri);
                 using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     connectCts.CancelAfter(ConnectTimeout);
@@ -149,16 +164,17 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
                 }
 
                 connected = true;
+                _logger.LogInformation("Connected to Moonraker device {DeviceId} at {Uri}", DeviceId, uri);
                 await RunSessionAsync(DeviceId, ws, telemetryService, cancellationToken).ConfigureAwait(false);
-                //_logger.LogInformation("Moonraker connection to {Uri} closed", uri);
+                _logger.LogInformation("Moonraker connection to {Uri} closed for device {DeviceId}", uri, DeviceId);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                //_logger.LogWarning(ex, "Moonraker connection to {Uri} failed", uri);
+                _logger.LogWarning(ex, "Moonraker connection to {Uri} failed for device {DeviceId}", uri, DeviceId);
             }
 
             if (!connected)
@@ -171,6 +187,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
                 ? _reconnectDelay
                 : TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxReconnectDelay.Ticks));
 
+            _logger.LogDebug("Reconnecting to Moonraker device {DeviceId} in {DelaySeconds}s", DeviceId, delay.TotalSeconds);
             try
             {
                 await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
@@ -187,6 +204,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         var rpc = _jsonRpc
             ?? throw new InvalidOperationException("Not connected to the printer.");
 
+        _logger.LogInformation("Starting print job '{FileName}' on Moonraker device {DeviceId}", fileName, DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.start", new { filename = fileName }, cancellationToken: cancellationToken);
     }
 
@@ -195,6 +213,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         var rpc = _jsonRpc
             ?? throw new InvalidOperationException("Not connected to the printer.");
 
+        _logger.LogInformation("Stopping print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.cancel", cancellationToken: cancellationToken);
     }
 
@@ -223,10 +242,12 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                _logger.LogDebug("Moonraker connection test timed out connecting to {Uri}", uri);
                 return ConnectionTestResult.Fail($"Timed out connecting to {uri}.");
             }
             catch (WebSocketException ex)
             {
+                _logger.LogDebug(ex, "Moonraker connection test WebSocket error for {Uri}", uri);
                 return ConnectionTestResult.Fail(ex.InnerException?.Message ?? ex.Message);
             }
 
@@ -243,10 +264,12 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
             }
             catch (TimeoutException)
             {
+                _logger.LogDebug("Moonraker connection test RPC server.info timed out for {Uri}", uri);
                 return ConnectionTestResult.Fail("Connected, but the server did not answer in time.");
             }
             catch (Exception ex) when (ex is ConnectionLostException or RemoteInvocationException)
             {
+                _logger.LogDebug(ex, "Moonraker connection test RPC server.info failed for {Uri}", uri);
                 return ConnectionTestResult.Fail($"Connected, but the request failed: {ex.Message}");
             }
             finally
@@ -257,6 +280,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogWarning(ex, "Unexpected error during Moonraker connection test for '{Endpoint}'", _profile.ConnectionString);
             // Last-resort net: a connection test must report failure, never crash the caller.
             return ConnectionTestResult.Fail(ex.Message);
         }
@@ -330,6 +354,8 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
             // The abandoned call faults when the connection is disposed below; observe it.
             _ = call.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
+            _logger.LogWarning("Moonraker state query timed out for device {DeviceId}; tearing down frozen RPC session", DeviceId);
+
             // No answer within the timeout: the connection is frozen, not merely slow. Tear it down
             // so the session ends and RunAsync reconnects + re-subscribes (which pushes fresh
             // state), rather than leaving a dead session that every later trigger would hit too.
@@ -338,6 +364,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
         }
         catch (Exception ex) when (ex is ConnectionLostException or ObjectDisposedException)
         {
+            _logger.LogDebug(ex, "Moonraker state query aborted because connection dropped for device {DeviceId}", DeviceId);
             // The connection dropped/restarted mid-request. The reconnect re-subscribes and pushes
             // fresh state, so there is nothing to retry here.
         }
@@ -345,7 +372,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
 
     private async Task RunSessionAsync(Guid deviceId, ClientWebSocket ws, ITelemetryService telemetryService, CancellationToken ct)
     {
-        _listener = new MoonrakerListener(deviceId, telemetryService);
+        _listener = new MoonrakerListener(deviceId, telemetryService, _loggerFactory.CreateLogger<MoonrakerListener>());
         var handler = new WebSocketMessageHandler(ws, new SystemTextJsonFormatter());
         var rpc = new JsonRpc(handler, _listener);
         _jsonRpc = rpc;
@@ -359,6 +386,7 @@ public class MoonrakerClient : IDeviceClient, IThumbnailProvider
             var subscribeCall = rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.objects.subscribe", SubscribeParams, CancellationToken.None);
             var initialStatus = await subscribeCall.WaitAsync(QueryTimeout, ct).ConfigureAwait(false);
             _listener.OnStatusUpdate(initialStatus, DateTime.UtcNow.Millisecond);
+            _logger.LogDebug("Subscribed to Moonraker objects for device {DeviceId}", deviceId);
 
             // Completes when the connection drops. No polling needed.
             await rpc.Completion.WaitAsync(ct).ConfigureAwait(false);

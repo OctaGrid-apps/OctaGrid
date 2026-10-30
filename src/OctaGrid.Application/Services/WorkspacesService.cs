@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
@@ -11,12 +13,14 @@ namespace OctaGrid.Application.Services;
 public sealed class WorkspacesService
 {
     private readonly OctaGridContext _context;
+    private readonly ILogger<WorkspacesService> _logger;
     private readonly IMessagePublisher _publisher;
 
-    public WorkspacesService(OctaGridContext context, IMessagePublisher publisher)
+    public WorkspacesService(OctaGridContext context, IMessagePublisher publisher, ILogger<WorkspacesService>? logger = null)
     {
         _context = context;
         _publisher = publisher;
+        _logger = logger ?? NullLogger<WorkspacesService>.Instance;
     }
 
     public async Task<WorkspaceResponse> Create(Guid userId, CreateWorkspaceRequest request, CancellationToken cancellationToken)
@@ -43,6 +47,9 @@ public sealed class WorkspacesService
 
         await _context.Workspaces.AddAsync(workspace, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Created workspace {WorkspaceId} ('{WorkspaceName}') for owner {UserId}",
+            workspace.Id, workspace.Name, userId);
 
         return new WorkspaceResponse(workspace.Id, workspace.Name, workspace.Version);
     }
@@ -98,11 +105,16 @@ public sealed class WorkspacesService
         var userIsWorkspaceMember = await _context.WorkspaceMembers.AnyAsync(wm => wm.UserId == userId && wm.WorkspaceId == workspaceId, cancellationToken);
         if (!userIsWorkspaceMember)
         {
+            _logger.LogWarning("User {UserId} denied access to update workspace {WorkspaceId}", userId, workspaceId);
             throw new AuthenticationException("User does not have access to this workspace");
         }
         workspace.Name = request.Name;
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Updated workspace {WorkspaceId} name to '{WorkspaceName}' by user {UserId}",
+            workspace.Id, workspace.Name, userId);
+
         _publisher.Publish(new EntityChanged(EntityTypes.Workspace, workspace.Id, workspace.Version, ChangeKind.Upserted, workspace.Id));
 
         return new WorkspaceResponse(workspace.Id, workspace.Name, workspace.Version);

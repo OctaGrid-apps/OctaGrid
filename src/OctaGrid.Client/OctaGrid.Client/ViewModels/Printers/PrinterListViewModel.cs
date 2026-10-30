@@ -1,9 +1,10 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel.DataAnnotations;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Controls.Dialogs;
 using OctaGrid.Client.Models;
@@ -15,17 +16,20 @@ namespace OctaGrid.Client.ViewModels;
 public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly ApplicationState _appState;
+    private readonly ILogger<PrinterListViewModel> _logger;
     private readonly INotificationService _notification;
     private readonly IPrintersClient _printersClient;
 
     public PrinterListViewModel(
         IPrintersClient printersClient,
         INotificationService notification,
-        ApplicationState appState)
+        ApplicationState appState,
+        ILogger<PrinterListViewModel>? logger = null)
     {
         _printersClient = printersClient;
         _notification = notification;
         _appState = appState;
+        _logger = logger ?? NullLogger<PrinterListViewModel>.Instance;
         WeakReferenceMessenger.Default.Register<PrinterEntityUpsert>(this, HandlePrinterEntityUpsert);
         WeakReferenceMessenger.Default.Register<PrinterEntityDelete>(this, HandlePrinterEntityDelete);
     }
@@ -36,8 +40,18 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     [RelayCommand]
     private async Task ChangePrinterEnabled(PrinterListItem printer, CancellationToken cancellationToken)
     {
-        await _printersClient.SetPrinterEnabled(printer.Id, printer.Enabled, cancellationToken);
-        _notification.ShowSuccess(printer.Name, printer.Enabled ? "Printer enabled." : "Printer disabled.");
+        try
+        {
+            _logger.LogInformation("Changing printer {PrinterId} ('{PrinterName}') enabled state to {Enabled}",
+                printer.Id, printer.Name, printer.Enabled);
+            await _printersClient.SetPrinterEnabled(printer.Id, printer.Enabled, cancellationToken);
+            _notification.ShowSuccess(printer.Name, printer.Enabled ? "Printer enabled." : "Printer disabled.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to change enabled state for printer {PrinterId}", printer.Id);
+            throw;
+        }
     }
 
     [RelayCommand]
@@ -53,19 +67,38 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 
         var workspaceId = _appState.GetWorkspaceId();
 
-        var request = new CreatePrinterRequest(result.Name, result.Url, result.ConnectionProtocol, result.ApiKey, result.Enabled);
-        _ = await _printersClient.CreatePrinter(workspaceId, request, cancellationToken);
+        try
+        {
+            _logger.LogInformation("Creating printer '{PrinterName}' ({Protocol} @ {Endpoint}) in workspace {WorkspaceId}",
+                result.Name, result.ConnectionProtocol, result.Url, workspaceId);
+            var request = new CreatePrinterRequest(result.Name, result.Url, result.ConnectionProtocol, result.ApiKey, result.Enabled);
+            _ = await _printersClient.CreatePrinter(workspaceId, request, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to create printer '{PrinterName}' in workspace {WorkspaceId}", result.Name, workspaceId);
+            throw;
+        }
     }
 
     [RelayCommand]
     private async Task DeletePrinter(PrinterListItem printer, CancellationToken cancellationToken)
     {
         var result = await this.ShowOverlayDialogAsync<DialogResult>("Delete printer",
-         $"Are you sure you want to delete '{printer.Name}' printer?",
-         DialogCommands.YesNo);
+            $"Are you sure you want to delete '{printer.Name}' printer?",
+            DialogCommands.YesNo);
         if (result == DialogResult.Yes)
         {
-            await _printersClient.DeletePrinter(printer.Id, cancellationToken);
+            try
+            {
+                _logger.LogInformation("Deleting printer {PrinterId} ('{PrinterName}')", printer.Id, printer.Name);
+                await _printersClient.DeletePrinter(printer.Id, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Failed to delete printer {PrinterId} ('{PrinterName}')", printer.Id, printer.Name);
+                throw;
+            }
         }
     }
 
@@ -88,10 +121,20 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
-        _ = await _printersClient.UpdatePrinter(printer.Id, new UpdatePrinterRequest(result.Name, result.Url, result.ConnectionProtocol, result.ApiKey, result.Enabled), cancellationToken);
+        try
+        {
+            _logger.LogInformation("Updating printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint})",
+                printer.Id, result.Name, result.ConnectionProtocol, result.Url);
+            _ = await _printersClient.UpdatePrinter(printer.Id, new UpdatePrinterRequest(result.Name, result.Url, result.ConnectionProtocol, result.ApiKey, result.Enabled), cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to update printer {PrinterId}", printer.Id);
+            throw;
+        }
     }
 
-    private async void HandlePrinterEntityDelete(object recipient, PrinterEntityDelete message)
+    private void HandlePrinterEntityDelete(object recipient, PrinterEntityDelete message)
     {
         if (_appState.SelectedWorkspace is null)
         {
@@ -123,17 +166,24 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
-        var workspaceId = _appState.GetWorkspaceId();
-        var response = await _printersClient.GetPrinter(workspaceId, message.Value.EntityId, CancellationToken.None);
+        try
+        {
+            var workspaceId = _appState.GetWorkspaceId();
+            var response = await _printersClient.GetPrinter(workspaceId, message.Value.EntityId, CancellationToken.None);
 
-        if (printer is null)
-        {
-            var insertIndex = Printers.IndexOf(AddPrinterListItem.Instance);
-            Printers.Insert(insertIndex, response.ToPrinterListItem());
+            if (printer is null)
+            {
+                var insertIndex = Printers.IndexOf(AddPrinterListItem.Instance);
+                Printers.Insert(insertIndex, response.ToPrinterListItem());
+            }
+            else
+            {
+                Printers[Printers.IndexOf(printer)] = response.ToPrinterListItem();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Printers[Printers.IndexOf(printer)] = response.ToPrinterListItem();
+            _logger.LogError(ex, "Failed to handle printer upsert notification for printer {PrinterId}", message.Value.EntityId);
         }
     }
 
@@ -142,12 +192,22 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     {
         if (_appState.SelectedWorkspace is null)
         {
+            _logger.LogWarning("PrinterListViewModel LoadData skipped: no workspace selected");
             return;
         }
 
         var workspaceId = _appState.GetWorkspaceId();
-        var response = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: null), cancellationToken);
-        IEnumerable<IPrinterListItem> items = response.Select(p => p.ToPrinterListItem());
-        Printers = new ObservableCollection<IPrinterListItem>(items.Append(AddPrinterListItem.Instance));
+        try
+        {
+            var response = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: null), cancellationToken);
+            IEnumerable<IPrinterListItem> items = response.Select(p => p.ToPrinterListItem());
+            Printers = new ObservableCollection<IPrinterListItem>(items.Append(AddPrinterListItem.Instance));
+            _logger.LogDebug("Loaded {PrinterCount} printer(s) for workspace {WorkspaceId}", response.Count, workspaceId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to load printers for workspace {WorkspaceId}", workspaceId);
+            throw;
+        }
     }
 }

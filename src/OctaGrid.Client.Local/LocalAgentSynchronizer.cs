@@ -13,6 +13,7 @@ internal sealed class LocalAgentSynchronizer(EntityChangeFeed feed, AgentWorker 
 {
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        logger.LogDebug("LocalAgentSynchronizer listening for printer entity changes");
         try
         {
             await foreach (var change in feed.ReadAllAsync(cancellationToken))
@@ -22,6 +23,7 @@ internal sealed class LocalAgentSynchronizer(EntityChangeFeed feed, AgentWorker 
                     continue;
                 }
 
+                logger.LogInformation("Printer {PrinterId} changed ({ChangeKind}); refreshing local agent profiles", change.EntityId, change.Kind);
                 try
                 {
                     await agent.RefreshProfilesAsync(cancellationToken);
@@ -34,6 +36,7 @@ internal sealed class LocalAgentSynchronizer(EntityChangeFeed feed, AgentWorker 
         }
         catch (OperationCanceledException)
         {
+            logger.LogDebug("LocalAgentSynchronizer stopped");
         }
     }
 }

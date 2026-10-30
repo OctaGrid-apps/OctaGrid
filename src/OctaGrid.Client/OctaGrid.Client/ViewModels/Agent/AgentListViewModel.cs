@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -13,18 +15,21 @@ public partial class AgentListViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAgentsClient _agentsClient;
     private readonly ApplicationState _appState;
+    private readonly ILogger<AgentListViewModel> _logger;
 
     // Design-time only — see MainViewModel's parameterless constructor for why this exists.
     public AgentListViewModel() : this(
         App.Services.GetRequiredService<IAgentsClient>(),
-        App.Services.GetRequiredService<ApplicationState>())
+        App.Services.GetRequiredService<ApplicationState>(),
+        App.Services.GetService<ILogger<AgentListViewModel>>() ?? NullLogger<AgentListViewModel>.Instance)
     {
     }
 
-    public AgentListViewModel(IAgentsClient agentsClient, ApplicationState appState)
+    public AgentListViewModel(IAgentsClient agentsClient, ApplicationState appState, ILogger<AgentListViewModel>? logger = null)
     {
         _agentsClient = agentsClient;
         _appState = appState;
+        _logger = logger ?? NullLogger<AgentListViewModel>.Instance;
     }
 
     [ObservableProperty]
@@ -43,8 +48,17 @@ public partial class AgentListViewModel : ViewModelBase, IDialogParticipant
         }
 
         var workspaceId = _appState.GetWorkspaceId();
-        _ = await _agentsClient.CreateAgent(workspaceId, result.Name, cancellationToken);
-        await LoadData(cancellationToken);
+        try
+        {
+            _logger.LogInformation("Creating agent '{AgentName}' in workspace {WorkspaceId}", result.Name, workspaceId);
+            _ = await _agentsClient.CreateAgent(workspaceId, result.Name, cancellationToken);
+            await LoadData(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to create agent '{AgentName}' in workspace {WorkspaceId}", result.Name, workspaceId);
+            throw;
+        }
     }
 
     [RelayCommand]
@@ -62,8 +76,18 @@ public partial class AgentListViewModel : ViewModelBase, IDialogParticipant
         {
             return;
         }
-        _ = await _agentsClient.UpdateAgent(agent.Id, result.Name, cancellationToken);
-        await LoadData(cancellationToken);
+
+        try
+        {
+            _logger.LogInformation("Updating agent {AgentId} name to '{AgentName}'", agent.Id, result.Name);
+            _ = await _agentsClient.UpdateAgent(agent.Id, result.Name, cancellationToken);
+            await LoadData(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to update agent {AgentId}", agent.Id);
+            throw;
+        }
     }
 
     [RelayCommand]
@@ -71,11 +95,21 @@ public partial class AgentListViewModel : ViewModelBase, IDialogParticipant
     {
         if (_appState.SelectedWorkspace is null)
         {
+            _logger.LogWarning("AgentListViewModel LoadData skipped: no workspace selected");
             return;
         }
 
         var workspaceId = _appState.GetWorkspaceId();
-        var response = await _agentsClient.GetAgentList(workspaceId, cancellationToken);
-        Agents = new ObservableCollection<AgentResponse>(response);
+        try
+        {
+            var response = await _agentsClient.GetAgentList(workspaceId, cancellationToken);
+            Agents = new ObservableCollection<AgentResponse>(response);
+            _logger.LogDebug("Loaded {AgentCount} agent(s) for workspace {WorkspaceId}", response.Count, workspaceId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to load agents for workspace {WorkspaceId}", workspaceId);
+            throw;
+        }
     }
 }

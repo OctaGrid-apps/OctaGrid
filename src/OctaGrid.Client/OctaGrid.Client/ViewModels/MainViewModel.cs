@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -13,6 +15,7 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAgentsClient _agentsClient;
     private readonly IAppSettingsStore _appSettings;
+    private readonly ILogger<MainViewModel> _logger;
     private readonly IWorkspacesClient _workspacesClient;
 
     // Design-time only: MainView.axaml's <Design.DataContext> instantiates this directly via
@@ -23,7 +26,8 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         App.Services.GetRequiredService<IWorkspacesClient>(),
         App.Services.GetRequiredService<IAgentsClient>(),
         App.Services.GetRequiredService<IAppSettingsStore>(),
-        App.Services.GetRequiredService<ApplicationState>())
+        App.Services.GetRequiredService<ApplicationState>(),
+        App.Services.GetService<ILogger<MainViewModel>>() ?? NullLogger<MainViewModel>.Instance)
     {
     }
 
@@ -31,12 +35,14 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         IWorkspacesClient workspacesClient,
         IAgentsClient agentsClient,
         IAppSettingsStore appSettings,
-        ApplicationState appState)
+        ApplicationState appState,
+        ILogger<MainViewModel>? logger = null)
     {
         _workspacesClient = workspacesClient;
         _agentsClient = agentsClient;
         _appSettings = appSettings;
         AppStateService = appState;
+        _logger = logger ?? NullLogger<MainViewModel>.Instance;
 
         WeakReferenceMessenger.Default.Register<WorkspaceEntityChanged>(this, HandleWorkspaceChanged);
     }
@@ -54,6 +60,9 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         const string DefaultWorkspaceName = "Default";
         const string DefaultAgentName = "Local";
 
+        _logger.LogInformation("No workspaces found; provisioning default workspace '{WorkspaceName}' and agent '{AgentName}'",
+            DefaultWorkspaceName, DefaultAgentName);
+
         var workspaceResponse = await _workspacesClient.CreateWorkspace(DefaultWorkspaceName, cancellationToken);
         var ws = new Workspace()
         {
@@ -68,40 +77,61 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 
     private async void HandleWorkspaceChanged(object recipient, WorkspaceEntityChanged message)
     {
-        await LoadData(CancellationToken.None);
+        try
+        {
+            await LoadData(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reload workspaces after WorkspaceEntityChanged ({WorkspaceId})", message.Value.EntityId);
+        }
     }
 
     [RelayCommand]
     private async Task LoadData(CancellationToken cancellationToken)
     {
-        var response = await _workspacesClient.GetWorkspaceList(cancellationToken);
-        Workspaces = new ObservableCollection<Workspace>(response.Select(w => new Workspace()
+        try
         {
-            Id = w.Id,
-            Name = w.Name
-        }));
-
-        if (Workspaces.Count == 1)
-        {
-            AppStateService.SelectedWorkspace = Workspaces.First();
-            return;
-        }
-
-        if (Workspaces.Count > 1)
-        {
-            var defaultWorkspaceId = _appSettings.ClientSettings.DefaultWorkspace;
-            if (defaultWorkspaceId.HasValue)
+            var response = await _workspacesClient.GetWorkspaceList(cancellationToken);
+            Workspaces = new ObservableCollection<Workspace>(response.Select(w => new Workspace()
             {
-                var workspace = Workspaces.FirstOrDefault(w => w.Id == defaultWorkspaceId);
-                AppStateService.SelectedWorkspace = workspace ?? Workspaces.First();
-            }
-            else
+                Id = w.Id,
+                Name = w.Name
+            }));
+
+            _logger.LogDebug("Loaded {WorkspaceCount} workspace(s)", Workspaces.Count);
+
+            if (Workspaces.Count == 1)
             {
                 AppStateService.SelectedWorkspace = Workspaces.First();
+                return;
             }
-            return;
-        }
 
-        await CreateDefaultEntities(cancellationToken);
+            if (Workspaces.Count > 1)
+            {
+                var defaultWorkspaceId = _appSettings.ClientSettings.DefaultWorkspace;
+                if (defaultWorkspaceId.HasValue)
+                {
+                    var workspace = Workspaces.FirstOrDefault(w => w.Id == defaultWorkspaceId);
+                    AppStateService.SelectedWorkspace = workspace ?? Workspaces.First();
+                }
+                else
+                {
+                    AppStateService.SelectedWorkspace = Workspaces.First();
+                }
+                return;
+            }
+
+            await CreateDefaultEntities(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("MainViewModel LoadData aborted via cancellation token");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load workspaces in MainViewModel");
+            throw;
+        }
     }
 }

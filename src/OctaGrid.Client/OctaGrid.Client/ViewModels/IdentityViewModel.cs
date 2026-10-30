@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Users;
@@ -9,10 +11,12 @@ namespace OctaGrid.Client.ViewModels;
 public partial class IdentityViewModel : ViewModelBase
 {
     private readonly IAuthClient _client;
+    private readonly ILogger<IdentityViewModel> _logger;
 
-    public IdentityViewModel(IAuthClient client)
+    public IdentityViewModel(IAuthClient client, ILogger<IdentityViewModel>? logger = null)
     {
         _client = client;
+        _logger = logger ?? NullLogger<IdentityViewModel>.Instance;
     }
 
     public event Action? SignedIn;
@@ -51,15 +55,19 @@ public partial class IdentityViewModel : ViewModelBase
         IsBusy = true;
         try
         {
+            _logger.LogInformation("Attempting sign-in for '{Email}'", Email);
             await _client.SignIn(new SignInRequest(Email, Password), cancellationToken);
+            _logger.LogInformation("Sign-in succeeded for '{Email}'", Email);
             SignedIn?.Invoke();
         }
         catch (AuthenticationException ex)
         {
+            _logger.LogWarning("Sign-in failed for '{Email}': {Message}", Email, ex.Message);
             ErrorMessage = ex.Message;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogError(ex, "Unexpected error during sign-in for '{Email}'", Email);
             ErrorMessage = "Something went wrong. Please try again.";
         }
         finally
@@ -75,15 +83,19 @@ public partial class IdentityViewModel : ViewModelBase
         IsBusy = true;
         try
         {
+            _logger.LogInformation("Attempting sign-up for '{Email}'", Email);
             await _client.CreateUser(new CreateUserRequest(Name, Email, Password), cancellationToken);
+            _logger.LogInformation("Sign-up succeeded for '{Email}'", Email);
             SignedUp?.Invoke();
         }
         catch (ValidationException ex)
         {
+            _logger.LogWarning("Sign-up validation failed for '{Email}': {Message}", Email, ex.Message);
             ErrorMessage = ex.Message;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _logger.LogError(ex, "Unexpected error during sign-up for '{Email}'", Email);
             ErrorMessage = "Something went wrong. Please try again.";
         }
         finally

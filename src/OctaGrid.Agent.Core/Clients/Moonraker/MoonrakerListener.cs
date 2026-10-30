@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Protocol.Messaging;
 using StreamJsonRpc;
 
@@ -7,15 +9,17 @@ namespace OctaGrid.Agent.Core.Clients.Moonraker;
 public class MoonrakerListener
 {
     private readonly Guid _deviceId;
+    private readonly ILogger<MoonrakerListener> _logger;
     private readonly PrinterTelemetry _printerTelemetry;
     private readonly ITelemetryService _telemetryService;
     private string? _printState;
     private string? _webhooksState;
 
-    public MoonrakerListener(Guid deviceId, ITelemetryService telemetryService)
+    public MoonrakerListener(Guid deviceId, ITelemetryService telemetryService, ILogger<MoonrakerListener>? logger = null)
     {
         _deviceId = deviceId;
         _telemetryService = telemetryService;
+        _logger = logger ?? NullLogger<MoonrakerListener>.Instance;
         _printerTelemetry = new PrinterTelemetry(_deviceId);
     }
 
@@ -61,19 +65,19 @@ public class MoonrakerListener
     [JsonRpcMethod("notify_klippy_disconnected")]
     public void OnKlippyDisconnected()
     {
-        Console.WriteLine("Warning: Klippy disconnected from Moonraker!");
+        _logger.LogWarning("Klippy disconnected from Moonraker on device {DeviceId}", _deviceId);
     }
 
     [JsonRpcMethod("notify_klippy_ready")]
     public void OnKlippyReady()
     {
-        Console.WriteLine("[Moonraker Alert] Klippy is ready.");
+        _logger.LogInformation("Klippy is ready on Moonraker device {DeviceId}", _deviceId);
     }
 
     [JsonRpcMethod("notify_klippy_shutdown")]
     public void OnKlippyShutdown()
     {
-        Console.WriteLine("[Moonraker Alert] Klippy has entered shutdown state.");
+        _logger.LogWarning("Klippy has entered shutdown state on Moonraker device {DeviceId}", _deviceId);
     }
 
     [JsonRpcMethod("notify_proc_stat_update")]
@@ -139,6 +143,7 @@ public class MoonrakerListener
             var printerState = Extensions.ToPrinterState(printStatsState: _printState, klippyState: _webhooksState);
             if (t.State != printerState)
             {
+                _logger.LogInformation("Moonraker printer {DeviceId} state changed: {OldState} -> {NewState}", _deviceId, t.State, printerState);
                 t.State = printerState;
                 changed = true;
             }

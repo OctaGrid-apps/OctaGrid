@@ -1,7 +1,11 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 
@@ -10,10 +14,12 @@ namespace OctaGrid.Client.ViewModels;
 public partial class SettingsViewModel : ViewModelBase
 {
     private readonly IAppSettingsStore _appSettings;
+    private readonly ILogger<SettingsViewModel> _logger;
 
-    public SettingsViewModel(IAppSettingsStore appSettingsStore)
+    public SettingsViewModel(IAppSettingsStore appSettingsStore, ILogger<SettingsViewModel>? logger = null)
     {
         _appSettings = appSettingsStore;
+        _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
         AppClientModes.Add(new Option<ClientMode>(nameof(ClientMode.Local), ClientMode.Local));
         AppClientModes.Add(new Option<ClientMode>(nameof(ClientMode.Remote), ClientMode.Remote));
 
@@ -70,8 +76,29 @@ public partial class SettingsViewModel : ViewModelBase
         AskClientModeOnAppStart = _appSettings.ClientSettings.AskToSelectClientMode;
     }
 
+    [RelayCommand]
+    private async Task OpenLogsFolder(CancellationToken cancellationToken)
+    {
+        var folderPath = Helper.LogsDirectory;
+
+        if (!Directory.Exists(folderPath))
+        {
+            return;
+        }
+
+        if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
+            if (topLevel?.Launcher != null)
+            {
+                await topLevel.Launcher.LaunchUriAsync(new Uri(folderPath));
+            }
+        }
+    }
+
     partial void OnAskClientModeOnAppStartChanged(bool value)
     {
+        _logger.LogInformation("Setting AskToSelectClientMode changed to {Value}", value);
         _appSettings.Update(s => s with { AskToSelectClientMode = value });
     }
 
@@ -82,6 +109,7 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         }
 
+        _logger.LogInformation("Setting ClientMode changed to {Mode}", value.Value);
         _appSettings.Update(s => s with { Mode = value.Value });
     }
 
@@ -92,6 +120,7 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         }
 
+        _logger.LogInformation("Setting ElementTheme changed to {Theme}", value.Value);
         _appSettings.Update(s => s with { ElementTheme = value.Value });
 
         Avalonia.Application.Current!.RequestedThemeVariant = value.Value switch
@@ -109,6 +138,7 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         }
 
+        _logger.LogInformation("Setting TransparencyLevel changed to {TransparencyLevel}", value.Value);
         _appSettings.Update(s => s with { TransparencyLevel = value.Value });
     }
 
