@@ -1,0 +1,68 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.SafetyDisclaimerView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="480"
+    d:DesignWidth="480"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:SafetyDisclaimerViewModel"
+    mc:Ignorable="d">
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <ScrollViewer>
+
+            <StackPanel Classes="form">
+                <TextBlock
+                    Classes="body"
+                    Text="This application monitors and remotely controls physical 3D printing hardware. Improper or unattended operation poses risks of physical injury and property damage:"
+                    TextWrapping="Wrap" />
+
+                <Border
+                    Background="{DynamicResource SystemBaseLowColor}"
+                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                    BorderThickness="1"
+                    Classes="tile">
+                    <StackPanel Classes="card-content">
+                        <StackPanel Classes="gap-0_5">
+                            <TextBlock Classes="lead" Text="High Temperatures &amp; Burn / Fire Hazard" />
+                            <TextBlock
+                                Classes="small secondary"
+                                Text="3D printer hotends and heated beds reach high temperatures capable of causing severe burns or fire. Never touch heated components until they have completely cooled, and ensure hardware thermal runaway protection is enabled."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Classes="gap-0_5">
+                            <TextBlock Classes="lead" Text="Moving Mechanical Parts &amp; Pinch Hazard" />
+                            <TextBlock
+                                Classes="small secondary"
+                                Text="Starting or resuming a print job causes immediate physical movement of motorized axes, extruders, and build plates. Always verify that the build area is clear of hands, tools, and obstructions before issuing remote commands."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Classes="gap-0_5">
+                            <TextBlock Classes="lead" Text="User Supervision &amp; Responsibility" />
+                            <TextBlock
+                                Classes="small secondary"
+                                Text="Do not operate 3D printers unattended without appropriate fire-safety precautions. This software is provided &quot;as is&quot; without warranty; you assume full responsibility for the safe supervision and operation of connected hardware."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button
+                Classes="primary"
+                Command="{Binding AcceptCommand}"
+                Content="I Understand" />
+        </StackPanel>
+    </Grid>
+</UserControl>

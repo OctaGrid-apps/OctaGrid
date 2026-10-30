@@ -44,6 +44,7 @@ public partial class App : Application
             services.AddTransient<DashboardsViewModel>();
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<EditDashboardViewModel>();
+            services.AddTransient<SafetyDisclaimerViewModel>();
 
             Services = services.BuildServiceProvider();
 

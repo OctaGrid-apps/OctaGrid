@@ -11,7 +11,7 @@ using OctaGrid.Client.Services;
 
 namespace OctaGrid.Client.ViewModels;
 
-public partial class SettingsViewModel : ViewModelBase
+public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAppSettingsStore _appSettings;
     private readonly ILogger<SettingsViewModel> _logger;
@@ -149,6 +149,18 @@ public partial class SettingsViewModel : ViewModelBase
         if (App.Current?.ApplicationLifetime is { } lifetime)
         {
             lifetime.Restart();
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowSafetyDisclaimer()
+    {
+        _logger.LogInformation("Opening Safety Warning & Disclaimer dialog from Settings");
+        var disclaimerViewModel = new SafetyDisclaimerViewModel();
+        var accepted = await this.ShowOverlayDialogAsync("Safety Warning & Disclaimer", disclaimerViewModel);
+        if (accepted && !_appSettings.ClientSettings.IsSafetyDisclaimerAccepted)
+        {
+            _appSettings.Update(s => s with { IsSafetyDisclaimerAccepted = true });
         }
     }
 }

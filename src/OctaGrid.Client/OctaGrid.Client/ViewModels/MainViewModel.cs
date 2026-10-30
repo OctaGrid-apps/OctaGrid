@@ -92,37 +92,18 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
     {
         try
         {
-            var response = await _workspacesClient.GetWorkspaceList(cancellationToken);
-            Workspaces = new ObservableCollection<Workspace>(response.Select(w => new Workspace()
-            {
-                Id = w.Id,
-                Name = w.Name
-            }));
+            await LoadWorkspacesAsync(cancellationToken);
 
-            _logger.LogDebug("Loaded {WorkspaceCount} workspace(s)", Workspaces.Count);
-
-            if (Workspaces.Count == 1)
+            if (!_appSettings.ClientSettings.IsSafetyDisclaimerAccepted)
             {
-                AppStateService.SelectedWorkspace = Workspaces.First();
-                return;
-            }
-
-            if (Workspaces.Count > 1)
-            {
-                var defaultWorkspaceId = _appSettings.ClientSettings.DefaultWorkspace;
-                if (defaultWorkspaceId.HasValue)
+                _logger.LogInformation("Safety disclaimer has not been accepted yet; displaying SafetyDisclaimerView");
+                var disclaimerViewModel = new SafetyDisclaimerViewModel();
+                var accepted = await this.ShowOverlayDialogAsync("Safety Warning & Disclaimer", disclaimerViewModel);
+                if (accepted)
                 {
-                    var workspace = Workspaces.FirstOrDefault(w => w.Id == defaultWorkspaceId);
-                    AppStateService.SelectedWorkspace = workspace ?? Workspaces.First();
+                    _appSettings.Update(s => s with { IsSafetyDisclaimerAccepted = true });
                 }
-                else
-                {
-                    AppStateService.SelectedWorkspace = Workspaces.First();
-                }
-                return;
             }
-
-            await CreateDefaultEntities(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -133,5 +114,40 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
             _logger.LogError(ex, "Failed to load workspaces in MainViewModel");
             throw;
         }
+    }
+
+    private async Task LoadWorkspacesAsync(CancellationToken cancellationToken)
+    {
+        var response = await _workspacesClient.GetWorkspaceList(cancellationToken);
+        Workspaces = new ObservableCollection<Workspace>(response.Select(w => new Workspace()
+        {
+            Id = w.Id,
+            Name = w.Name
+        }));
+
+        _logger.LogDebug("Loaded {WorkspaceCount} workspace(s)", Workspaces.Count);
+
+        if (Workspaces.Count == 1)
+        {
+            AppStateService.SelectedWorkspace = Workspaces.First();
+            return;
+        }
+
+        if (Workspaces.Count > 1)
+        {
+            var defaultWorkspaceId = _appSettings.ClientSettings.DefaultWorkspace;
+            if (defaultWorkspaceId.HasValue)
+            {
+                var workspace = Workspaces.FirstOrDefault(w => w.Id == defaultWorkspaceId);
+                AppStateService.SelectedWorkspace = workspace ?? Workspaces.First();
+            }
+            else
+            {
+                AppStateService.SelectedWorkspace = Workspaces.First();
+            }
+            return;
+        }
+
+        await CreateDefaultEntities(cancellationToken);
     }
 }

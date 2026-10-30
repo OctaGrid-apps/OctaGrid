@@ -5,10 +5,12 @@
     xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     controls:NavigationRail.Icon="{StaticResource settings-regular}"
     d:DesignHeight="800"
     d:DesignWidth="1600"
+    services:DialogManager.Register="{Binding}"
     x:DataType="vm:SettingsViewModel"
     Background="Transparent"
     Header="Settings"
@@ -125,6 +127,25 @@
                                     <Run Text="https://github.com" />
                                 </SelectableTextBlock>
                             </Grid>
+                        </controls:SettingsCard.Header>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander>
+
+                <controls:SettingsExpander
+                    Description="Important safety warnings regarding high temperatures, moving mechanical parts, and remote 3D printer operation"
+                    Header="Safety &amp; Disclaimer"
+                    Icon="{StaticResource warning-regular}"
+                    IsExpanded="False">
+                    <controls:SettingsExpander.Content>
+                        <Button Command="{Binding ShowSafetyDisclaimerCommand}" Content="View disclaimer" />
+                    </controls:SettingsExpander.Content>
+
+                    <controls:SettingsCard>
+                        <controls:SettingsCard.Header>
+                            <TextBlock
+                                Classes="small secondary"
+                                Text="3D printers contain high-temperature heating elements (nozzles and heated beds) and motorized moving axes that can cause severe burns, pinch injuries, or fire. Always verify that the printer's build area is clear of hands, tools, and obstructions before remotely starting or resuming a print job, and never leave operating 3D printers unattended without proper fire-safety and thermal runaway protections."
+                                TextWrapping="Wrap" />
                         </controls:SettingsCard.Header>
                     </controls:SettingsCard>
                 </controls:SettingsExpander>

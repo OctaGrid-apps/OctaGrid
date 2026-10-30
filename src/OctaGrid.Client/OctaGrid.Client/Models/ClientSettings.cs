@@ -15,6 +15,7 @@ public sealed record ClientSettings
 
     public string? ServerUrl { get; init; }
     public bool AskToSelectClientMode { get; init; }
+    public bool IsSafetyDisclaimerAccepted { get; init; }
     public Guid? DefaultWorkspace { get; init; }
     public Guid? DefaultDashboard { get; init; }
 }
