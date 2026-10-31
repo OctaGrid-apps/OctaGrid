@@ -46,7 +46,7 @@ Pre-compiled standalone binaries for Windows (`win-x64`) are available on the [R
 ### Clone & Build
 
 ```powershell
-git clone https://github.com/your-username/OctaGrid.git
+git clone https://github.com/OctaGrid-apps/OctaGrid.git
 cd OctaGrid
 dotnet build OctaGrid.slnx
 ```

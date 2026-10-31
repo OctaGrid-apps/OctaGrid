@@ -1,4 +1,4 @@
-﻿<ContentPage
+<ContentPage
     x:Class="OctaGrid.Client.Views.DashboardsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -34,8 +34,17 @@
             Grid.Column="1"
             HorizontalAlignment="Right"
             Classes="inline">
-            <Button Classes="icon" Command="{Binding RefreshPrintersCommand}">
+            <Button
+                Classes="icon"
+                Command="{Binding RefreshPrintersCommand}"
+                ToolTip.Tip="Refresh dashboard items">
                 <PathIcon Margin="8,0" Data="{StaticResource sync-regular}" />
+            </Button>
+            <Button Classes="icon" Command="{Binding EditSelectedDashboardCommand}">
+                <PathIcon
+                    Margin="8,0"
+                    Data="{StaticResource edit-regular}"
+                    ToolTip.Tip="Edit current dashboard" />
             </Button>
             <Button Classes="primary" Command="{Binding CreateDashboardCommand}">
                 <StackPanel Classes="inline">
@@ -59,9 +68,9 @@
             </ItemsControl.ItemsPanel>
 
             <!--            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:PrinterDashboardCardViewModel">
-                    <controls:PrinterDashboardCard />
-                </DataTemplate>
+            <DataTemplate x:DataType="vm:PrinterDashboardCardViewModel">
+            <controls:PrinterDashboardCard />
+            </DataTemplate>
             </ItemsControl.ItemTemplate>-->
         </ItemsControl>
     </Grid>

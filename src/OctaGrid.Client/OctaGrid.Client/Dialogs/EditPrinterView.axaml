@@ -57,8 +57,7 @@
                 <Button
                     HorizontalAlignment="Left"
                     Command="{Binding TestConnectionCommand}"
-                    Content="Test connection"
-                    IsEnabled="{Binding CanTestPritnerConnection}" />
+                    Content="Test connection" />
                 <TextBlock
                     Classes="small"
                     Foreground="{Binding TestResultStateKey, Converter={x:Static conv:StateBrushConverter.Foreground}}"

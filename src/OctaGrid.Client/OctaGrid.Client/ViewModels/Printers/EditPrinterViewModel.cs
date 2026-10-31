@@ -40,10 +40,14 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         {
             Item.ConnectionProtocol = PrinterConnectionProtocols.First();
         }
-        Item.PropertyChanged += Item_PropertyChanged;
+        Item.PropertyChanged += OnItemPropertyChanged;
+        Item.ErrorsChanged += OnItemErrorsChanged;
     }
 
-    public bool CanTestPritnerConnection => Item.CanTestConnection();
+    private void OnItemErrorsChanged(object? sender, System.ComponentModel.DataErrorsChangedEventArgs e)
+    {
+        TestConnectionCommand.NotifyCanExecuteChanged();
+    }
 
     public bool HasTestResult => !string.IsNullOrWhiteSpace(TestResultMessage);
 
@@ -69,11 +73,14 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
     [NotifyPropertyChangedFor(nameof(TestResultStateKey))]
     public partial bool TestSucceeded { get; set; }
 
+    public bool CanTestPritnerConnection() => Item.CanTestConnection();
+
     [RelayCommand]
     private void Cancel()
     {
         _logger.LogDebug("EditPrinter dialog cancelled by user");
         this.ReturnResultFromOverlayDialog(null);
+        Cleanup();
     }
 
     [RelayCommand]
@@ -85,10 +92,20 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
             _logger.LogDebug("EditPrinter dialog confirmed for printer '{PrinterName}' ({Protocol} @ {Endpoint})",
                 Item.Name, Item.ConnectionProtocol, Item.Address);
             this.ReturnResultFromOverlayDialog(Item.ToPrinter());
+            Cleanup();
         }
     }
 
-    private void Item_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void Cleanup()
+    {
+        if (Item is not null)
+        {
+            Item.ErrorsChanged -= OnItemErrorsChanged;
+            Item.PropertyChanged -= OnItemPropertyChanged;
+        }
+    }
+
+    private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(Item.Address) or nameof(Item.ConnectionProtocol) or nameof(Item.ApiKey))
         {
@@ -96,7 +113,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanTestPritnerConnection))]
     private async Task TestConnection(CancellationToken cancellationToken)
     {
         IsTesting = true;

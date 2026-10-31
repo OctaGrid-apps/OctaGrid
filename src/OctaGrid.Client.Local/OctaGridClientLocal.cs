@@ -107,6 +107,11 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
         return _agents.Update(CurrentUserId, agentId, new UpdateAgentRequest(name), cancellationToken);
     }
 
+    public Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken)
+    {
+        return _dashboards.Update(CurrentUserId, dashboardId, request, cancellationToken);
+    }
+
     public Task<PrinterResponse> UpdateIdentity(Guid printerId, UpdatePrinterIdentityRequest request, CancellationToken cancellationToken)
     {
         return _printers.UpdateIdentity(CurrentUserId, printerId, request, cancellationToken);

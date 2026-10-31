@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Validation;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Application.Services;
@@ -49,5 +51,31 @@ public sealed class DashboardsService
             .ToListAsync(cancellationToken);
 
         return response;
+    }
+
+    public async Task<DashboardResponse> Update(Guid userId, Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken)
+    {
+        var dashboard = await _context.Dashboards.FindAsync([dashboardId], cancellationToken)
+            ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
+
+        await _context.WorkspaceMembers.ValidateUserAccess(userId, dashboard.WorkspaceId, cancellationToken);
+
+        var validator = new UpdateDashboardRequestValidator();
+        var results = validator.Validate(request);
+
+        if (!results.IsValid)
+        {
+            var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
+            throw new ValidationException(failures);
+        }
+
+        dashboard.Name = request.Name;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Updated dashboard {DashboardId} ('{Name}', IsDefault={IsDefault}) in workspace {WorkspaceId} by user {UserId}",
+            dashboard.Id, dashboard.Name, dashboard.IsDefault, dashboard.WorkspaceId, userId);
+
+        return new DashboardResponse(dashboard.Id, dashboard.Name, dashboard.Type.ToString(), dashboard.Version);
     }
 }

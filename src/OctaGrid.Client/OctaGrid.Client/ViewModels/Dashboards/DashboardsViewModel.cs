@@ -238,8 +238,8 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAppSettingsStore _appSettingsStore;
     private readonly ApplicationState _appState;
-    private readonly ILogger<DashboardsViewModel> _logger;
     private readonly IDashboardsClient _dashboardsClient;
+    private readonly ILogger<DashboardsViewModel> _logger;
     private readonly IPrintersClient _printersClient;
 
     // Design-time only — see MainViewModel's parameterless constructor for why this exists.
@@ -276,11 +276,6 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     [ObservableProperty]
     public partial DashboardResponse? SelectedDashboard { get; set; }
 
-    partial void OnSelectedDashboardChanged(DashboardResponse? oldValue, DashboardResponse? newValue)
-    {
-        _logger.LogDebug("Selected dashboard changed: {OldDashboard} -> {NewDashboard}", oldValue?.Name ?? "None", newValue?.Name ?? "None");
-    }
-
     [RelayCommand]
     private async Task CreateDashboard(CancellationToken cancellationToken)
     {
@@ -315,6 +310,38 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
             throw;
         }
     }
+
+    [RelayCommand(CanExecute = nameof(IsDashboardSelected))]
+    private async Task EditSelectedDashboard(CancellationToken cancellationToken)
+    {
+        if (SelectedDashboard is null)
+        {
+            return;
+        }
+
+        var printerViewModel = new EditDashboardViewModel(new DashboardViewModel(SelectedDashboard.Name), App.Services.GetRequiredService<ILogger<EditDashboardViewModel>>());
+
+        var result = await this.ShowOverlayDialogAsync("Edit dashboard", printerViewModel);
+        if (result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Updating dashboard {DashboardId} '{DashboardNameName}'",
+                SelectedDashboard.Id, SelectedDashboard.Name);
+            var response = await _dashboardsClient.UpdateDashboard(SelectedDashboard.Id, new UpdateDashboardRequest(result), cancellationToken);
+            await LoadData(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to update dashboard {DashboardId}", SelectedDashboard.Id);
+            throw;
+        }
+    }
+
+    private bool IsDashboardSelected() => SelectedDashboard is not null;
 
     [RelayCommand]
     private async Task LoadData(CancellationToken cancellationToken)
@@ -383,7 +410,14 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         }
     }
 
-    [RelayCommand]
+    partial void OnSelectedDashboardChanged(DashboardResponse? oldValue, DashboardResponse? newValue)
+    {
+        _logger.LogDebug("Selected dashboard changed: {OldDashboard} -> {NewDashboard}", oldValue?.Name ?? "None", newValue?.Name ?? "None");
+        RefreshPrintersCommand.NotifyCanExecuteChanged();
+        EditSelectedDashboardCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(IsDashboardSelected))]
     private Task RefreshPrinters(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Refreshing printers triggered");

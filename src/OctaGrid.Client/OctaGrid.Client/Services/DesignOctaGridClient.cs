@@ -75,6 +75,9 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
     public Task<AgentResponse> UpdateAgent(Guid agentId, string name, CancellationToken cancellationToken) =>
         Task.FromResult(new AgentResponse(agentId, name, "Online", "octa_local_token", 1));
 
+    public Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken) =>
+         Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, "List", 1));
+
     public Task<PrinterResponse> UpdateIdentity(Guid printerId, UpdatePrinterIdentityRequest request, CancellationToken cancellationToken) =>
         Task.FromResult(new PrinterResponse(printerId, "Voron 2.4", "http://192.168.1.50", "Moonraker", "Connected", string.Empty, true, 1));
 

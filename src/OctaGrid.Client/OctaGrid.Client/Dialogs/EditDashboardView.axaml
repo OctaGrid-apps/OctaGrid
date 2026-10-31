@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Dialogs.EditDashboardView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -15,7 +15,7 @@
             <TextBox
                 x:Name="dashboardName"
                 VerticalAlignment="Center"
-                Text="{Binding DashboardName}"
+                Text="{Binding Item.DashboardName}"
                 TextWrapping="Wrap" />
         </StackPanel>
 
