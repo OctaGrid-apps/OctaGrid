@@ -39,9 +39,12 @@ if (-not (Test-Path $resolvedOutputDir)) {
     New-Item -ItemType Directory -Force -Path $resolvedOutputDir | Out-Null
 }
 
-# Read publisher from manifest
+# Read publisher from manifest and version from version.json
 [xml]$manifestXml = Get-Content $manifestSource
 $publisher = $manifestXml.Package.Identity.Publisher
+$versionJsonPath = Join-Path $repoRoot "version.json"
+$versionJson = Get-Content $versionJsonPath -Raw | ConvertFrom-Json
+$appxVersion = if ($versionJson.version -match '^\d+\.\d+\.\d+$') { "$($versionJson.version).0" } else { $versionJson.version }
 
 # Locate makeappx.exe and signtool.exe
 $makeappx = $null
@@ -144,9 +147,10 @@ foreach ($arch in $Architectures) {
         Copy-Item -Recurse -Force $assetsSource $publishAssetsDir
     }
 
-    # Prepare AppxManifest.xml with target architecture
+    # Prepare AppxManifest.xml with target version and architecture
     $appxManifestPath = Join-Path $publishDir "AppxManifest.xml"
     $manifestContent = Get-Content $manifestSource -Raw
+    $manifestContent = $manifestContent -replace '(<Identity\b[^>]*?\bVersion=")[^"]*"', "`${1}$appxVersion`""
     $manifestContent = $manifestContent -replace 'ProcessorArchitecture="[^"]*"', "ProcessorArchitecture=""$arch"""
     [System.IO.File]::WriteAllText($appxManifestPath, $manifestContent, [System.Text.Encoding]::UTF8)
 

@@ -44,6 +44,9 @@
     <Compile Update="Dialogs\EditDashboardView.axaml.cs">
       <DependentUpon>EditDashboardView.axaml</DependentUpon>
     </Compile>
+    <Compile Update="Dialogs\SafetyDisclaimerView.axaml.cs">
+      <DependentUpon>SafetyDisclaimerView.axaml</DependentUpon>
+    </Compile>
     <Compile Update="Views\AgentListView.axaml.cs">
       <DependentUpon>AgentListView.axaml</DependentUpon>
     </Compile>
@@ -57,10 +60,4 @@
       <DependentUpon>WorkspaceListView.axaml</DependentUpon>
     </Compile>
   </ItemGroup>
-
-  <Target Name="FormatAxaml" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Debug' AND '$(DesignTimeBuild)' != 'true'">
-    <Exec Command="dotnet xstyler -d &quot;$(MSBuildProjectDirectory)&quot; -r -l Minimal"
-          WorkingDirectory="$(MSBuildProjectDirectory)"
-          IgnoreExitCode="true" />
-  </Target>
 </Project>

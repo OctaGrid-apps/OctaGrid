@@ -32,28 +32,4 @@
     <ProjectReference Include="..\OctaGrid.Client\OctaGrid.Client.csproj" />
     <ProjectReference Include="..\..\OctaGrid.Client.Local\OctaGrid.Client.Local.csproj" />
   </ItemGroup>
-
-  <!-- Automatically sync Package.appxmanifest Identity Version with Nerdbank.GitVersioning -->
-  <Target Name="SyncPackageAppxManifestVersion"
-          DependsOnTargets="GetBuildVersion"
-          BeforeTargets="BeforeBuild;BeforePublish"
-          Condition="Exists('Package.appxmanifest')">
-    <PropertyGroup>
-      <TargetAppxVersion Condition="'$(BuildVersionSimple)' != ''">$(BuildVersionSimple).0</TargetAppxVersion>
-      <TargetAppxVersion Condition="'$(TargetAppxVersion)' == '' And '$(AssemblyFileVersion)' != ''">$(AssemblyFileVersion)</TargetAppxVersion>
-      <TargetAppxVersion Condition="'$(TargetAppxVersion)' == ''">1.0.0.0</TargetAppxVersion>
-    </PropertyGroup>
-    <XmlPeek
-      XmlInputPath="Package.appxmanifest"
-      Query="/x:Package/x:Identity/@Version"
-      Namespaces="&lt;Namespace Prefix='x' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;">
-      <Output TaskParameter="Result" PropertyName="CurrentAppxVersion" />
-    </XmlPeek>
-    <XmlPoke
-      Condition="'$(CurrentAppxVersion)' != '$(TargetAppxVersion)'"
-      XmlInputPath="Package.appxmanifest"
-      Query="/x:Package/x:Identity/@Version"
-      Value="$(TargetAppxVersion)"
-      Namespaces="&lt;Namespace Prefix='x' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;" />
-  </Target>
 </Project>
