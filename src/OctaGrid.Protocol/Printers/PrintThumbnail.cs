@@ -5,5 +5,3 @@ namespace OctaGrid.Protocol.Printers;
 /// (in-process today; over HTTP/SignalR once Remote mode exists).
 /// </summary>
 public sealed record PrintThumbnail(string ContentType, byte[] Data);
-
-public sealed record PrintMetadata(string FileName, int FileSize, string? MaterialType, double? NozzleDiameter, double? EstimatedTimeSeconds);

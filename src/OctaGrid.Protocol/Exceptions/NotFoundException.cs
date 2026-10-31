@@ -1,4 +1,4 @@
-﻿namespace OctaGrid.Protocol.Exceptions;
+namespace OctaGrid.Protocol.Exceptions;
 
 public sealed class NotFoundException : AppException
 {
@@ -9,5 +9,6 @@ public sealed class NotFoundException : AppException
     public NotFoundException(string entity, object key)
         : base($"{entity} with key '{key}' was not found.") { }
 
-    public NotFoundException(string detail) : base(detail) { }
+    public NotFoundException(string detail) : base(detail)
+    { }
 }

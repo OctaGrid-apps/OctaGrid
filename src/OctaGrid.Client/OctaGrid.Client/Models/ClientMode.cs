@@ -6,16 +6,3 @@ public enum ClientMode
     Local,
     Remote,
 }
-
-public enum ElementTheme
-{
-    Default,
-    Dark,
-    Light
-}
-
-public enum TransparencyLevel
-{
-    None,
-    Mica
-}

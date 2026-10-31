@@ -7,5 +7,6 @@ public sealed class PrinterAgent : Entity
 
     // Navigation props
     public Printer? Printer { get; set; }
+
     public Agent? Agent { get; set; }
 }

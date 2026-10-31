@@ -6,14 +6,6 @@ using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client;
 
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class ViewForAttribute : Attribute
-{
-    public ViewForAttribute(Type viewModelType) => ViewModelType = viewModelType;
-
-    public Type ViewModelType { get; }
-}
-
 /// <summary>
 /// Given a view model, returns the corresponding view if possible.
 /// </summary>

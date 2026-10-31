@@ -9,5 +9,6 @@ public sealed class Dashboard : Entity
 
     // Navigation props
     public Workspace? Workspace { get; set; }
+
     public ICollection<DashboardWidget> Widgets { get; set; } = [];
 }

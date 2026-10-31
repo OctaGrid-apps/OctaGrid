@@ -15,8 +15,6 @@ using OctaGrid.Client.Views;
 
 namespace OctaGrid.Client;
 
-// Fully-qualified: OctaGrid.Application (the renamed shared business-logic project) is a sibling
-// namespace under OctaGrid, which shadows the unqualified "Application" name Avalonia expects here.
 public partial class App : Application
 {
     private readonly CancellationTokenSource _cts = new();
@@ -53,7 +51,6 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            // Log to standard trace listeners (Debug window in IDE, or debugView.exe)
             Trace.TraceError(ex.ToString());
             throw;
         }
@@ -183,7 +180,6 @@ public partial class App : Application
         logger.LogInformation("Framework initialization completed");
     }
 
-    // Fire-and-forget still needs its failures observed, otherwise a dead agent/connection is silent.
     private static async Task RunRuntimeAsync(IClientRuntime runtime, ILogger logger, CancellationToken cancellationToken)
     {
         var runtimeName = runtime.GetType().Name;

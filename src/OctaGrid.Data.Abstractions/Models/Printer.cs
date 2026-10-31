@@ -12,6 +12,8 @@ public sealed class Printer : Entity
 
     // Navigation props
     public Workspace? Workspace { get; set; }
+
     public PrinterStatus? Status { get; set; }
+
     public ICollection<PrinterAgent> PrinterAgents { get; set; } = [];
 }

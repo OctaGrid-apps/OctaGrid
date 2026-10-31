@@ -23,7 +23,8 @@ public sealed class PairingCode
     public DateTimeOffset CreatedAt { get; private set; }
 
     // EF requires a parameterless/protected constructor
-    private PairingCode() { }
+    private PairingCode()
+    { }
 
     public static PairingCode Create(byte[] codeHash, Guid accountId, TimeSpan ttl)
     {

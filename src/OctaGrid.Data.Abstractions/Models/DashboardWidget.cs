@@ -13,5 +13,6 @@ public sealed class DashboardWidget : Entity
 
     // Navigation props
     public Dashboard? Dashboard { get; set; }
+
     public Printer? Printer { get; set; }
 }

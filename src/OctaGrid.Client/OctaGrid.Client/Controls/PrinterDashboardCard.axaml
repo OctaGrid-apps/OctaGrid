@@ -202,14 +202,6 @@
                         MinWidth="{DynamicResource Space10}"
                         HorizontalContentAlignment="Center"
                         Classes="icon"
-                        Command="{Binding ShowPrinterFilesCommand}"
-                        IsEnabled="{Binding Item.CanStop}">
-                        <PathIcon Data="{StaticResource stop-regular}" />
-                    </Button>
-                    <Button
-                        MinWidth="{DynamicResource Space10}"
-                        HorizontalContentAlignment="Center"
-                        Classes="icon"
                         Command="{Binding StopButtonClickedCommand}"
                         IsEnabled="{Binding Item.CanStop}">
                         <PathIcon Data="{StaticResource stop-regular}" />

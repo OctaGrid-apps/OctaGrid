@@ -1,3 +1,7 @@
-﻿namespace OctaGrid.Protocol.Messaging;
+namespace OctaGrid.Protocol.Messaging;
 
-public enum ChangeKind { Upserted, Deleted }
+public enum ChangeKind
+{
+    Upserted,
+    Deleted
+}

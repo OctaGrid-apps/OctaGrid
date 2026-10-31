@@ -1,18 +1,8 @@
 using CommunityToolkit.Mvvm.Messaging;
-using CommunityToolkit.Mvvm.Messaging.Messages;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Services;
-
-public class PrinterEntityDelete(EntityChanged entity) : ValueChangedMessage<EntityChanged>(entity)
-{ }
-
-public class PrinterEntityUpsert(EntityChanged entity) : ValueChangedMessage<EntityChanged>(entity)
-{ }
-
-public class WorkspaceEntityChanged(EntityChanged entity) : ValueChangedMessage<EntityChanged>(entity)
-{ }
 
 internal sealed class MessageHandler : IClientMessageHandler
 {
@@ -43,6 +33,3 @@ internal sealed class MessageHandler : IClientMessageHandler
         WeakReferenceMessenger.Default.Send(new PrinterTelemetryData(telemetryMessage), telemetryMessage.PrinterId);
     }
 }
-
-public class PrinterTelemetryData(PrinterTelemetry telemetryMessage) : ValueChangedMessage<PrinterTelemetry>(telemetryMessage)
-{ }

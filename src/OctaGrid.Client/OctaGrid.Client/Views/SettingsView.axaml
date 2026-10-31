@@ -116,16 +116,17 @@
                     <controls:SettingsCard>
                         <controls:SettingsCard.Header>
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                                <TextBlock>
-                                    <Run Text="Version" />
-                                    <LineBreak />
-                                    <Run Text="GitHub" />
-                                </TextBlock>
-                                <SelectableTextBlock Grid.Column="1" Classes="secondary">
-                                    <Run Text="{Binding InfoVersion}" />
-                                    <LineBreak />
-                                    <Run Text="https://github.com" />
-                                </SelectableTextBlock>
+                                <StackPanel>
+                                    <TextBlock Text="Version" />
+                                    <TextBlock Text="GitHub" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <SelectableTextBlock Classes="secondary" Text="{Binding InfoVersion}" />
+                                    <HyperlinkButton
+                                        Padding="0"
+                                        Content="https://github.com/OctaGrid-apps/OctaGrid"
+                                        NavigateUri="https://github.com/OctaGrid-apps/OctaGrid" />
+                                </StackPanel>
                             </Grid>
                         </controls:SettingsCard.Header>
                     </controls:SettingsCard>

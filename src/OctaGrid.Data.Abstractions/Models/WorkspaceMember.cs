@@ -9,5 +9,6 @@ public sealed class WorkspaceMember : Entity
 
     // Navigation props
     public Workspace? Workspace { get; set; }
+
     public User? User { get; set; }
 }

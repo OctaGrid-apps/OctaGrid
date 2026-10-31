@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 OctaGrid.Client — typography style classes (TextBlock).
 Requires Typography.axaml merged into Application.Resources.
 
@@ -103,7 +103,7 @@ Use ONE role class per TextBlock, then optional modifiers (secondary, mono):
 
     <!--  ═══════════════ MODIFIERS ═══════════════  -->
 
-    <Style Selector="TextBlock.secondary">
+    <Style Selector="TextBlock.secondary, SelectableTextBlock.secondary">
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
     </Style>
 

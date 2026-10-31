@@ -66,12 +66,6 @@
                         Orientation="Horizontal" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
-
-            <!--            <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:PrinterDashboardCardViewModel">
-            <controls:PrinterDashboardCard />
-            </DataTemplate>
-            </ItemsControl.ItemTemplate>-->
         </ItemsControl>
     </Grid>
 </ContentPage>

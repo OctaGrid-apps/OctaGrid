@@ -6,7 +6,10 @@ public sealed class Workspace : Entity
 
     // Navigation props
     public ICollection<WorkspaceMember> Members { get; set; } = [];
+
     public ICollection<Agent> Agents { get; set; } = [];
+
     public ICollection<Dashboard> Dashboards { get; set; } = [];
+
     public ICollection<Printer> Printers { get; set; } = [];
 }
