@@ -39,12 +39,15 @@ if (-not (Test-Path $resolvedOutputDir)) {
     New-Item -ItemType Directory -Force -Path $resolvedOutputDir | Out-Null
 }
 
-# Read publisher from manifest and version from version.json
+# Read publisher from manifest and compute 4-part MSIX version via Nerdbank.GitVersioning
 [xml]$manifestXml = Get-Content $manifestSource
 $publisher = $manifestXml.Package.Identity.Publisher
-$versionJsonPath = Join-Path $repoRoot "version.json"
-$versionJson = Get-Content $versionJsonPath -Raw | ConvertFrom-Json
-$appxVersion = if ($versionJson.version -match '^\d+\.\d+\.\d+$') { "$($versionJson.version).0" } else { $versionJson.version }
+$buildVersionSimple = (& dotnet msbuild $projectPath -t:GetBuildVersion -getProperty:BuildVersionSimple | Select-Object -Last 1).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($buildVersionSimple)) {
+    throw "Failed to compute BuildVersionSimple via Nerdbank.GitVersioning."
+}
+$appxVersion = "$buildVersionSimple.0"
+Write-Host "==> MSIX Package Version: $appxVersion" -ForegroundColor Cyan
 
 # Locate makeappx.exe and signtool.exe
 $makeappx = $null
