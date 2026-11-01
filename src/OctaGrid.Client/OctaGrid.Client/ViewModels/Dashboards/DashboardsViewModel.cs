@@ -42,6 +42,13 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         _appSettingsStore = appSettingsStore;
         _appState = appState;
         _logger = logger ?? NullLogger<DashboardsViewModel>.Instance;
+        _appState.PropertyChanged += async (s, e) =>
+        {
+            if (e.PropertyName == nameof(ApplicationState.SelectedWorkspace) && _appState.SelectedWorkspace is not null)
+            {
+                await LoadData(CancellationToken.None);
+            }
+        };
         _logger.LogDebug("DashboardsViewModel initialized");
     }
 

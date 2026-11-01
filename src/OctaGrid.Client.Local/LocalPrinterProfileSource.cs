@@ -10,6 +10,7 @@ namespace OctaGrid.Client.Local;
 internal sealed class LocalPrinterProfileSource(
     PrintersService printers,
     WorkspacesService workspaces,
+    UsersService users,
     ICurrentUserAccessor currentUser,
     ILogger<LocalPrinterProfileSource>? logger = null)
     : IPrinterProfileSource
@@ -18,8 +19,18 @@ internal sealed class LocalPrinterProfileSource(
 
     public async Task<IReadOnlyList<DeviceProfile>> GetProfilesAsync(CancellationToken cancellationToken)
     {
-        var userId = currentUser.GetCurrentUserId()
-            ?? throw new InvalidOperationException("No current user — call Me() first.");
+        var rawUserId = currentUser.GetCurrentUserId();
+        Guid userId;
+        if (rawUserId.HasValue)
+        {
+            userId = rawUserId.Value;
+        }
+        else
+        {
+            var user = await users.GetOrCreate(cancellationToken);
+            currentUser.SetCurrentUserId(user.Id);
+            userId = user.Id;
+        }
 
         // Local mode is one workspace and agent per install — no agent-id filtering needed.
         var workspace = (await workspaces.GetList(userId, cancellationToken)).FirstOrDefault();

@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Views.MainView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -19,21 +19,27 @@
 
     <controls:NavigationRail HideHeaderWhenSelected="True">
 
-        <controls:NavigationRailItem>
-            <views:DashboardsView />
-        </controls:NavigationRailItem>
+        <controls:NavigationRailItem
+            Header="Dashboard"
+            Icon="{StaticResource dashboard-regular}"
+            PageType="{x:Type views:DashboardsView}" />
 
-        <controls:NavigationRailItem>
-            <views:PrinterListView />
-        </controls:NavigationRailItem>
+        <controls:NavigationRailItem
+            Header="Printers"
+            Icon="{StaticResource print-regular}"
+            PageType="{x:Type views:PrinterListView}" />
 
-        <controls:NavigationRailItem IsVisible="{Binding IsRemoteMode}">
-            <views:AgentListView />
-        </controls:NavigationRailItem>
+        <controls:NavigationRailItem
+            Header="Agents"
+            Icon="{StaticResource agents-regular}"
+            IsVisible="{Binding IsRemoteMode}"
+            PageType="{x:Type views:AgentListView}" />
 
-        <controls:NavigationRailItem IsVisible="{Binding IsRemoteMode}">
-            <views:WorkspaceListView />
-        </controls:NavigationRailItem>
+        <controls:NavigationRailItem
+            Header="Workspaces"
+            Icon="{StaticResource grid-dots-regular}"
+            IsVisible="{Binding IsRemoteMode}"
+            PageType="{x:Type views:WorkspaceListView}" />
 
         <controls:NavigationRail.FooterItems>
             <controls:NavigationRailItem
@@ -43,9 +49,10 @@
                 <TextBlock Text="Account view" />
             </controls:NavigationRailItem>
 
-            <controls:NavigationRailItem>
-                <views:SettingsView />
-            </controls:NavigationRailItem>
+            <controls:NavigationRailItem
+                Header="Settings"
+                Icon="{StaticResource settings-regular}"
+                PageType="{x:Type views:SettingsView}" />
         </controls:NavigationRail.FooterItems>
 
     </controls:NavigationRail>

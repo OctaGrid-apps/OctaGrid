@@ -16,7 +16,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddOctoGridClientLocal(this IServiceCollection services)
     {
-        var connectionString = new SqliteConnectionStringBuilder { DataSource = GetDatabasePath() }.ToString();
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = GetDatabasePath(),
+            Pooling = true,
+            DefaultTimeout = 30
+        }.ToString();
 
         services.AddDbContext<OctaGridContext>(options =>
                 options.UseSqlite(connectionString, b => b.MigrationsAssembly("OctaGrid.Client.Local")));
@@ -59,6 +64,9 @@ public static class DependencyInjection
         {
             logger.LogInformation("Applying database migrations for OctaGridContext...");
             context.Database.Migrate();
+
+            context.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;");
+
             logger.LogInformation("Database migrations applied successfully.");
         }
         catch (Exception ex)

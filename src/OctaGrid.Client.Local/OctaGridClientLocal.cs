@@ -27,67 +27,88 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
         _currentUser = currentUser;
     }
 
-    private Guid CurrentUserId => _currentUser.GetCurrentUserId()
-        ?? throw new InvalidOperationException("No current user — call Me() first to auto-provision the local owner.");
-
-    public Task AddPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken)
+    private async ValueTask<Guid> EnsureCurrentUserIdAsync(CancellationToken cancellationToken)
     {
-        return _agents.AddPrinter(CurrentUserId, agentId, printerId, cancellationToken);
+        var id = _currentUser.GetCurrentUserId();
+        if (id.HasValue)
+        {
+            return id.Value;
+        }
+
+        var me = await Me(cancellationToken);
+        return me.Id;
     }
 
-    public Task<AgentResponse> CreateAgent(Guid workspaceId, string name, CancellationToken cancellationToken)
+    public async Task AddPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken)
     {
-        return _agents.Create(CurrentUserId, workspaceId, new CreateAgentRequest(name), cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        await _agents.AddPrinter(userId, agentId, printerId, cancellationToken);
     }
 
-    public Task<DashboardResponse> CreateDashboard(Guid workspaceId, CreateDashboardRequest request, CancellationToken cancellationToken)
+    public async Task<AgentResponse> CreateAgent(Guid workspaceId, string name, CancellationToken cancellationToken)
     {
-        return _dashboards.Create(CurrentUserId, workspaceId, request, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _agents.Create(userId, workspaceId, new CreateAgentRequest(name), cancellationToken);
     }
 
-    public Task<PrinterResponse> CreatePrinter(Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken)
+    public async Task<DashboardResponse> CreateDashboard(Guid workspaceId, CreateDashboardRequest request, CancellationToken cancellationToken)
     {
-        return _printers.Create(CurrentUserId, workspaceId, request, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _dashboards.Create(userId, workspaceId, request, cancellationToken);
     }
 
-    public Task<WorkspaceResponse> CreateWorkspace(string name, CancellationToken cancellationToken)
+    public async Task<PrinterResponse> CreatePrinter(Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken)
     {
-        return _workspaces.Create(CurrentUserId, new CreateWorkspaceRequest(name), cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _printers.Create(userId, workspaceId, request, cancellationToken);
     }
 
-    public Task DeletePrinter(Guid printerId, CancellationToken cancellationToken)
+    public async Task<WorkspaceResponse> CreateWorkspace(string name, CancellationToken cancellationToken)
     {
-        return _printers.Delete(CurrentUserId, printerId, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _workspaces.Create(userId, new CreateWorkspaceRequest(name), cancellationToken);
     }
 
-    public Task<List<AgentResponse>> GetAgentList(Guid workspaceId, CancellationToken cancellationToken)
+    public async Task DeletePrinter(Guid printerId, CancellationToken cancellationToken)
     {
-        return _agents.GetList(CurrentUserId, workspaceId, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        await _printers.Delete(userId, printerId, cancellationToken);
     }
 
-    public Task<List<DashboardResponse>> GetDashboardList(Guid workspaceId, CancellationToken cancellationToken)
+    public async Task<List<AgentResponse>> GetAgentList(Guid workspaceId, CancellationToken cancellationToken)
     {
-        return _dashboards.GetList(CurrentUserId, workspaceId, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _agents.GetList(userId, workspaceId, cancellationToken);
     }
 
-    public Task<PrinterResponse> GetPrinter(Guid workspaceId, Guid printerId, CancellationToken cancellationToken)
+    public async Task<List<DashboardResponse>> GetDashboardList(Guid workspaceId, CancellationToken cancellationToken)
     {
-        return _printers.GetPrinter(CurrentUserId, workspaceId, printerId, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _dashboards.GetList(userId, workspaceId, cancellationToken);
     }
 
-    public Task<List<PrinterResponse>> GetPrintersList(Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken)
+    public async Task<PrinterResponse> GetPrinter(Guid workspaceId, Guid printerId, CancellationToken cancellationToken)
     {
-        return _printers.GetPrintersList(CurrentUserId, workspaceId, query, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _printers.GetPrinter(userId, workspaceId, printerId, cancellationToken);
     }
 
-    public Task<List<WorkspaceResponse>> GetWorkspaceList(CancellationToken cancellationToken)
+    public async Task<List<PrinterResponse>> GetPrintersList(Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken)
     {
-        return _workspaces.GetList(CurrentUserId, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _printers.GetPrintersList(userId, workspaceId, query, cancellationToken);
     }
 
-    public Task<List<WorkspaceSummaryResponse>> GetWorkspacesSummary(CancellationToken cancellationToken)
+    public async Task<List<WorkspaceResponse>> GetWorkspaceList(CancellationToken cancellationToken)
     {
-        return _workspaces.GetSummary(CurrentUserId, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _workspaces.GetList(userId, cancellationToken);
+    }
+
+    public async Task<List<WorkspaceSummaryResponse>> GetWorkspacesSummary(CancellationToken cancellationToken)
+    {
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _workspaces.GetSummary(userId, cancellationToken);
     }
 
     public async Task<UserResponse> Me(CancellationToken cancellationToken)
@@ -97,33 +118,39 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
         return userResponse;
     }
 
-    public Task SetPrinterEnabled(Guid printerId, bool state, CancellationToken cancellationToken)
+    public async Task SetPrinterEnabled(Guid printerId, bool state, CancellationToken cancellationToken)
     {
-        return _printers.SetEnabled(CurrentUserId, printerId, state, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        await _printers.SetEnabled(userId, printerId, state, cancellationToken);
     }
 
-    public Task<AgentResponse> UpdateAgent(Guid agentId, string name, CancellationToken cancellationToken)
+    public async Task<AgentResponse> UpdateAgent(Guid agentId, string name, CancellationToken cancellationToken)
     {
-        return _agents.Update(CurrentUserId, agentId, new UpdateAgentRequest(name), cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _agents.Update(userId, agentId, new UpdateAgentRequest(name), cancellationToken);
     }
 
-    public Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken)
+    public async Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken)
     {
-        return _dashboards.Update(CurrentUserId, dashboardId, request, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _dashboards.Update(userId, dashboardId, request, cancellationToken);
     }
 
-    public Task<PrinterResponse> UpdateIdentity(Guid printerId, UpdatePrinterIdentityRequest request, CancellationToken cancellationToken)
+    public async Task<PrinterResponse> UpdateIdentity(Guid printerId, UpdatePrinterIdentityRequest request, CancellationToken cancellationToken)
     {
-        return _printers.UpdateIdentity(CurrentUserId, printerId, request, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _printers.UpdateIdentity(userId, printerId, request, cancellationToken);
     }
 
-    public Task<PrinterResponse> UpdatePrinter(Guid printerId, UpdatePrinterRequest request, CancellationToken cancellationToken)
+    public async Task<PrinterResponse> UpdatePrinter(Guid printerId, UpdatePrinterRequest request, CancellationToken cancellationToken)
     {
-        return _printers.Update(CurrentUserId, printerId, request, cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _printers.Update(userId, printerId, request, cancellationToken);
     }
 
-    public Task<WorkspaceResponse> UpdateWorkspace(Guid workspaceId, string name, CancellationToken cancellationToken)
+    public async Task<WorkspaceResponse> UpdateWorkspace(Guid workspaceId, string name, CancellationToken cancellationToken)
     {
-        return _workspaces.Update(CurrentUserId, workspaceId, new UpdateWorkspaceRequest(name), cancellationToken);
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _workspaces.Update(userId, workspaceId, new UpdateWorkspaceRequest(name), cancellationToken);
     }
 }

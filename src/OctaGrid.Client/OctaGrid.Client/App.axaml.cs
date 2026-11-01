@@ -124,21 +124,6 @@ public partial class App : Application
             }
             else
             {
-                // Identity
-                // ToDo - improve identity logic
-                var usersClient = Services.GetRequiredService<IUsersClient>();
-                var userResponse = usersClient.Me(CancellationToken.None).GetAwaiter().GetResult();
-                if (userResponse is null)
-                {
-                    logger.LogInformation("No authenticated user found, showing IdentityView");
-                    desktop.MainWindow = new IdentityView();
-                }
-                else
-                {
-                    logger.LogInformation("Authenticated user found ({UserId}), preparing MainWindow", userResponse.Id);
-                }
-                // =============
-
                 if (settings.AskToSelectClientMode)
                 {
                     settingsStore.Update(s => s with { Mode = ClientMode.Undefined });
@@ -158,7 +143,7 @@ public partial class App : Application
                     _cts.Dispose();
                 };
 
-                desktop.MainWindow ??= new MainWindow();
+                desktop.MainWindow = new MainWindow();
             }
             logger.LogInformation("Applying theme {ElementTheme} to main window", settings.ElementTheme);
             desktop.MainWindow.ApplyTheme(settings);

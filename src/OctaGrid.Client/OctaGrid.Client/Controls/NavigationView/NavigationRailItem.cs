@@ -36,6 +36,9 @@ public class NavigationRailItem : AvaloniaObject
     public static readonly StyledProperty<Control?> PageProperty =
                                     AvaloniaProperty.Register<NavigationRailItem, Control?>(nameof(Page));
 
+    public static readonly StyledProperty<Type?> PageTypeProperty =
+        AvaloniaProperty.Register<NavigationRailItem, Type?>(nameof(PageType));
+
     public static readonly StyledProperty<bool> ShowBadgeProperty =
         AvaloniaProperty.Register<NavigationRailItem, bool>(nameof(ShowBadge));
 
@@ -112,12 +115,32 @@ public class NavigationRailItem : AvaloniaObject
     }
 
     /// <summary>
+    /// Type of the Control/Page to instantiate lazily when this menu item is first selected.
+    /// </summary>
+    public Type? PageType
+    {
+        get => GetValue(PageTypeProperty);
+        set => SetValue(PageTypeProperty, value);
+    }
+
+    /// <summary>
     /// Displays the small blue notification dot in the top-right of the icon.
     /// </summary>
     public bool ShowBadge
     {
         get => GetValue(ShowBadgeProperty);
         set => SetValue(ShowBadgeProperty, value);
+    }
+
+    public Control? EnsurePage()
+    {
+        if (Page is null && PageType is not null)
+        {
+            Page = (App.Services?.GetService(PageType) as Control)
+                ?? (Control)Activator.CreateInstance(PageType)!;
+        }
+
+        return Page;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -138,7 +161,7 @@ public class NavigationRailItem : AvaloniaObject
 
             UpdateEffectiveValues();
         }
-        else if (change.Property == HeaderProperty || change.Property == IconProperty)
+        else if (change.Property == HeaderProperty || change.Property == IconProperty || change.Property == PageTypeProperty)
         {
             UpdateEffectiveValues();
         }
@@ -246,7 +269,19 @@ public class NavigationRailItem : AvaloniaObject
 
     private void UpdateEffectiveValues()
     {
-        EffectiveHeader = Header ?? GetPageHeader(Page);
-        EffectiveIcon = ResolveIcon(Icon ?? GetPageIcon(Page));
+        var header = Header;
+        if (header is null && Page is not null)
+        {
+            header = GetPageHeader(Page);
+        }
+
+        var icon = Icon;
+        if (icon is null && Page is not null)
+        {
+            icon = GetPageIcon(Page);
+        }
+
+        EffectiveHeader = header;
+        EffectiveIcon = ResolveIcon(icon);
     }
 }

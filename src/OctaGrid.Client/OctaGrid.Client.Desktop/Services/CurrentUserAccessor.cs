@@ -9,6 +9,9 @@ internal sealed class CurrentUserAccessor : ICurrentUserAccessor
 {
     private const string ApplicationName = nameof(OctaGrid);
     private readonly ILogger<CurrentUserAccessor> _logger;
+    private readonly object _lock = new();
+    private Guid? _cachedUserId;
+    private bool _hasReadCredential;
 
     public CurrentUserAccessor(ILogger<CurrentUserAccessor>? logger = null)
     {
@@ -17,6 +20,12 @@ internal sealed class CurrentUserAccessor : ICurrentUserAccessor
 
     public void Clear()
     {
+        lock (_lock)
+        {
+            _cachedUserId = null;
+            _hasReadCredential = true;
+        }
+
         if (OperatingSystem.IsWindowsVersionAtLeast(5, 1, 2600))
         {
             CredentialManager.DeleteCredential(ApplicationName);
@@ -30,20 +39,31 @@ internal sealed class CurrentUserAccessor : ICurrentUserAccessor
 
     public Guid? GetCurrentUserId()
     {
+        lock (_lock)
+        {
+            if (_hasReadCredential)
+            {
+                return _cachedUserId;
+            }
+        }
+
         if (OperatingSystem.IsWindowsVersionAtLeast(5, 1, 2600))
         {
             var credential = CredentialManager.ReadCredential(ApplicationName);
-            if (credential is null)
+            lock (_lock)
             {
-                return null;
+                _hasReadCredential = true;
+                if (credential is not null && Guid.TryParse(credential.Password, out var userId))
+                {
+                    _cachedUserId = userId;
+                    return userId;
+                }
             }
 
-            if (Guid.TryParse(credential.Password, out var userId))
+            if (credential is not null)
             {
-                return userId;
+                _logger.LogWarning("Stored credential for {ApplicationName} did not contain a valid UserId GUID", ApplicationName);
             }
-
-            _logger.LogWarning("Stored credential for {ApplicationName} did not contain a valid UserId GUID", ApplicationName);
             return null;
         }
 
@@ -52,6 +72,12 @@ internal sealed class CurrentUserAccessor : ICurrentUserAccessor
 
     public void SetCurrentUserId(Guid userId)
     {
+        lock (_lock)
+        {
+            _cachedUserId = userId;
+            _hasReadCredential = true;
+        }
+
         if (OperatingSystem.IsWindowsVersionAtLeast(5, 1, 2600))
         {
             CredentialManager.WriteCredential(ApplicationName, "", userId.ToString(), CredentialPersistence.LocalMachine);

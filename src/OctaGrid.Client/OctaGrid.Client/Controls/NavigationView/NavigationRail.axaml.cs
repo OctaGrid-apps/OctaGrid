@@ -159,6 +159,7 @@ public class NavigationRail : TemplatedControl
             SelectedItem = Items.FirstOrDefault() ?? FooterItems.FirstOrDefault();
         }
 
+        CurrentPage = SelectedItem?.EnsurePage();
         SyncListBoxesWithSelectedItem(SelectedItem);
     }
 
@@ -176,7 +177,7 @@ public class NavigationRail : TemplatedControl
             var newItem = change.GetNewValue<NavigationRailItem?>();
             newItem?.PropertyChanged += OnSelectedItemPropertyChanged;
 
-            CurrentPage = newItem?.Page;
+            CurrentPage = newItem?.EnsurePage();
             SyncListBoxesWithSelectedItem(newItem);
         }
     }

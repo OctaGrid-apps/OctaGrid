@@ -26,7 +26,8 @@ public static class DesktopLogging
                 retainedFileCountLimit: 30,
                 fileSizeLimitBytes: 10 * 1024 * 1024,
                 rollOnFileSizeLimit: true,
-                shared: true,
+                shared: false,
+                buffered: true,
                 flushToDiskInterval: TimeSpan.FromSeconds(1),
                 outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
