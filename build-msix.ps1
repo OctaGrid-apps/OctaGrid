@@ -22,6 +22,7 @@ param(
     [string[]]$Architectures = @('x64', 'arm64'),
     [string]$Configuration = 'Release',
     [string]$OutputDir = 'artifacts',
+    [string]$PackageVersion = $null,
     [switch]$Bundle = $true,
     [switch]$Sign = $true,
     [string]$TimestampUrl = $null
@@ -43,11 +44,29 @@ if (-not (Test-Path $resolvedOutputDir)) {
 # Read publisher from manifest and compute 4-part MSIX version via Nerdbank.GitVersioning
 [xml]$manifestXml = Get-Content $manifestSource
 $publisher = $manifestXml.Package.Identity.Publisher
-$buildVersionSimple = (& dotnet msbuild $projectPath -t:GetBuildVersion -getProperty:BuildVersionSimple | Select-Object -Last 1).Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($buildVersionSimple)) {
-    throw "Failed to compute BuildVersionSimple via Nerdbank.GitVersioning."
+if (-not [string]::IsNullOrWhiteSpace($PackageVersion)) {
+    $versionParts = $PackageVersion.Trim().TrimStart('v').Split('.')
+    if ($versionParts.Count -eq 3) {
+        $appxVersion = "$($versionParts -join '.').0"
+    } elseif ($versionParts.Count -ge 4) {
+        $appxVersion = ($versionParts[0..3] -join '.')
+    } else {
+        $appxVersion = "$($versionParts -join '.').0"
+    }
+} else {
+    $output = & dotnet msbuild $projectPath -t:GetBuildVersion -getProperty:BuildVersionSimple 2>$null
+    $buildVersionSimple = ($output | Where-Object { $_ -match '^\d+\.\d+' } | Select-Object -Last 1)
+    if ($buildVersionSimple) {
+        $buildVersionSimple = $buildVersionSimple.Trim()
+    }
+    if (-not $buildVersionSimple) {
+        $versionJson = Get-Content (Join-Path $repoRoot "version.json") -Raw | ConvertFrom-Json
+        $baseVersion = $versionJson.version.Split('-')[0]
+        $commitCount = git rev-list --count HEAD
+        $buildVersionSimple = "$baseVersion.$commitCount"
+    }
+    $appxVersion = "$buildVersionSimple.0"
 }
-$appxVersion = "$buildVersionSimple.0"
 Write-Host "==> MSIX Package Version: $appxVersion" -ForegroundColor Cyan
 
 # Locate makeappx.exe and signtool.exe from Microsoft.Windows.SDK.BuildTools

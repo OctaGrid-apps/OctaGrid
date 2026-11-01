@@ -1,0 +1,257 @@
+name: Release & Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_to_store:
+        description: 'Publish MSIX bundle to Microsoft Store'
+        required: true
+        type: boolean
+        default: true
+      create_github_release:
+        description: 'Create GitHub Release and attach assets'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    name: Build, Package & Publish
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore OctaGrid.slnx
+
+      - name: Install Velopack CLI
+        shell: pwsh
+        run: dotnet tool install -g vpk
+
+      - name: Determine Version
+        id: version_info
+        shell: pwsh
+        run: |
+          $tag = ""
+          $semver = ""
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -match "^v?(\d+\.\d+\.\d+.*)$") {
+              $semver = $Matches[1]
+              $tag = if ($env:GITHUB_REF_NAME.StartsWith("v")) { $env:GITHUB_REF_NAME } else { "v$semver" }
+          } else {
+              $projectPath = "src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj"
+              $output = & dotnet msbuild $projectPath -t:GetBuildVersion -getProperty:BuildVersionSimple 2>$null
+              $semver = ($output | Where-Object { $_ -match '^\d+\.\d+' } | Select-Object -Last 1)
+              if (-not $semver) {
+                  $semver = ($output | Select-Object -Last 1)
+              }
+              if ($semver) {
+                  $semver = $semver.Trim()
+              }
+              if (-not $semver) {
+                  $versionJson = Get-Content "version.json" -Raw | ConvertFrom-Json
+                  $baseVersion = $versionJson.version.Split('-')[0]
+                  $commitCount = git rev-list --count HEAD
+                  $semver = "$baseVersion.$commitCount"
+              }
+              $tag = "v$semver"
+          }
+
+          Write-Host "==> Determined Version: $semver"
+          Write-Host "==> Determined Tag:     $tag"
+
+          "version=$semver" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Release Notes (Changelog)
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "artifacts" | Out-Null
+          $notesFile = "artifacts/RELEASE_NOTES.md"
+          $tag = "${{ steps.version_info.outputs.tag }}"
+          $version = "${{ steps.version_info.outputs.version }}"
+
+          $notes = ""
+          try {
+              $notes = gh api "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$tag" -q .body 2>$null
+          } catch {
+              $notes = ""
+          }
+
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+              $prevTag = git describe --tags --abbrev=0 "${tag}^" 2>$null
+              if ($prevTag) {
+                  $notes = (git log "$prevTag..HEAD" --pretty=format:"* %s (%h)") -join "`n"
+              } else {
+                  $notes = (git log -n 15 --pretty=format:"* %s (%h)") -join "`n"
+              }
+          }
+
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+              $notes = "### Release $tag`n`n* General improvements and bug fixes."
+          }
+
+          [System.IO.File]::WriteAllText($notesFile, $notes, [System.Text.Encoding]::UTF8)
+          Write-Host "==> Generated Release Notes:"
+          Write-Host $notes
+
+      - name: Build MSIX Packages
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version_info.outputs.version }}"
+          .\build-msix.ps1 -Architectures @('x64', 'arm64') -Configuration Release -OutputDir artifacts -PackageVersion $version -Bundle -Sign
+
+      - name: Build Velopack .EXE App & Installer
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version_info.outputs.version }}"
+          $publishDir = "artifacts/publish/win-x64"
+          $notesPath = "artifacts/RELEASE_NOTES.md"
+          $iconPath = "src/OctaGrid.Client/OctaGrid.Client/Assets/OctaGrid-logo.ico"
+
+          Write-Host "--> Creating Velopack .exe setup package..."
+          vpk pack `
+            --packId "OctaGrid" `
+            --packVersion "$version" `
+            --packTitle "OctaGrid" `
+            --packAuthors "OctaGrid Contributors" `
+            --packDir "$publishDir" `
+            --mainExe "OctaGrid.Client.Desktop.exe" `
+            --icon "$iconPath" `
+            --outputDir "artifacts" `
+            --releaseNotes "$notesPath"
+
+          Write-Host "--> Creating portable .zip archive..."
+          Compress-Archive -Path "$publishDir\*" -DestinationPath "artifacts/OctaGrid-win-x64-portable.zip" -Force
+
+          Write-Host "==> Artifacts directory contents:"
+          Get-ChildItem artifacts | Format-Table Name, Length
+
+      - name: Publish to GitHub Releases
+        if: ${{ github.event_name == 'push' || inputs.create_github_release != false }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version_info.outputs.tag }}
+          name: OctaGrid ${{ steps.version_info.outputs.version }}
+          body_path: artifacts/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*-Setup.exe
+            artifacts/OctaGrid-win-x64-portable.zip
+            artifacts/releases.win.json
+            artifacts/*.nupkg
+
+      - name: Setup Microsoft Store CLI
+        if: ${{ github.event_name == 'push' || inputs.publish_to_store != false }}
+        uses: microsoft/microsoft-store-apppublisher@v1.4
+
+      - name: Publish to Microsoft Store
+        if: ${{ github.event_name == 'push' || inputs.publish_to_store != false }}
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+          AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          STORE_PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID || '9NWQ15C73TXL' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not $env:AZURE_AD_TENANT_ID -or -not $env:AZURE_AD_CLIENT_ID -or -not $env:AZURE_AD_CLIENT_SECRET -or -not $env:SELLER_ID) {
+              Write-Error "Missing required Microsoft Store secrets (AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, SELLER_ID). Please add them to repository secrets."
+              exit 1
+          }
+
+          Write-Host "--> Configuring msstore credentials..."
+          msstore reconfigure `
+            --tenantId "$env:AZURE_AD_TENANT_ID" `
+            --sellerId "$env:SELLER_ID" `
+            --clientId "$env:AZURE_AD_CLIENT_ID" `
+            --clientSecret "$env:AZURE_AD_CLIENT_SECRET" `
+            -v
+
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to authenticate with Microsoft Partner Center. Check the verbose output above."
+              exit 1
+          }
+
+          Write-Host "--> Verifying msstore configuration..."
+          msstore info
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "msstore configuration check failed."
+              exit 1
+          }
+
+          $productId = $env:STORE_PRODUCT_ID
+          $bundlePath = [System.IO.Path]::GetFullPath("artifacts/OctaGrid.msixbundle")
+          if (-not (Test-Path $bundlePath)) {
+              $bundlePath = (Get-ChildItem -Path "artifacts" -Filter "*.msix" | Select-Object -First 1).FullName
+          }
+
+          $notesPath = [System.IO.Path]::GetFullPath("artifacts/RELEASE_NOTES.md")
+          $releaseNotes = if (Test-Path $notesPath) { [System.IO.File]::ReadAllText($notesPath) } else { "What's new in this version: Bug fixes and performance improvements." }
+
+          # Microsoft Store allows up to 10,000 characters for release notes
+          if ($releaseNotes.Length -gt 9000) {
+              $releaseNotes = $releaseNotes.Substring(0, 9000) + "`n`n... (view full changelog on GitHub)"
+          }
+
+          Write-Host "--> Uploading package ($bundlePath) to Microsoft Store draft submission..."
+          msstore publish "$bundlePath" -id "$productId" --noCommit
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "msstore publish (draft) failed."
+              exit 1
+          }
+
+          Write-Host "--> Fetching current submission draft to attach release notes..."
+          $submissionJson = msstore submission get "$productId"
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($submissionJson)) {
+              Write-Error "Failed to fetch submission details for product $productId."
+              exit 1
+          }
+          $submission = $submissionJson | ConvertFrom-Json
+
+          if ($submission.Listings) {
+              $locales = $submission.Listings.PSObject.Properties.Name
+              foreach ($locale in $locales) {
+                  Write-Host "--> Setting release notes for Store listing locale '$locale'..."
+                  $submission.Listings.$locale.BaseListing.ReleaseNotes = $releaseNotes
+              }
+
+              $updatedJson = $submission | ConvertTo-Json -Depth 50 -Compress
+              Write-Host "--> Updating submission draft with release notes..."
+              msstore submission update "$productId" $updatedJson
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Error "Failed to update submission metadata."
+                  exit 1
+              }
+          } else {
+              Write-Host "--> No listings found in submission JSON; skipping release notes attachment."
+          }
+
+          Write-Host "--> Committing and publishing submission to Microsoft Store for certification..."
+          msstore submission publish "$productId"
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to publish submission."
+              exit 1
+          }
+          Write-Host "--> Successfully published to Microsoft Store!"
