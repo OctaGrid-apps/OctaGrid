@@ -123,7 +123,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     }
 
     [RelayCommand]
-    private async Task OpenLogsFolder(CancellationToken cancellationToken)
+    private static async Task OpenLogsFolder(CancellationToken cancellationToken)
     {
         var folderPath = Helper.LogsDirectory;
 
