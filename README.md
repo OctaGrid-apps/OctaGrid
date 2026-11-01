@@ -1,9 +1,11 @@
 # OctaGrid
 
+[![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NWQ15C73TXL?mode=direct)
+
 OctaGrid is a modern, cross-platform desktop application for managing and monitoring 3D printers from a single dashboard. Built with [.NET 10](https://dotnet.microsoft.com/) and [Avalonia UI](https://avaloniaui.net/).
 
 > [!WARNING]
-> **Pre-Alpha Release**: OctaGrid is currently in early pre-alpha. Features and local database schemas may change between releases. Please report any bugs or suggestions in [GitHub Issues](https://github.com).
+> **Pre-Alpha Release**: OctaGrid is currently in early pre-alpha. Features and local database schemas may change between releases. Please report any bugs or suggestions in [GitHub Issues](https://github.com/OctaGrid-apps/OctaGrid/issues).
 
 ---
 
@@ -27,12 +29,21 @@ OctaGrid is a modern, cross-platform desktop application for managing and monito
 
 ## Getting Started
 
-### Download Pre-Alpha
+### 1. Install via Microsoft Store (Recommended)
 
-Pre-compiled standalone binaries for Windows (`win-x64`) are available on the [Releases](https://github.com) page.
-- Download `OctaGrid-win-x64.zip`.
-- Extract the archive and launch `OctaGrid.Client.Desktop.exe`.
-- All local data and printer profiles are safely stored in `%LocalAppData%\OctaGrid\octagrid.db`.
+Get the latest version directly from the Microsoft Store for seamless background updates and zero SmartScreen warnings:
+
+<a href="https://apps.microsoft.com/detail/9NWQ15C73TXL?mode=direct">
+  <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Get it from Microsoft Store" />
+</a>
+
+### 2. Download from GitHub Releases
+
+Pre-compiled binaries for Windows (`win-x64`) are available on the [Releases](https://github.com/OctaGrid-apps/OctaGrid/releases) page:
+- **Installer**: Download and run `OctaGrid-Setup.exe` (includes built-in auto-updates).
+- **Portable**: Download `OctaGrid-win-x64-portable.zip`, extract the archive, and launch `OctaGrid.Client.Desktop.exe`.
+
+All local data and printer profiles are safely stored in `%LocalAppData%\OctaGrid\octagrid.db`.
 
 ---
 

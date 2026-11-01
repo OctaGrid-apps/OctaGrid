@@ -80,37 +80,90 @@ jobs:
 
       - name: Generate Release Notes (Changelog)
         id: release_notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "artifacts" | Out-Null
           $notesFile = "artifacts/RELEASE_NOTES.md"
+          $ghNotesFile = "artifacts/RELEASE_NOTES_GH.md"
           $tag = "${{ steps.version_info.outputs.tag }}"
           $version = "${{ steps.version_info.outputs.version }}"
 
-          $notes = ""
-          try {
-              $notes = gh api "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$tag" -q .body 2>$null
-          } catch {
-              $notes = ""
+          # Determine commit range
+          $prevTag = git describe --tags --abbrev=0 "${tag}^" 2>$null
+          $commits = @()
+          if ($prevTag) {
+              Write-Host "--> Extracting commits between $prevTag and HEAD ($tag)..."
+              $commits = git log "$prevTag..HEAD" --no-merges --pretty=format:"* %s"
+          } else {
+              Write-Host "--> No previous tag found. Extracting recent commits..."
+              $commits = git log -n 20 --no-merges --pretty=format:"* %s"
           }
 
-          if ([string]::IsNullOrWhiteSpace($notes)) {
-              $prevTag = git describe --tags --abbrev=0 "${tag}^" 2>$null
-              if ($prevTag) {
-                  $notes = (git log "$prevTag..HEAD" --pretty=format:"* %s (%h)") -join "`n"
+          $commits = $commits | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          # Categorize conventional commits into readable sections
+          $features = @()
+          $fixes = @()
+          $perf = @()
+          $other = @()
+
+          foreach ($c in $commits) {
+              if ($c -match '^\*\s*feat(\([^)]+\))?:\s*(.*)$') {
+                  $desc = $Matches[2].Trim()
+                  $features += "* " + $desc.Substring(0,1).ToUpper() + $desc.Substring(1)
+              } elseif ($c -match '^\*\s*fix(\([^)]+\))?:\s*(.*)$') {
+                  $desc = $Matches[2].Trim()
+                  $fixes += "* " + $desc.Substring(0,1).ToUpper() + $desc.Substring(1)
+              } elseif ($c -match '^\*\s*(perf|refactor)(\([^)]+\))?:\s*(.*)$') {
+                  $desc = $Matches[3].Trim()
+                  $perf += "* " + $desc.Substring(0,1).ToUpper() + $desc.Substring(1)
               } else {
-                  $notes = (git log -n 15 --pretty=format:"* %s (%h)") -join "`n"
+                  if ($c -match '^\*\s*\w+(\([^)]+\))?:\s*(.*)$') {
+                      $desc = $Matches[2].Trim()
+                      $other += "* " + $desc.Substring(0,1).ToUpper() + $desc.Substring(1)
+                  } else {
+                      $other += $c
+                  }
               }
           }
 
-          if ([string]::IsNullOrWhiteSpace($notes)) {
-              $notes = "### Release $tag`n`n* General improvements and bug fixes."
+          $sections = @()
+          if ($features.Count -gt 0) {
+              $sections += "### Features"
+              $sections += $features
+              $sections += ""
+          }
+          if ($perf.Count -gt 0) {
+              $sections += "### Improvements & Performance"
+              $sections += $perf
+              $sections += ""
+          }
+          if ($fixes.Count -gt 0) {
+              $sections += "### Fixes"
+              $sections += $fixes
+              $sections += ""
+          }
+          if ($other.Count -gt 0) {
+              $sections += "### Other Changes"
+              $sections += $other
+              $sections += ""
           }
 
+          if ($sections.Count -eq 0) {
+              $sections += "* Performance improvements and bug fixes."
+          }
+
+          $notes = $sections -join "`n"
           [System.IO.File]::WriteAllText($notesFile, $notes, [System.Text.Encoding]::UTF8)
-          Write-Host "==> Generated Release Notes:"
+
+          # For GitHub Release, append link to full compare diff if prior tag exists
+          $ghNotes = $notes
+          if ($prevTag -and $env:GITHUB_REPOSITORY) {
+              $ghNotes += "`n`n**Full Changelog**: https://github.com/$env:GITHUB_REPOSITORY/compare/$prevTag...$tag"
+          }
+          [System.IO.File]::WriteAllText($ghNotesFile, $ghNotes, [System.Text.Encoding]::UTF8)
+
+          Write-Host "==> Generated Release Notes for Microsoft Store & Velopack:"
           Write-Host $notes
 
       - name: Build MSIX Packages
@@ -151,7 +204,7 @@ jobs:
         with:
           tag_name: ${{ steps.version_info.outputs.tag }}
           name: OctaGrid ${{ steps.version_info.outputs.version }}
-          body_path: artifacts/RELEASE_NOTES.md
+          body_path: artifacts/RELEASE_NOTES_GH.md
           draft: false
           prerelease: false
           files: |
