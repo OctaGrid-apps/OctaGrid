@@ -81,6 +81,7 @@ public partial class App : Application
             serviceCollection.AddSingleton<IAuthClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
             serviceCollection.AddSingleton<IAppSettingsStore, DesignSettingsStore>();
             serviceCollection.AddSingleton<IAgentCommandsService, AgentCommandsService>();
+            serviceCollection.AddSingleton<IUpdateService, DesignUpdateService>();
             RegisterAppServices(serviceCollection);
             Services.GetRequiredService<ApplicationState>().SelectedWorkspace = new Workspace
             {

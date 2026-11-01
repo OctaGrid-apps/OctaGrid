@@ -95,11 +95,38 @@
             <!--  Update Section  -->
             <controls:SettingsGroup Header="Updates">
                 <controls:SettingsCard
-                    Description="No updates available"
-                    Header="Check for update"
+                    Description="{Binding UpdateStatusText}"
+                    Header="Application updates"
                     Icon="{StaticResource sync-regular}">
-                    <Button Content="Check for updates" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        VerticalAlignment="Center">
+                        <ProgressBar
+                            Width="120"
+                            Height="6"
+                            VerticalAlignment="Center"
+                            IsIndeterminate="{Binding IsCheckingForUpdates}"
+                            IsVisible="{Binding IsUpdating}"
+                            Maximum="100"
+                            Minimum="0"
+                            Value="{Binding UpdateProgress}" />
+                        <Button
+                            Classes="primary"
+                            Command="{Binding ApplyUpdateCommand}"
+                            Content="{Binding UpdateActionText}"
+                            IsEnabled="{Binding CanApplyUpdate}"
+                            IsVisible="{Binding HasAvailableUpdate}" />
+                        <Button
+                            Command="{Binding CheckForUpdatesCommand}"
+                            Content="Check for updates"
+                            IsEnabled="{Binding CanCheckForUpdates}" />
+                    </StackPanel>
                 </controls:SettingsCard>
+                <controls:SettingsCard
+                    Description="{Binding UpdateChannelName}"
+                    Header="Update channel"
+                    Icon="{StaticResource arrow-clockwise-regular}" />
             </controls:SettingsGroup>
 
             <!--  About  -->

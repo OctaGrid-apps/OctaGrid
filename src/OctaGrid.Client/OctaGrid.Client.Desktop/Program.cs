@@ -4,6 +4,7 @@ using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Desktop.Services;
 using OctaGrid.Client.Services;
 using Serilog;
+using Velopack;
 
 namespace OctaGrid.Client.Desktop;
 
@@ -22,6 +23,8 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        VelopackApp.Build().Run();
+
         DesktopLogging.Initialize();
         Log.Information("Starting OctaGrid Desktop {Version}...", Helper.GetInfoVersion());
         Log.Information("Logs directory: {LogsDirectory}", Helper.LogsDirectory);
@@ -34,6 +37,15 @@ internal sealed class Program
             services.AddSingleton<IAppSettingsStore, JsonClientSettingsStore>();
             services
                 .AddWebRtc();
+
+            //if (PackageEnvironment.IsRunningAsPackaged())
+            {
+                services.AddSingleton<IUpdateService, StoreUpdateService>();
+            }
+            //else
+            //{
+            //    services.AddSingleton<IUpdateService, VelopackUpdateService>();
+            //}
 
             //if (settingsStore.ClientSettings.Mode == ClientMode.Local)
             {
