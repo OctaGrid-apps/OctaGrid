@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Client.ViewModels;
 
@@ -15,6 +16,7 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAgentsClient _agentsClient;
     private readonly IAppSettingsStore _appSettings;
+    private readonly IDashboardsClient _dashboardsClient;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IWorkspacesClient _workspacesClient;
 
@@ -25,6 +27,7 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
     public MainViewModel() : this(
         App.Services.GetRequiredService<IWorkspacesClient>(),
         App.Services.GetRequiredService<IAgentsClient>(),
+        App.Services.GetRequiredService<IDashboardsClient>(),
         App.Services.GetRequiredService<IAppSettingsStore>(),
         App.Services.GetRequiredService<ApplicationState>(),
         App.Services.GetService<ILogger<MainViewModel>>() ?? NullLogger<MainViewModel>.Instance)
@@ -34,12 +37,14 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
     public MainViewModel(
         IWorkspacesClient workspacesClient,
         IAgentsClient agentsClient,
+        IDashboardsClient dashboardsClient,
         IAppSettingsStore appSettings,
         ApplicationState appState,
         ILogger<MainViewModel>? logger = null)
     {
         _workspacesClient = workspacesClient;
         _agentsClient = agentsClient;
+        _dashboardsClient = dashboardsClient;
         _appSettings = appSettings;
         AppStateService = appState;
         _logger = logger ?? NullLogger<MainViewModel>.Instance;
@@ -59,9 +64,11 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
     {
         const string DefaultWorkspaceName = "Default";
         const string DefaultAgentName = "Local";
+        const string DefaultDashboardName = "Default";
+        const string DefaultDashboardType = "List";
 
-        _logger.LogInformation("No workspaces found; provisioning default workspace '{WorkspaceName}' and agent '{AgentName}'",
-            DefaultWorkspaceName, DefaultAgentName);
+        _logger.LogInformation("No workspaces found; provisioning default workspace '{WorkspaceName}', agent '{AgentName}', and dashboard '{DashboardName}'",
+            DefaultWorkspaceName, DefaultAgentName, DefaultDashboardName);
 
         var workspaceResponse = await _workspacesClient.CreateWorkspace(DefaultWorkspaceName, cancellationToken);
         var ws = new Workspace()
@@ -73,6 +80,18 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         AppStateService.SelectedWorkspace = ws;
 
         _ = await _agentsClient.CreateAgent(workspaceResponse.Id, DefaultAgentName, cancellationToken);
+
+        var dashboards = await _dashboardsClient.GetDashboardList(workspaceResponse.Id, cancellationToken);
+        var defaultDashboard = dashboards.FirstOrDefault();
+        if (defaultDashboard is null)
+        {
+            defaultDashboard = await _dashboardsClient.CreateDashboard(
+                workspaceResponse.Id,
+                new CreateDashboardRequest(DefaultDashboardName, DefaultDashboardType),
+                cancellationToken);
+        }
+
+        _appSettings.Update(s => s with { DefaultDashboard = defaultDashboard.Id });
     }
 
     private async void HandleWorkspaceChanged(object recipient, WorkspaceEntityChanged message)

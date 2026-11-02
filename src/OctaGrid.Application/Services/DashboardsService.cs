@@ -24,11 +24,14 @@ public sealed class DashboardsService
     {
         await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
 
+        var isFirst = !await _context.Dashboards.AnyAsync(d => d.WorkspaceId == workspaceId, cancellationToken);
+
         var dashboard = new Dashboard()
         {
             Name = request.Name,
             Type = request.Type.ParseOrThrow<DashboardType>(),
-            WorkspaceId = workspaceId
+            WorkspaceId = workspaceId,
+            IsDefault = isFirst
         };
 
         await _context.Dashboards.AddAsync(dashboard, cancellationToken);

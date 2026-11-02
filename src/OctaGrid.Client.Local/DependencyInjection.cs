@@ -68,11 +68,73 @@ public static class DependencyInjection
             context.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;");
 
             logger.LogInformation("Database migrations applied successfully.");
+
+            EnsureLocalDefaults(provider, context, logger);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "An error occurred while applying database migrations.");
             throw;
+        }
+    }
+
+    private static void EnsureLocalDefaults(IServiceProvider provider, OctaGridContext context, ILogger logger)
+    {
+        try
+        {
+            // 1. Ensure default local user (only in local mode)
+            var user = context.Users.FirstOrDefault();
+            if (user is null)
+            {
+                logger.LogInformation("Provisioning default local user...");
+                var hasher = provider.GetRequiredService<IPasswordHasher<User>>();
+                user = new User
+                {
+                    Name = "User",
+                    Email = "User@example.com"
+                };
+                user.PasswordHash = hasher.HashPassword(user, Guid.NewGuid().ToString("N"));
+                context.Users.Add(user);
+                context.SaveChanges();
+
+                var currentUser = provider.GetService<ICurrentUserAccessor>();
+                currentUser?.SetCurrentUserId(user.Id);
+                logger.LogInformation("Default local user {UserId} provisioned successfully.", user.Id);
+            }
+            else
+            {
+                var currentUser = provider.GetService<ICurrentUserAccessor>();
+                if (currentUser?.GetCurrentUserId() == null)
+                {
+                    currentUser?.SetCurrentUserId(user.Id);
+                }
+            }
+
+            // 2. Ensure existing workspaces have a default dashboard if any were created without one
+            var workspacesWithoutDashboards = context.Workspaces
+                .Include(w => w.Dashboards)
+                .Where(w => !w.Dashboards.Any())
+                .ToList();
+
+            if (workspacesWithoutDashboards.Count > 0)
+            {
+                logger.LogInformation("Found {Count} workspace(s) without a dashboard; provisioning default dashboard...", workspacesWithoutDashboards.Count);
+                foreach (var ws in workspacesWithoutDashboards)
+                {
+                    ws.Dashboards.Add(new Dashboard
+                    {
+                        Name = "Default",
+                        Type = DashboardType.List,
+                        IsDefault = true
+                    });
+                }
+                context.SaveChanges();
+                logger.LogInformation("Default dashboards provisioned for existing workspaces without dashboards.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to ensure default local data.");
         }
     }
 

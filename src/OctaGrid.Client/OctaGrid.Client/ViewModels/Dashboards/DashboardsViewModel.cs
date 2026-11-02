@@ -148,9 +148,17 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
             if (response.Count == 0)
             {
-                _logger.LogInformation("Workspace has no dashboards, clearing DefaultDashboard setting");
-                _appSettingsStore.Update(s => s with { DefaultDashboard = null });
-                return;
+                _logger.LogInformation("Workspace {WorkspaceId} has no dashboards; provisioning default dashboard", workspaceId);
+                const string DefaultDashboardName = "Default";
+                const string DashboardType = "List";
+                var defaultDashboard = await _dashboardsClient.CreateDashboard(
+                    workspaceId,
+                    new CreateDashboardRequest(DefaultDashboardName, DashboardType),
+                    cancellationToken);
+
+                Dashboards = new ObservableCollection<DashboardResponse>([defaultDashboard]);
+                SelectNewDashboard(defaultDashboard);
+                response = [defaultDashboard];
             }
 
             if (SelectedDashboard is null)

@@ -45,6 +45,13 @@ public sealed class WorkspacesService
             JoinedAt = DateTimeOffset.UtcNow
         });
 
+        workspace.Dashboards.Add(new Dashboard()
+        {
+            Name = "Default",
+            Type = DashboardType.List,
+            IsDefault = true
+        });
+
         await _context.Workspaces.AddAsync(workspace, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
