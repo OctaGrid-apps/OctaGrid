@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 
@@ -8,7 +9,6 @@ namespace OctaGrid.Client.Desktop.Services;
 
 public class JsonClientSettingsStore : IAppSettingsStore
 {
-    private const string SettingFileName = "octaGrid.config.json";
     private readonly ILogger<JsonClientSettingsStore> _logger;
     private readonly string _settingsFilePath;
     private ClientSettings? _clientSettings;
@@ -18,7 +18,7 @@ public class JsonClientSettingsStore : IAppSettingsStore
     public JsonClientSettingsStore(ILogger<JsonClientSettingsStore>? logger = null)
     {
         _logger = logger ?? NullLogger<JsonClientSettingsStore>.Instance;
-        _settingsFilePath = Path.Combine(Helper.LocalDataFolder(), SettingFileName);
+        _settingsFilePath = OctaGridDataPaths.SettingsPath;
     }
 
     public event EventHandler<ClientSettings>? SettingsChanged;

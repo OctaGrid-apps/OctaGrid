@@ -1,4 +1,5 @@
 using System.Reflection;
+using OctaGrid.Client.Contracts;
 
 namespace OctaGrid.Client;
 
@@ -6,7 +7,7 @@ public static class Helper
 {
     private const string DefaultVersion = "1.0.0";
 
-    public static string LogsDirectory => Path.Combine(LocalDataFolder(), "logs");
+    public static string LogsDirectory => OctaGridDataPaths.LogsFolder;
 
     public static string GetAppVersion()
     {
@@ -29,10 +30,5 @@ public static class Helper
             : infoVersion;
     }
 
-    public static string LocalDataFolder()
-    {
-        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create), "OctaGrid");
-        Directory.CreateDirectory(directory);
-        return directory;
-    }
+    public static string LocalDataFolder() => OctaGridDataPaths.DataFolder;
 }

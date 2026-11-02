@@ -76,10 +76,5 @@ public static class DependencyInjection
         }
     }
 
-    private static string GetDatabasePath()
-    {
-        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OctaGrid");
-        Directory.CreateDirectory(directory);
-        return Path.Combine(directory, "octagrid.db");
-    }
+    private static string GetDatabasePath() => OctaGridDataPaths.DatabasePath;
 }

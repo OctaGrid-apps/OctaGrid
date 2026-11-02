@@ -43,7 +43,7 @@ Pre-compiled binaries for Windows (`win-x64`) are available on the [Releases](ht
 - **Installer**: Download and run `OctaGrid-Setup.exe` (includes built-in auto-updates).
 - **Portable**: Download `OctaGrid-win-x64-portable.zip`, extract the archive, and launch `OctaGrid.Client.Desktop.exe`.
 
-All local data and printer profiles are safely stored in `%LocalAppData%\OctaGrid\octagrid.db`.
+All local data, configuration, and printer profiles are safely stored in `%AppData%\OctaGrid` (`%AppData%\OctaGrid\octagrid.db`).
 
 ---
 
