@@ -51,24 +51,13 @@ jobs:
           $tag = ""
           $semver = ""
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -match "^v?(\d+\.\d+\.\d+.*)$") {
+              # Triggered by a version tag — use the tag itself as the authoritative version
               $semver = $Matches[1]
               $tag = if ($env:GITHUB_REF_NAME.StartsWith("v")) { $env:GITHUB_REF_NAME } else { "v$semver" }
           } else {
-              $projectPath = "src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj"
-              $output = & dotnet msbuild $projectPath -t:GetBuildVersion -getProperty:BuildVersionSimple 2>$null
-              $semver = ($output | Where-Object { $_ -match '^\d+\.\d+' } | Select-Object -Last 1)
-              if (-not $semver) {
-                  $semver = ($output | Select-Object -Last 1)
-              }
-              if ($semver) {
-                  $semver = $semver.Trim()
-              }
-              if (-not $semver) {
-                  $versionJson = Get-Content "version.json" -Raw | ConvertFrom-Json
-                  $baseVersion = $versionJson.version.Split('-')[0]
-                  $commitCount = git rev-list --count HEAD
-                  $semver = "$baseVersion.$commitCount"
-              }
+              # workflow_dispatch or other trigger — read the fixed version from version.json
+              $versionJson = Get-Content "version.json" -Raw | ConvertFrom-Json
+              $semver = $versionJson.version.Split('-')[0]
               $tag = "v$semver"
           }
 
