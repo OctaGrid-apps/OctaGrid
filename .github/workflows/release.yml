@@ -89,7 +89,16 @@ jobs:
           $version = "${{ steps.version_info.outputs.version }}"
 
           # Determine commit range
-          $prevTag = git describe --tags --abbrev=0 "${tag}^" 2>$null
+          # List all version tags sorted by semver, find the one before the current tag
+          $allTags = git tag --list "v*" --sort=version:refname 2>$null
+          $currentTagIndex = [Array]::IndexOf($allTags, $tag)
+          $prevTag = $null
+          if ($currentTagIndex -gt 0) {
+              $prevTag = $allTags[$currentTagIndex - 1]
+          } elseif ($currentTagIndex -lt 0 -and $allTags.Count -gt 0) {
+              # workflow_dispatch: tag not yet in repo — use the latest existing tag as base
+              $prevTag = $allTags[-1]
+          }
           $commits = @()
           if ($prevTag) {
               Write-Host "--> Extracting commits between $prevTag and HEAD ($tag)..."
