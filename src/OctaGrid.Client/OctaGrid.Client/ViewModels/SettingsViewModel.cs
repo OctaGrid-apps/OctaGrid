@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Models;
@@ -14,17 +15,42 @@ namespace OctaGrid.Client.ViewModels;
 public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAppSettingsStore _appSettings;
+    private readonly ApplicationState _appState;
     private readonly IUpdateService _updateService;
     private readonly ILogger<SettingsViewModel> _logger;
 
+    public SettingsViewModel() : this(
+        App.Services.GetRequiredService<IAppSettingsStore>(),
+        App.Services.GetRequiredService<ApplicationState>(),
+        App.Services.GetService<IUpdateService>(),
+        App.Services.GetService<ILogger<SettingsViewModel>>() ?? NullLogger<SettingsViewModel>.Instance)
+    {
+    }
+
     public SettingsViewModel(
         IAppSettingsStore appSettingsStore,
+        ApplicationState appState,
         IUpdateService? updateService = null,
         ILogger<SettingsViewModel>? logger = null)
     {
         _appSettings = appSettingsStore;
+        _appState = appState;
         _updateService = updateService ?? new DesignUpdateService();
         _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
+
+        _appState.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(ApplicationState.AvailableUpdate))
+            {
+                ApplyUpdateInfo(_appState.AvailableUpdate);
+            }
+        };
+
+        if (_appState.AvailableUpdate is not null)
+        {
+            ApplyUpdateInfo(_appState.AvailableUpdate);
+        }
+
         AppClientModes.Add(new Option<ClientMode>(nameof(ClientMode.Local), ClientMode.Local));
         AppClientModes.Add(new Option<ClientMode>(nameof(ClientMode.Remote), ClientMode.Remote));
 
@@ -33,6 +59,21 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Light), ElementTheme.Light));
 
         WindowTransparencyLevels.Add(new Option<TransparencyLevel>(nameof(TransparencyLevel.Mica), TransparencyLevel.Mica));
+    }
+
+    private void ApplyUpdateInfo(AppUpdateInfo? info)
+    {
+        AvailableUpdate = info;
+        if (info is { IsUpdateAvailable: true })
+        {
+            UpdateStatus = UpdateStatus.UpdateAvailable;
+            UpdateStatusText = $"Version {info.TargetVersion} is available";
+        }
+        else if (info is not null)
+        {
+            UpdateStatus = UpdateStatus.UpToDate;
+            UpdateStatusText = $"OctaGrid is up to date ({info.CurrentVersion})";
+        }
     }
 
     public ObservableCollection<Option<ClientMode>> AppClientModes { get; set; } = [];
@@ -225,18 +266,8 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         try
         {
             var info = await _updateService.CheckForUpdatesAsync(cancellationToken);
-            AvailableUpdate = info;
-
-            if (info.IsUpdateAvailable)
-            {
-                UpdateStatus = UpdateStatus.UpdateAvailable;
-                UpdateStatusText = $"Version {info.TargetVersion} is available";
-            }
-            else
-            {
-                UpdateStatus = UpdateStatus.UpToDate;
-                UpdateStatusText = $"OctaGrid is up to date ({info.CurrentVersion})";
-            }
+            _appState.AvailableUpdate = info;
+            ApplyUpdateInfo(info);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

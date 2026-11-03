@@ -23,6 +23,12 @@ public partial class ApplicationState : ObservableObject
     [ObservableProperty]
     public partial Workspace? SelectedWorkspace { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsUpdateAvailable))]
+    public partial AppUpdateInfo? AvailableUpdate { get; set; }
+
+    public bool IsUpdateAvailable => AvailableUpdate is { IsUpdateAvailable: true };
+
     public Guid GetWorkspaceId()
     {
         if (SelectedWorkspace?.Id is null)

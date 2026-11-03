@@ -38,14 +38,14 @@ internal sealed class Program
             services
                 .AddWebRtc();
 
-            //if (PackageEnvironment.IsRunningAsPackaged())
+            if (PackageEnvironment.IsRunningAsPackaged())
             {
                 services.AddSingleton<IUpdateService, StoreUpdateService>();
             }
-            //else
-            //{
-            //    services.AddSingleton<IUpdateService, VelopackUpdateService>();
-            //}
+            else
+            {
+                services.AddSingleton<IUpdateService, VelopackUpdateService>();
+            }
 
             //if (settingsStore.ClientSettings.Mode == ClientMode.Local)
             {

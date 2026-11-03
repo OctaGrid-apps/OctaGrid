@@ -17,8 +17,10 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
     private readonly IAgentsClient _agentsClient;
     private readonly IAppSettingsStore _appSettings;
     private readonly IDashboardsClient _dashboardsClient;
+    private readonly IUpdateService _updateService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IWorkspacesClient _workspacesClient;
+    private bool _hasCheckedForUpdates;
 
     // Design-time only: MainView.axaml's <Design.DataContext> instantiates this directly via
     // <vm:MainViewModel/>, which needs a public parameterless constructor. Never used at
@@ -28,6 +30,7 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         App.Services.GetRequiredService<IWorkspacesClient>(),
         App.Services.GetRequiredService<IAgentsClient>(),
         App.Services.GetRequiredService<IDashboardsClient>(),
+        App.Services.GetRequiredService<IUpdateService>(),
         App.Services.GetRequiredService<IAppSettingsStore>(),
         App.Services.GetRequiredService<ApplicationState>(),
         App.Services.GetService<ILogger<MainViewModel>>() ?? NullLogger<MainViewModel>.Instance)
@@ -38,6 +41,7 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         IWorkspacesClient workspacesClient,
         IAgentsClient agentsClient,
         IDashboardsClient dashboardsClient,
+        IUpdateService updateService,
         IAppSettingsStore appSettings,
         ApplicationState appState,
         ILogger<MainViewModel>? logger = null)
@@ -45,15 +49,27 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         _workspacesClient = workspacesClient;
         _agentsClient = agentsClient;
         _dashboardsClient = dashboardsClient;
+        _updateService = updateService;
         _appSettings = appSettings;
         AppStateService = appState;
         _logger = logger ?? NullLogger<MainViewModel>.Instance;
 
         WeakReferenceMessenger.Default.Register<WorkspaceEntityChanged>(this, HandleWorkspaceChanged);
+
+        AppStateService.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(ApplicationState.IsUpdateAvailable))
+            {
+                IsUpdateAvailable = AppStateService.IsUpdateAvailable;
+            }
+        };
     }
 
     [ObservableProperty]
     public partial ApplicationState AppStateService { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsUpdateAvailable { get; set; }
 
     public bool IsRemoteMode => _appSettings.StartupSettings.Mode == ClientMode.Remote;
 
@@ -123,6 +139,12 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
                     _appSettings.Update(s => s with { IsSafetyDisclaimerAccepted = true });
                 }
             }
+
+            if (!_hasCheckedForUpdates)
+            {
+                _hasCheckedForUpdates = true;
+                _ = CheckForUpdatesOnStartupAsync(cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -132,6 +154,37 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         {
             _logger.LogError(ex, "Failed to load workspaces in MainViewModel");
             throw;
+        }
+    }
+
+    private async Task CheckForUpdatesOnStartupAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Checking for updates on app startup...");
+            var updateInfo = await _updateService.CheckForUpdatesAsync(cancellationToken);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                AppStateService.AvailableUpdate = updateInfo;
+                IsUpdateAvailable = updateInfo.IsUpdateAvailable;
+            });
+
+            if (updateInfo.IsUpdateAvailable)
+            {
+                _logger.LogInformation("Startup update check: new version {TargetVersion} is available", updateInfo.TargetVersion);
+            }
+            else
+            {
+                _logger.LogDebug("Startup update check: application is up to date ({CurrentVersion})", updateInfo.CurrentVersion);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("Startup update check was cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Background startup update check encountered an error");
         }
     }
 

@@ -82,7 +82,6 @@ public static class DependencyInjection
     {
         try
         {
-            // 1. Ensure default local user (only in local mode)
             var user = context.Users.FirstOrDefault();
             if (user is null)
             {
@@ -110,7 +109,6 @@ public static class DependencyInjection
                 }
             }
 
-            // 2. Ensure existing workspaces have a default dashboard if any were created without one
             var workspacesWithoutDashboards = context.Workspaces
                 .Include(w => w.Dashboards)
                 .Where(w => !w.Dashboards.Any())

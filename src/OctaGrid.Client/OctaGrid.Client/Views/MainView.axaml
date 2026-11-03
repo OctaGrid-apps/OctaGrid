@@ -52,7 +52,8 @@
             <controls:NavigationRailItem
                 Header="Settings"
                 Icon="{StaticResource settings-regular}"
-                PageType="{x:Type views:SettingsView}" />
+                PageType="{x:Type views:SettingsView}"
+                ShowBadge="{Binding IsUpdateAvailable}" />
         </controls:NavigationRail.FooterItems>
 
     </controls:NavigationRail>
