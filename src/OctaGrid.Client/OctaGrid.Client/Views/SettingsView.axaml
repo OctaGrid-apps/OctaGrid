@@ -123,9 +123,13 @@
                         </StackPanel>
                     </controls:SettingsCard.Header>
                     <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="8"
+                        HorizontalAlignment="Right"
+                        Spacing="6"
                         VerticalAlignment="Center">
+                    <StackPanel
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal"
+                        Spacing="8">
                         <ProgressBar
                             Width="120"
                             Height="6"
@@ -136,15 +140,27 @@
                             Minimum="0"
                             Value="{Binding UpdateProgress}" />
                         <Button
+                            Command="{Binding ShowReleaseNotesCommand}"
+                            Content="Release notes"
+                            IsVisible="{Binding HasReleaseNotes}" />
+                        <Button
                             Classes="primary"
                             Command="{Binding ApplyUpdateCommand}"
                             Content="{Binding UpdateActionText}"
-                            IsEnabled="{Binding CanApplyUpdate}"
-                            IsVisible="{Binding HasAvailableUpdate}" />
+                            IsVisible="{Binding HasAvailableUpdate}"
+                            ToolTip.Tip="{Binding UpdateRestartNotice}" />
                         <Button
                             Command="{Binding CheckForUpdatesCommand}"
-                            Content="Check for updates"
-                            IsEnabled="{Binding CanCheckForUpdates}" />
+                            Content="Check for updates" />
+                    </StackPanel>
+                    <TextBlock
+                        Classes="small secondary"
+                        HorizontalAlignment="Right"
+                        IsVisible="{Binding HasAvailableUpdate}"
+                        MaxWidth="360"
+                        Text="{Binding UpdateRestartNotice}"
+                        TextAlignment="Right"
+                        TextWrapping="Wrap" />
                     </StackPanel>
                 </controls:SettingsCard>
                 <controls:SettingsCard

@@ -62,7 +62,7 @@ public sealed class VelopackUpdateService : IUpdateService
                 true,
                 currentVersion,
                 targetVersion,
-                null,
+                update.TargetFullRelease.NotesHTML,
                 update);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
