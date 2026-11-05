@@ -40,8 +40,11 @@ Get the latest version directly from the Microsoft Store for seamless background
 ### 2. Download from GitHub Releases
 
 Pre-compiled binaries for Windows (`win-x64`) are available on the [Releases](https://github.com/OctaGrid-apps/OctaGrid/releases) page:
-- **Installer**: Download and run `OctaGrid-Setup.exe` (includes built-in auto-updates).
+- **Installer**: Download and run the `*-Setup.exe` file (includes built-in auto-updates).
 - **Portable**: Download `OctaGrid-win-x64-portable.zip`, extract the archive, and launch `OctaGrid.Client.Desktop.exe`.
+
+> [!NOTE]
+> Releases marked **Pre-release** (for example `1.0.17-pre-alpha`) are early builds for testers. The Microsoft Store only receives stable releases. See [Versioning & Releases](docs/VERSIONING.md).
 
 All local data, configuration, and printer profiles are safely stored in `%AppData%\OctaGrid` (`%AppData%\OctaGrid\octagrid.db`).
 
@@ -67,6 +70,16 @@ dotnet build OctaGrid.slnx
 ```powershell
 dotnet run --project src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj
 ```
+
+---
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [Versioning & Releases](docs/VERSIONING.md) | Version scheme, release channels, release process, auto-updates |
+| [Spacing guidelines](docs/SPACING.md) | Spacing tokens and layout style classes |
+| [Typography guidelines](docs/TYPOGRAPHY.md) | Type scale, text roles and style classes |
 
 ---
 
@@ -113,10 +126,13 @@ OctaGrid follows the [Conventional Commits](https://www.conventionalcommits.org/
 | `perf` | Performance improvement or optimization | `perf(ui): optimize printer card redraws` |
 | `style` | Formatting, spacing, or visual theme polish | `style(theme): update Mica theme border radius` |
 | `build` | Changes to build scripts, dependencies, or packaging | `build(msix): configure makepri automatic indexing` |
-| `ci` | Changes to CI/CD workflows and automation scripts | `ci(github): add automated commitlint action` |
+| `ci` | Changes to CI/CD workflows and automation scripts | `ci(github): add build and test workflow` |
 | `docs` | Documentation updates (README, docs) | `docs: document commit conventions and git hooks` |
 | `test` | Adding or correcting unit/integration tests | `test(sync): add tests for local agent synchronizer` |
 | `chore` | Miscellaneous maintenance tasks | `chore: update .gitignore and cleanup unused files` |
+| `revert` | Reverts a previous commit | `revert: feat(dashboard): add real-time temperature graph` |
+
+Pull request titles follow the same format: pull requests are squash-merged, the PR title becomes the commit subject, and CI validates it.
 
 ### Breaking Changes
 

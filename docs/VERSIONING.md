@@ -18,24 +18,28 @@ MAJOR.MINOR.PATCH[-CHANNEL[.N]]
 | `-CHANNEL` | Optional pre-release label. No label = stable. |
 | `.N` | Optional counter for several builds of the same channel (`-preview.1`, `-preview.2`). |
 
-While the major version is `1`, the app is still **pre-alpha**: features and database
-schemas may change between releases.
+OctaGrid is currently in **pre-alpha**: features and database schemas may change between
+releases. This is expressed by the release channel (`-pre-alpha`), not by the major version.
 
 ### Channels
 
-Ordered from least to most mature (SemVer sorts labels alphabetically, so a later
-channel must sort after an earlier one — `pre-alpha` < `preview` < `rc` is fine, and any
-pre-release always sorts *before* the stable release of the same number):
+SemVer orders pre-release labels alphabetically (ASCII), so within one `MAJOR.MINOR.PATCH`
+the supported channels progress in this order, and every pre-release sorts *before* the
+stable release with the same number:
 
-| Channel | Example | GitHub release | Microsoft Store | Audience |
-|---|---|---|---|---|
-| Pre-alpha | `1.0.17-pre-alpha` | Pre-release | No | Early testers |
-| Alpha / Beta | `1.1.0-beta.2` | Pre-release | No | Testers |
-| Preview | `1.1.0-preview.1` | Pre-release | No | Early adopters |
-| Release candidate | `1.1.0-rc.1` | Pre-release | No | Final verification |
-| Stable | `1.1.0` | Latest release | Yes | Everyone |
+| Order | Channel | Example | GitHub release | Microsoft Store | Audience |
+|---|---|---|---|---|---|
+| 1 | Pre-alpha | `1.0.17-pre-alpha` | Pre-release | No | Early testers |
+| 2 | Preview | `1.1.0-preview.1` | Pre-release | No | Early adopters |
+| 3 | Release candidate | `1.1.0-rc.1` | Pre-release | No | Final verification |
+| 4 | Stable | `1.1.0` | Latest release | Yes | Everyone |
 
-Precedence example: `1.1.0-preview.1` < `1.1.0-preview.2` < `1.1.0-rc.1` < `1.1.0`.
+Precedence example: `1.1.0-pre-alpha` < `1.1.0-preview.1` < `1.1.0-preview.2` < `1.1.0-rc.1` < `1.1.0`.
+
+> [!IMPORTANT]
+> Only use the channels above. Labels such as `alpha` and `beta` sort *before* `pre-alpha`
+> (`alpha` < `beta` < `pre-alpha`), so mixing them in one version number would stop testers
+> from being offered the update.
 
 ## How a version flows through the system
 
@@ -63,11 +67,14 @@ tag matching `publicReleaseRefSpec` get the clean version.
    ```bash
    git commit -am "chore(release): 1.1.0-preview.1"
    ```
-3. **Tag** the commit with `v` + the exact version and push the tag:
-   ```bash
-   git tag v1.1.0-preview.1
-   git push origin main v1.1.0-preview.1
+3. **Tag** the commit and push the tag. The tag name is `v` + the version from `version.json`,
+   so generate it from the file instead of typing it:
+   ```powershell
+   $tag = "v" + (Get-Content version.json -Raw | ConvertFrom-Json).version
+   git tag $tag
+   git push origin main $tag
    ```
+   (For `"version": "1.1.0-preview.1"` this creates `v1.1.0-preview.1`.)
 4. The **Release & Publish** workflow (`.github/workflows/release.yml`) then:
    - validates `version.json` and that the tag matches it (fails fast otherwise);
    - generates release notes from commits since the previous release (a stable release is
@@ -76,12 +83,16 @@ tag matching `publicReleaseRefSpec` get the clean version.
    - publishes the GitHub release (pre-release flag, "Latest" only for stable);
    - submits to the Microsoft Store — **stable releases only**.
 
-The workflow can also be started manually (*Actions → Release & Publish → Run workflow*). It
-uses the version in `version.json` and creates the matching tag if it does not exist.
+The workflow can also be started manually (*Actions → Release & Publish → Run workflow*) to
+re-run a release. It uses the version in `version.json` and creates the matching tag if it
+does not exist. Prefer pushing a tag: only tag builds get the clean version number in the
+app (see above), whereas a manual run on a branch produces an installer whose assembly
+version carries a commit suffix.
 
 ### Release notes / commit conventions
 
-Notes are grouped by [Conventional Commit](https://www.conventionalcommits.org) type:
+Commits and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org)
+(see [Commit Conventions](../README.md#commit-conventions)). Release notes are grouped by type:
 
 | Prefix | Section |
 |---|---|
@@ -90,8 +101,9 @@ Notes are grouped by [Conventional Commit](https://www.conventionalcommits.org) 
 | `fix:` | Fixes |
 | anything else | Other Changes |
 
-Use `!` or a `BREAKING CHANGE:` footer for breaking changes and bump `MAJOR` (or `MINOR`
-while on `0.x`/pre-alpha, as agreed for that release).
+Mark breaking changes with `!` or a `BREAKING CHANGE:` footer and reflect them in the next
+version: `MAJOR` for a stable breaking change. While in pre-alpha, breaking changes are
+expected and may ship in a `MINOR` or `PATCH` bump.
 
 ## Auto-update behaviour
 
@@ -105,8 +117,9 @@ while on `0.x`/pre-alpha, as agreed for that release).
 
 - Never reuse or move a published tag; publish a new version instead.
 - Never bump `version.json` without tagging, or tag without bumping — CI rejects mismatches.
-- Don't put the channel anywhere except `version.json` (no manual `-pre-alpha` in tags,
-  workflow inputs or scripts).
+- The channel is *defined* only in `version.json`. Tags, installers, GitHub releases and the
+  Store gating are all derived from it or checked against it, so never hard-code a channel
+  label in workflow inputs or scripts, and never type a tag by hand with a different label.
 - Pre-release versions must never be submitted to the Microsoft Store.
 - Hotfix for a stable release: bump `PATCH`, tag, release.
 
