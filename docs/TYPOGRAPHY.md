@@ -13,7 +13,7 @@ Tokens live in `Styles/Typography.axaml`; text style classes live in `Styles/Typ
 
 ## 2. Primitive scale
 
-| Token | Size | Line height | Token |
+| Role | Size (px) | Line height (px) | Tokens |
 |---|---|---|---|
 | Caption | 12 | 16 | `Font.Size.Caption` / `Font.LineHeight.Caption` |
 | Small | 13 | 20 | `Font.Size.Small` / `Font.LineHeight.Small` |
@@ -75,7 +75,7 @@ A temperature tile:
 </StackPanel>
 ```
 
-## 4. Mapping from the previous layout
+## 4. Migration reference: previous layout
 
 | Where | Before | Now |
 |---|---|---|

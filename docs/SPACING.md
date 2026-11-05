@@ -1,6 +1,6 @@
 # OctaGrid.Client — Spacing Guidelines
 
-Tokens live in `Styles/Spacing.axaml`; reusable style classes live in `Styles/SpacingStyles.axaml`. For fonts, see [TYPOGRAPHY.md](TYPOGRAPHY.md).
+Tokens live in `Styles/Spacing.axaml`; reusable style classes live in `Styles/Styles.axaml`. For fonts, see [TYPOGRAPHY.md](TYPOGRAPHY.md).
 
 ## 1. Principles
 
@@ -78,9 +78,9 @@ Naming: step × 4 = px (`Space5` = 20). This keeps names stable even if a future
 | `ControlHeightMd` | 36 | buttons, inputs, nav items |
 | `ControlHeightLg` | 44 | touch-first targets |
 
-## 4. Mapping from the current Printers mock-up
+## 4. Migration reference: original Printers mock-up
 
-The mock-up used off-grid values. Each one snaps to the nearest token that keeps the proximity hierarchy intact:
+The original mock-up used off-grid values. Each one snapped to the nearest token that keeps the proximity hierarchy intact:
 
 | Element | Mock-up | Token | New |
 |---|---|---|---|
