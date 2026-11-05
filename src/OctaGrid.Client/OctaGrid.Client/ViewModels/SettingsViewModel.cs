@@ -121,6 +121,8 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     [NotifyPropertyChangedFor(nameof(HasAvailableUpdate))]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
     [NotifyPropertyChangedFor(nameof(UpdateActionText))]
+    [NotifyPropertyChangedFor(nameof(HasReleaseNotes))]
+    [NotifyCanExecuteChangedFor(nameof(ShowReleaseNotesCommand))]
     public partial AppUpdateInfo? AvailableUpdate { get; set; }
 
     public bool HasAvailableUpdate => AvailableUpdate is { IsUpdateAvailable: true };
@@ -138,7 +140,52 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     public string UpdateActionText => _updateService.Channel == UpdateChannel.MicrosoftStore
         ? "Update"
-        : (UpdateStatus == UpdateStatus.ReadyToRestart ? "Restart to apply" : "Update now");
+        : (UpdateStatus == UpdateStatus.ReadyToRestart ? "Restart to apply" : "Update and restart");
+
+    /// <summary>Explains the restart behavior next to the update button.</summary>
+    public string UpdateRestartNotice => _updateService.Channel == UpdateChannel.MicrosoftStore
+        ? "The update is installed by Microsoft Store."
+        : "OctaGrid will close and restart automatically to finish the update. Save your work first.";
+
+    public bool HasReleaseNotes => HasAvailableUpdate && !string.IsNullOrWhiteSpace(AvailableUpdate?.ReleaseNotes);
+
+    [RelayCommand(CanExecute = nameof(HasReleaseNotes))]
+    private void ShowReleaseNotes()
+    {
+        var notes = AvailableUpdate?.ReleaseNotes;
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return;
+        }
+
+        try
+        {
+            const string head =
+                "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+                "<meta name=\"color-scheme\" content=\"light dark\">" +
+                "<style>body { font-family: 'Segoe UI', sans-serif; margin: 16px; line-height: 1.5; }</style>" +
+                "</head><body>";
+            var html = head + notes + "</body></html>";
+
+            var dialog = new NativeWebDialog { Title = $"What's new in {AvailableUpdate?.TargetVersion}" };
+            dialog.CanUserResize = true;
+            dialog.NavigateToString(html);
+
+            var owner = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            if (owner is not null)
+            {
+                dialog.Show(owner);
+            }
+            else
+            {
+                dialog.Show();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to show release notes");
+        }
+    }
 
     private bool IsAppClientModeApplied()
     {
@@ -251,7 +298,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCheckForUpdates))]
     private async Task CheckForUpdates(CancellationToken cancellationToken)
     {
         if (IsCheckingForUpdates || IsUpdating)
@@ -281,7 +328,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanApplyUpdate))]
     private async Task ApplyUpdate(CancellationToken cancellationToken)
     {
         if (AvailableUpdate is not { IsUpdateAvailable: true } || IsUpdating)
