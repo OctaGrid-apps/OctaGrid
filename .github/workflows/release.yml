@@ -223,7 +223,7 @@ jobs:
 
       - name: Publish to GitHub Releases
         if: ${{ github.event_name == 'push' || inputs.create_github_release != false }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version_info.outputs.tag }}
           name: OctaGrid ${{ steps.version_info.outputs.version }}${{ steps.version_info.outputs.prerelease == 'true' && format(' ({0})', steps.version_info.outputs.channel) || '' }}
