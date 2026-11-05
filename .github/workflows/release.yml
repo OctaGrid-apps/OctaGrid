@@ -50,22 +50,39 @@ jobs:
         run: |
           $tag = ""
           $semver = ""
-          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -match "^v?(\d+\.\d+\.\d+.*)$") {
-              # Triggered by a version tag — use the tag itself as the authoritative version
-              $semver = $Matches[1]
-              $tag = if ($env:GITHUB_REF_NAME.StartsWith("v")) { $env:GITHUB_REF_NAME } else { "v$semver" }
-          } else {
-              # workflow_dispatch or other trigger — read the fixed version from version.json
-              $versionJson = Get-Content "version.json" -Raw | ConvertFrom-Json
-              $semver = $versionJson.version.Split('-')[0]
-              $tag = "v$semver"
+          $channel = "stable"
+
+          # version.json is the single source of truth (SemVer 2.0, e.g. 1.2.0 or 1.2.0-pre-alpha).
+          $semver = (Get-Content "version.json" -Raw | ConvertFrom-Json).version
+          if ($semver -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') {
+              throw "version.json version '$semver' is not a valid SemVer 2.0 version (expected MAJOR.MINOR.PATCH[-label])."
+          }
+          $tag = "v$semver"
+
+          # A release tag must match version.json exactly, so the tag, the installer and
+          # the assembly version can never disagree.
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne $tag) {
+              throw "Tag '$env:GITHUB_REF_NAME' does not match version.json ('$tag'). Bump version.json or re-tag."
           }
 
-          Write-Host "==> Determined Version: $semver"
+          # Numeric part only (MSIX / Store cannot carry a pre-release suffix)
+          $coreVersion = $semver.Split('-')[0].Split('+')[0]
+
+          # Channel = first pre-release label, e.g. "1.2.0-pre-alpha.2" -> "pre-alpha"
+          if ($semver -match '^\d+\.\d+\.\d+-(.+?)(\.\d+)?(\+.*)?$') {
+              $channel = $Matches[1].ToLowerInvariant()
+          }
+          $isPrerelease = if ($channel -ne "stable") { "true" } else { "false" }
+
+          Write-Host "==> Determined Version: $semver (core $coreVersion)"
           Write-Host "==> Determined Tag:     $tag"
+          Write-Host "==> Channel:            $channel (prerelease=$isPrerelease)"
 
           "version=$semver" >> $env:GITHUB_OUTPUT
+          "core_version=$coreVersion" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          "prerelease=$isPrerelease" >> $env:GITHUB_OUTPUT
 
       - name: Generate Release Notes (Changelog)
         id: release_notes
@@ -78,14 +95,17 @@ jobs:
           $version = "${{ steps.version_info.outputs.version }}"
 
           # Determine commit range
-          # List all version tags sorted by semver, find the one before the current tag
-          $allTags = git tag --list "v*" --sort=version:refname 2>$null
+          # List version tags oldest -> newest (by tag date; plain version sorting mis-orders
+          # pre-releases such as v1.2.0-pre-alpha after v1.2.0). A stable release is compared
+          # with the previous stable release; a pre-release with the previous tag of any kind.
+          $allTags = @(git tag --list "v*" --sort=creatordate 2>$null)
+          if ($tag -notmatch '-') { $allTags = @($allTags | Where-Object { $_ -notmatch '-' -or $_ -eq $tag }) }
           $currentTagIndex = [Array]::IndexOf($allTags, $tag)
           $prevTag = $null
           if ($currentTagIndex -gt 0) {
               $prevTag = $allTags[$currentTagIndex - 1]
           } elseif ($currentTagIndex -lt 0 -and $allTags.Count -gt 0) {
-              # workflow_dispatch: tag not yet in repo — use the latest existing tag as base
+              # manual run: tag not yet in repo — use the latest existing tag as base
               $prevTag = $allTags[-1]
           }
           $commits = @()
@@ -156,6 +176,11 @@ jobs:
 
           # For GitHub Release, append link to full compare diff if prior tag exists
           $ghNotes = $notes
+          $channel = "${{ steps.version_info.outputs.channel }}"
+          if ($channel -ne "stable") {
+              $label = (Get-Culture).TextInfo.ToTitleCase($channel)
+              $ghNotes = "> [!WARNING]`n> **$label release** - this build is not a stable release and may contain bugs or incomplete features.`n`n" + $notes
+          }
           if ($prevTag -and $env:GITHUB_REPOSITORY) {
               $ghNotes += "`n`n**Full Changelog**: https://github.com/$env:GITHUB_REPOSITORY/compare/$prevTag...$tag"
           }
@@ -167,7 +192,7 @@ jobs:
       - name: Build MSIX Packages
         shell: pwsh
         run: |
-          $version = "${{ steps.version_info.outputs.version }}"
+          $version = "${{ steps.version_info.outputs.core_version }}"
           .\build-msix.ps1 -Architectures @('x64', 'arm64') -Configuration Release -OutputDir artifacts -PackageVersion $version -Bundle -Sign
 
       - name: Build Velopack .EXE App & Installer
@@ -201,10 +226,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version_info.outputs.tag }}
-          name: OctaGrid ${{ steps.version_info.outputs.version }}
+          name: OctaGrid ${{ steps.version_info.outputs.version }}${{ steps.version_info.outputs.prerelease == 'true' && format(' ({0})', steps.version_info.outputs.channel) || '' }}
           body_path: artifacts/RELEASE_NOTES_GH.md
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.version_info.outputs.prerelease == 'true' }}
+          make_latest: ${{ steps.version_info.outputs.prerelease != 'true' }}
           files: |
             artifacts/*-Setup.exe
             artifacts/OctaGrid-win-x64-portable.zip
@@ -212,11 +238,11 @@ jobs:
             artifacts/*.nupkg
 
       - name: Setup Microsoft Store CLI
-        if: ${{ github.event_name == 'push' || inputs.publish_to_store != false }}
+        if: ${{ steps.version_info.outputs.prerelease != 'true' && (github.event_name == 'push' || inputs.publish_to_store != false) }}
         uses: microsoft/microsoft-store-apppublisher@v1.4
 
       - name: Publish to Microsoft Store
-        if: ${{ github.event_name == 'push' || inputs.publish_to_store != false }}
+        if: ${{ steps.version_info.outputs.prerelease != 'true' && (github.event_name == 'push' || inputs.publish_to_store != false) }}
         env:
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}

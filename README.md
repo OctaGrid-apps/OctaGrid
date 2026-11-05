@@ -139,34 +139,10 @@ git config core.hooksPath .githooks
 
 ## Versioning & Release Process
 
-OctaGrid uses [Nerdbank.GitVersioning](https://github.com/dotnet/Nerdbank.GitVersioning) for single-source, git-commit-height versioning.
-
-### How to Bump the Version Before a Release
-
-1. **Update `version.json`**:
-   Open the root [`version.json`](version.json) file and adjust the `version` property:
-   - **Pre-Alpha / Alpha**: `"version": "0.1-alpha"` or `"version": "0.2-alpha"`
-   - **Beta**: `"version": "1.0-beta"`
-   - **Release Candidate / Stable**: `"version": "1.0"`
-
-   *(Alternatively, use the global CLI tool: `dotnet tool install -g nbgv` then run `nbgv bump minor` or `nbgv prepare-release`.)*
-
-2. **Commit the Change**:
-   ```powershell
-   git add version.json
-   git commit -m "Bump version to 0.2-alpha"
-   ```
-
-3. **Automatic Synchronization on Build**:
-   When you run `dotnet build` or `dotnet publish`:
-   - Nerdbank.GitVersioning dynamically generates the 4-part numeric assembly and file versions (`Major.Minor.{commitHeight}.0`).
-   - The desktop project's build target automatically updates `Identity.Version` in [`Package.appxmanifest`](src/OctaGrid.Client/OctaGrid.Client.Desktop/Package.appxmanifest) to match the new version.
-
-4. **Tag the Release in Git**:
-   ```powershell
-   git tag v0.1.0-alpha.1
-   git push origin main --tags
-   ```
+OctaGrid follows [Semantic Versioning 2.0](https://semver.org) with pre-release channels
+(`1.0.17-pre-alpha`, `1.1.0-preview.1`, `1.1.0`). [`version.json`](version.json) is the single
+source of truth; release tags must be `v` + that version. See
+**[docs/VERSIONING.md](docs/VERSIONING.md)** for channels, the release process and auto-update behaviour.
 
 ---
 

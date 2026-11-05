@@ -10,6 +10,10 @@ namespace OctaGrid.Client.Desktop.Services;
 public sealed class VelopackUpdateService : IUpdateService
 {
     private const string RepoUrl = "https://github.com/OctaGrid-apps/OctaGrid";
+
+    // Pre-release builds (e.g. 1.0.17-pre-alpha) also follow pre-release GitHub releases;
+    // stable builds only ever see stable releases.
+    private static readonly bool IncludePrereleases = Helper.GetAppVersion().Contains('-');
     private readonly ILogger<VelopackUpdateService> _logger;
 
     public VelopackUpdateService(ILogger<VelopackUpdateService>? logger = null)
@@ -25,7 +29,7 @@ public sealed class VelopackUpdateService : IUpdateService
         {
             try
             {
-                var mgr = new UpdateManager(new GithubSource(RepoUrl, null, false));
+                var mgr = new UpdateManager(new GithubSource(RepoUrl, null, IncludePrereleases));
                 return mgr.IsInstalled;
             }
             catch
@@ -42,7 +46,7 @@ public sealed class VelopackUpdateService : IUpdateService
 
         try
         {
-            var mgr = new UpdateManager(new GithubSource(RepoUrl, null, false));
+            var mgr = new UpdateManager(new GithubSource(RepoUrl, null, IncludePrereleases));
             if (!mgr.IsInstalled)
             {
                 _logger.LogInformation("Application is not installed via Velopack (portable or dev run). Updates disabled.");
@@ -80,7 +84,7 @@ public sealed class VelopackUpdateService : IUpdateService
         }
 
         _logger.LogInformation("Downloading Velopack update {Version}", veloUpdate.TargetFullRelease.Version.ToFullString());
-        var mgr = new UpdateManager(new GithubSource(RepoUrl, null, false));
+        var mgr = new UpdateManager(new GithubSource(RepoUrl, null, IncludePrereleases));
         await mgr.DownloadUpdatesAsync(veloUpdate, progress => progressCallback?.Invoke(progress), cancellationToken);
 
         _logger.LogInformation("Applying Velopack update and restarting");
