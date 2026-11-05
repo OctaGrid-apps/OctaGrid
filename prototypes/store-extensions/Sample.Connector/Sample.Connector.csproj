@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Exe only because an MSIX app extension package needs an Application entry.
+       The host loads Sample.Connector.dll and never starts the exe. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>OctaGrid.Prototype.Sample</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Private=false: the host supplies Prototype.Abstractions so type identity matches. -->
+    <ProjectReference Include="..\Prototype.Abstractions\Prototype.Abstractions.csproj" Private="false" />
+  </ItemGroup>
+</Project>

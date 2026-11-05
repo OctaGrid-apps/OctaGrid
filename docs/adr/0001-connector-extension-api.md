@@ -1,0 +1,303 @@
+# ADR 0001: Connector extension API
+
+- **Status:** Proposed
+- **Date:** 2026-11-05
+- **Scope:** Agent-side printer connectors (Bambu Lab MQTT, Moonraker, third-party)
+
+## Context
+
+Printer support is currently compiled into `OctaGrid.Agent.Core`. We want third-party developers
+to add connectors, with some shipped and enabled by default and others installed by the user
+(Microsoft Store add-ons in the Store build). Remote mode, where the Agent runs as a separate
+process on Windows, Linux or Docker, is planned next, so the design must not assume the Agent
+runs inside the desktop app.
+
+### What exists today
+
+| Seam | Where | Assessment |
+|---|---|---|
+| `IDeviceClientFactory` (`CanHandle(string protocol)` + `Create(DeviceProfile)`) | `Agent.Core` | Good extension point; protocol is already a string at runtime. |
+| `IDeviceClient` (files, print control, telemetry loop, connection test) | `Agent.Core` | Fat: every connector must implement every operation. |
+| `IThumbnailProvider` (optional capability, checked with `is`) | `Agent.Core` | The right pattern for optional features; generalise it. |
+| `DeviceProfile(DeviceId, Protocol, ConnectionString, Settings)` | `Protocol` | Free-form settings, so the UI cannot render a form for a new connector. |
+| `PrinterProtocol` enum (`Moonraker`, `BambuMqtt`, `PrusaLink`) | `Data.Abstractions`, stored on `Printer` | **Blocker:** a closed enum cannot name third-party protocols. |
+| `PrinterTelemetry` (fixed nozzle/bed fields) | `Protocol` | Cannot express extra sensors, multiple extruders or chambers. |
+| Connectors, MQTTnet, FluentFTP, SharpCompress | `Agent.Core` | Connectors and the host share one assembly and its dependencies. |
+
+## Decision
+
+### 1. Split the assemblies
+
+```
+OctaGrid.Extensions.Abstractions   <- the SDK (NuGet package). Contracts only, minimal dependencies.
+OctaGrid.Protocol                  <- shared DTOs, referenced by the SDK
+OctaGrid.Agent.Core                <- host: orchestrator, extension manager, telemetry pipeline
+OctaGrid.Connectors.BambuLab       <- bundled extension (moved out of Agent.Core)
+OctaGrid.Connectors.Moonraker      <- bundled extension (moved out of Agent.Core)
+```
+
+Bundled connectors are built exactly like third-party ones, so the SDK is exercised by our own code.
+
+### 2. Identify connectors by a stable string id
+
+Replace `PrinterProtocol` with a connector id string (for example `octagrid.bambu-mqtt`,
+`octagrid.moonraker`, `acme.prusalink`). It is stored on `Printer`. A migration maps the existing
+enum values to the bundled ids. Ids are lowercase `publisher.name` and never change once published.
+
+### 3. Connector contract: a small core plus optional capabilities
+
+```csharp
+namespace OctaGrid.Extensions.Abstractions;
+
+public interface IConnector                      // one per extension, found by the host
+{
+    ConnectorDescriptor Descriptor { get; }
+    IPrinterSession CreateSession(PrinterProfile profile, IConnectorContext context);
+}
+
+public interface IPrinterSession : IAsyncDisposable   // replaces IDeviceClient
+{
+    Task RunAsync(ITelemetrySink telemetry, CancellationToken ct);     // connect, stream state
+    Task<ConnectionTestResult> TestConnectionAsync(CancellationToken ct);
+    Task RequestStateAsync(CancellationToken ct);                      // was TriggerInitialStateAsync
+}
+
+// Optional capabilities. The session implements only what the printer supports.
+public interface IPrintControl   { /* Start / Pause / Resume / Stop */ }
+public interface IFileStorage    { /* List / Upload / Delete */ }
+public interface IThumbnails     { /* GetThumbnailAsync(...), was IThumbnailProvider */ }
+public interface ICustomCommands { /* Descriptors, ExecuteAsync(...): Expert mode */ }
+
+public interface IPrinterDiscovery               // implemented by the connector, not the session
+{
+    IAsyncEnumerable<DiscoveredPrinter> ScanAsync(DiscoveryOptions options, CancellationToken ct);
+}
+```
+
+`ConnectorDescriptor` is plain data so the Client can use it without loading any code:
+
+- `Id`, `DisplayName`, `Version`, `Publisher`, `IconUri`
+- `Capabilities`: flags such as `PrintControl`, `Files`, `Thumbnails`, `CustomCommands`, `Discovery`.
+  The host checks that these match the interfaces the session implements.
+- `Settings`: a list of fields (`key`, `label`, `type`, `required`, `secret`, `default`, `help`) that
+  the Client renders as the "add printer" form. This replaces the free-form `Settings` dictionary and
+  the single `ConnectionString`.
+- `CustomCommands`: command descriptors (name, parameters, risk level). The Client shows them on the
+  printer page and on dashboard cards.
+
+The Client never talks to an extension. It talks to the Agent through `Client.Contracts`, which
+means the same UI works for Local and Remote mode, and extensions run where the printer is reachable.
+
+### 4. Telemetry stays typed, with room to grow
+
+`PrinterTelemetry` keeps the standard fields and gains `Extruders` (a list), `Chamber` and
+`Sensors` (a list of `id`, `label`, `value`, `unit`). Connectors map vendor data onto the
+standard fields first, and use `Sensors` only for what does not fit. This keeps dashboards generic
+without forcing every connector to know about the UI.
+
+### 5. Versioning and compatibility
+
+- The SDK has an **extension API version** (`MAJOR.MINOR`), separate from the app version.
+  A MINOR change only adds members. A MAJOR change is breaking.
+- Each extension ships a manifest `octagrid-extension.json`:
+
+  ```json
+  {
+    "id": "acme.prusalink",
+    "name": "PrusaLink",
+    "version": "1.2.0",
+    "publisher": "Acme",
+    "apiVersion": "1.0",
+    "minHostVersion": "1.1.0",
+    "assembly": "Acme.PrusaLink.dll",
+    "entryType": "Acme.PrusaLink.PrusaLinkConnector"
+  }
+  ```
+
+- The host loads an extension only if its `apiVersion` is supported (same MAJOR, MINOR not newer than
+  the host's). During a MAJOR transition the host may support the previous MAJOR as well.
+- Every extension has one of four states, shown in the Client: **Loaded**, **Disabled** (by the user),
+  **Incompatible** (with the reason, for example "requires API 2.0, agent supports 1.x") or
+  **Failed** (load or run error). An incompatible or failing extension never stops the Agent or other
+  extensions. Its printers show "connector unavailable" rather than an error loop.
+- Adding an optional capability interface is a MINOR change.
+
+### 6. Loading and isolation
+
+- Each extension loads into its own `AssemblyLoadContext`. The SDK, `OctaGrid.Protocol` and
+  `Microsoft.Extensions.*` abstractions resolve from the host's context so type identity matches.
+  Everything else (MQTTnet, FluentFTP, a vendor SDK) comes from the extension's folder.
+- **Sources** (an `IExtensionSource` abstraction, since where files live differs per platform):
+  1. *Bundled*: shipped next to the app, enabled by default.
+  2. *User folder*: `<data>/extensions/<id>/<version>/`, installed from a package file or a feed.
+  3. *Store extension package*: a separate MSIX that declares an app extension for OctaGrid (see
+     "Store distribution and prototype findings"). The Store handles download, signing and update.
+     The host discovers it, copies its files into its own data folder and loads the copy.
+  4. *Docker*: a mounted volume on the agent image.
+- User-installed extensions are not enabled until the user confirms a trust prompt that names the
+  publisher and the permissions it needs (network, file access).
+
+### 7. Remote mode and hosting
+
+Extensions run in the **Agent**, never in the hosted server. The hosted service therefore does not
+execute third-party code, which keeps it cheap and safe. For Remote mode:
+
+- Installing, updating, enabling or disabling an extension is an Agent command issued from the Client
+  ("Install connector"), subject to the same compatibility checks as the agent update button.
+- The compatibility handshake on connect includes the agent version, extension API version and the
+  list of loaded extensions with their states, so the Client can say "update the agent" or "update the
+  connector" instead of failing.
+- Descriptors (settings schema, capabilities, custom commands) travel as data in the Agent protocol.
+  Extensions never ship client-side UI code in v1.
+
+### 8. Security model
+
+In-process .NET plugins run with the full privileges of the Agent. They cannot be sandboxed. For v1 we
+accept that and reduce the risk with explicit user trust, signed Store add-ons, and publisher info.
+A future option is out-of-process connectors over JSON-RPC (the repository already uses
+`StreamJsonRpc`), which would isolate crashes and allow limited permissions and other languages. The
+`IConnector` and `IPrinterSession` contracts are designed so that an out-of-process proxy can implement
+them later without changing connectors written in-process.
+
+Custom commands (Expert mode) are declared by the connector, carry a risk level, and require an
+explicit user action and confirmation. The Agent never runs a command that the connector did not declare.
+
+## Store distribution and prototype findings
+
+Prototype: `prototypes/store-extensions/` (a packaged host plus a sample extension package; see its
+README). Run on Windows 11, signed MSIX installed into `C:\Program Files\WindowsApps`, 2026-11-05.
+
+### Which Store mechanism fits
+
+| Mechanism | Third-party developers? | Runs as | Verdict |
+|---|---|---|---|
+| **App extension** (`uap3:AppExtension`, discovered with `AppExtensionCatalog`) | Yes. Open ecosystem; any developer can ship one as an independent Store app. | Separate package; the host decides how to use its content. | **Use this** for third-party connectors. |
+| **Optional package / related set** | No. Closed ecosystem: only the main app's publisher. Code runs with the main app's identity. | Inside the main app's container. | Possible for our own paid first-party connectors only; **Store submission needs permission from Microsoft** (Windows developer support), and executable code must be in a related set. |
+| **Store durable add-on** (in-app purchase) | n/a | A licence, not code distribution. | Use only for selling a licence to a connector, not for delivering it. |
+
+So "Store add-ons" for third parties means: each connector is its own Store listing (or WinGet entry,
+or a GitHub release) that declares the OctaGrid extension point. OctaGrid can send users to it and
+discover it once installed. OctaGrid's own bundled connectors stay in the main package.
+
+### Results
+
+| Question | Result |
+|---|---|
+| Can the host find third-party extension packages and read their metadata? | **Yes.** `AppExtensionCatalog.Open("octagrid.connector")` returned the extension, its package identity, publisher, signature kind and the custom properties (assembly, entry type, API version). |
+| Can the host load the extension DLL in place from the package folder? | **No.** `Access is denied` when loading from the install location and from the `PublicFolder`. `File.Exists` is true, but Windows blocks loading an image from another package's folder. |
+| Can the host read the files? | **Yes.** `ReadAllBytes` works. |
+| Can the host copy the files into its own data folder and load the copy? | **Yes.** Loaded in a separate `AssemblyLoadContext`, with the SDK assembly resolved from the host's default context, so `IConnector` has the same type on both sides. |
+| Can the host start the extension's own executable (out of process) through an execution alias, without copying anything? | **Yes.** The extension declares `windows.appExecutionAlias`; the host started it with `--serve` and exchanged a message over stdin/stdout. The process ran from the extension's own package folder with its own identity. |
+
+### Why in-place loading is denied (and why Store installs won't differ)
+
+The access-denied is **not** caused by sideloading. In every package folder under `WindowsApps`,
+`BUILTIN\Users` gets read-only access, and only the package's own identity (its package SID) gets
+read **and execute**. We compared the ACLs of our developer-signed package with a Store-installed
+package (Windows Calculator): identical structure. Loading `CalculatorApp.dll` from an ordinary
+process fails with the same Win32 error 5 (access denied) as loading our sample DLL. Windows lets a
+package execute only its own files, so no host can load another package's DLL in place, whoever signed it.
+
+Consequence for the design: the extension manager keeps a versioned cache
+`<host LocalState>/extensions/<package family>/<version>/`, filled from the package folder when the
+extension is first seen or its version changes, and removed when the package is uninstalled
+(`AppExtensionCatalog` raises install, update and uninstall events). The extension's `apiVersion`
+from its manifest properties is checked before anything is copied or loaded.
+
+### Smart App Control
+
+Smart App Control (SAC) was **off** on the test machine (`VerifiedAndReputablePolicyState = 0`), and
+it cannot be switched back on without reinstalling Windows, so we could not observe enforcement. What
+Microsoft documents: in enforcement mode SAC allows a binary only if it is signed with a certificate
+from a CA in the Microsoft Trusted Root Program, or the cloud reputation service predicts it is safe;
+unsigned, unknown code is blocked. Microsoft tells developers to sign **all** binaries, including DLLs.
+Files inside a Store-signed package are covered by the package signature; a **copy** of the DLL in a
+user folder loses that, so it would need its own Authenticode signature from a trusted CA (for example
+Azure Trusted Signing) or it is likely to be blocked. The documented way to test this without enabling
+SAC is the *SmartAppControlAuditNoISG* audit policy (events 3076 in
+`Applications and Services Logs > Microsoft > Windows > CodeIntegrity > Operational`); it needs an
+administrator and changes the system's code-integrity policy, so it was not applied here.
+
+Conclusion: the copy-and-load path is the one that carries the SAC risk. The out-of-process path does
+not, because the extension runs from its own Store-signed package.
+
+### Loading strategy per source
+
+| Source | Platform | How connectors run |
+|---|---|---|
+| Bundled in OctaGrid | all | In-process (our own signed code). |
+| Folder / NuGet / Docker volume | Windows, Linux, macOS, Docker | In-process by default. No package ACLs; on Windows the DLLs should be signed. |
+| Store extension package | Windows (Store build) | **Out of process** through the extension's execution alias (recommended). In-process by copying is possible but needs signed DLLs because of SAC. |
+
+This refines decision 1 of the earlier discussion (in-process in v1): in-process stays for the portable
+sources, but Store extensions should be out-of-process. It also makes the `IConnector` proxy-friendly
+design rule load-bearing, because the Store path needs a proxy over stdio or a named pipe (the repository
+already uses `StreamJsonRpc`).
+
+### Not yet verified
+
+- The prototype was signed with the developer certificate (`Signature kind: Developer`), not by the
+  Store. The ACL comparison above makes a different result unlikely, but a Store-signed prototype
+  would confirm it.
+- Whether Store certification accepts an extension-only package that needs a stub executable
+  (the manifest requires an `Application` entry) and the `runFullTrust` capability.
+- x64 and arm64 behaviour, and bundles.
+
+### What to borrow from PowerToys Command Palette
+
+Command Palette uses the same discovery mechanism (an app extension contract) but runs each extension
+**out of process** as a COM server in its own Store app. Ideas worth taking:
+
+- **Separate packages per extension, with a one-package limit:** a host and an extension cannot share
+  one MSIX (reported by developers), which matches our "separate listing" conclusion.
+- **Several distribution channels, one discovery path:** Microsoft Store and WinGet (a tag such as
+  `windows-commandpalette-extension` makes WinGet entries discoverable), plus a curated **Extension
+  Gallery** that only links to the install source. We can do the same: a small curated list in the
+  Client that links to Store, WinGet or GitHub.
+- **A toolkit on top of the raw contract:** raw interfaces plus helper base classes
+  (`CommandProvider`, `ListPage`, settings forms, `ISettingsForm`). Our SDK should ship helper base
+  classes for the common connector shape, such as polling and reconnect.
+- **Declarative UI from the extension:** pages, forms, details, status messages and progress are data,
+  not UI code. Matches our settings-schema and custom-command descriptors.
+- **A "reload extensions" command** for developers, and host-provided logging and status
+  (`IExtensionHost`). We should give connectors an `IConnectorContext` with logging and status
+  reporting, plus a developer reload.
+- **Out-of-process by default:** this is what made their model language-neutral and crash-proof. It
+  fits our parked option (ADR section 8): the same app extension declaration can point to a COM server
+  or an app service instead of a DLL.
+
+## Consequences
+
+- Third parties can add printers without touching OctaGrid; bundled connectors become the reference.
+- A one-off refactor: move connectors out of `Agent.Core`, replace the `PrinterProtocol` enum and its
+  migration, change `DeviceProfile`/`CreatePrinterRequest`, and move `IDeviceClient` to the SDK.
+- The SDK becomes a public API with compatibility promises and its own SemVer line, documented in
+  `docs/VERSIONING.md`.
+- In-process extensions are trusted code. The trust prompt and publisher info are part of the product,
+  not an afterthought.
+
+## Migration plan
+
+Design rule that follows from the in-process decision: SDK types must be serializable data or
+simple interfaces (no shared mutable state, no host-internal types), so an out-of-process proxy
+can implement `IConnector` later without changing existing connectors.
+
+1. Create `OctaGrid.Extensions.Abstractions`; introduce `IConnector`, `IPrinterSession` and the
+   capability interfaces; adapt the existing `IDeviceClient` and factories behind them.
+2. Replace the `PrinterProtocol` enum with connector ids (EF migration with value mapping).
+3. Move the Bambu and Moonraker code into separate projects loaded through the same extension manager.
+4. Add the manifest, compatibility checks, extension states and the settings-schema driven "add
+   printer" form.
+5. Add user-folder installation and the trust prompt, then Store add-on and Docker sources.
+6. Publish the SDK package and a project template; add an SDK versioning section to `docs/VERSIONING.md`.
+
+## Open questions
+
+1. ~~**In-process only in v1, or out-of-process from the start?**~~ **Decided (2026-11-05): in-process
+   in v1**, with contracts kept proxy-friendly so an out-of-process host can be added later (section 8).
+2. ~~**Store add-ons:** can the app load code from add-on packages?~~ **Answered by the prototype:**
+   not in place, but yes by copying into the host's data folder. Remaining checks (Store-signed
+   package, Smart App Control, Store certification, arm64) are listed under "Not yet verified".
+3. **Distribution of third-party extensions:** a curated feed, plain GitHub releases, or both?
+4. **Extension API version vs app version:** one SemVer line or two? This ADR assumes two.
+5. **Naming:** "connector" (this ADR), "agent client" (original wording) or "driver"?

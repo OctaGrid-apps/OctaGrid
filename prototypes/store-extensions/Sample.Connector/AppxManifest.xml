@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap5 rescap">
+  <Identity Name="OctaGrid.Prototype.SampleConnector" Publisher="CN=8D9CE064-901D-44B7-85FE-9AF30A86A5AE" Version="1.0.1.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>OctaGrid sample connector (prototype)</DisplayName>
+    <PublisherDisplayName>OctaGrid</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Connector" Executable="Sample.Connector.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="OctaGrid sample connector" Description="Prototype extension for ADR 0001" BackgroundColor="#00292C" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" AppListEntry="none" />
+      <Extensions>
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension Name="octagrid.connector" Id="sample" PublicFolder="Public" DisplayName="Sample connector (prototype)" Description="Prototype connector used to test loading code from a Store extension package.">
+            <uap3:Properties>
+              <Assembly>Sample.Connector.dll</Assembly>
+              <EntryType>OctaGrid.Prototype.Sample.SampleConnector</EntryType>
+              <ApiVersion>1.0</ApiVersion>
+              <Alias>octagrid-ext-sample.exe</Alias>
+            </uap3:Properties>
+          </uap3:AppExtension>
+        </uap3:Extension>
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="Sample.Connector.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:AppExecutionAlias>
+            <uap5:ExecutionAlias Alias="octagrid-ext-sample.exe" />
+          </uap5:AppExecutionAlias>
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
