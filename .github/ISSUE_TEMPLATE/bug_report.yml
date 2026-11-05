@@ -1,0 +1,66 @@
+name: Bug report
+description: Something is not working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OctaGrid is pre-alpha, so some rough edges are expected. Thanks for reporting!
+  - type: input
+    id: version
+    attributes:
+      label: OctaGrid version
+      description: Shown in Settings → About, e.g. v1.0.17-pre-alpha
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      options:
+        - Microsoft Store
+        - GitHub installer (Velopack)
+        - Portable zip
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Printer protocol
+      options:
+        - Bambu Lab (MQTT)
+        - Moonraker (Klipper)
+        - Not printer-related
+  - type: input
+    id: printer
+    attributes:
+      label: Printer model and firmware
+      placeholder: Bambu Lab P1S, firmware 01.08.02.00
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Settings → Diagnostics & feedback → Open logs folder. Attach or paste relevant lines. Remove access codes, tokens and IP addresses you don't want to share.
+      render: text
