@@ -12,7 +12,7 @@ Merge into App.axaml:
 <Application.Resources>
 <ResourceDictionary>
 <ResourceDictionary.MergedDictionaries>
-<ResourceInclude Source="avares://OctaGrid.Client/Styles/Tokens/Spacing.axaml" />
+<ResourceInclude Source="avares://OctaGrid.Client/Styles/Spacing.axaml" />
 </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
 </Application.Resources>-->

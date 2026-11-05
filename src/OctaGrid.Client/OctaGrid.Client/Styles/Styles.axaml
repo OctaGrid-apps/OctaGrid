@@ -5,7 +5,7 @@ Requires Spacing.axaml merged into Application.Resources.
 Include AFTER the theme so these setters win:
 <Application.Styles>
 <FluentTheme />
-<StyleInclude Source="avares://OctaGrid.Client/Styles/SpacingStyles.axaml" />
+<StyleInclude Source="avares://OctaGrid.Client/Styles/Styles.axaml" />
 </Application.Styles>
 
 DynamicResource is used on purpose: swapping the token dictionary at runtime
