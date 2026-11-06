@@ -98,9 +98,17 @@ without forcing every connector to know about the UI.
 
 ### 5. Versioning and compatibility
 
-- The SDK has an **extension API version** (`MAJOR.MINOR`), separate from the app version.
-  A MINOR change only adds members. A MAJOR change is breaking.
-- Each extension ships a manifest `octagrid-extension.json`:
+- There is **one version line**. The SDK package `OctaGrid.Extensions.Abstractions` is released together
+  with the app and has the same version: the tag `v1.2.0` publishes the app and SDK `1.2.0`, and a
+  pre-release such as `1.0.17-pre-alpha` publishes a pre-release SDK. There is no separate "API
+  version". The app depends directly on its extensions, so their compatibility is simply the app
+  version they were built and tested against.
+- Compatibility promise (see `docs/VERSIONING.md`): within a stable MAJOR the SDK only adds members, so
+  an extension built for `1.2` works on `1.2` and later `1.x`. A breaking change needs a new MAJOR.
+  While the app is in pre-alpha there is no promise: any release may break the SDK, and extensions
+  should declare a tight range.
+- Each extension ships a manifest `octagrid-extension.json` with a host version range (like VS Code
+  `engines` or Obsidian `minAppVersion`):
 
   ```json
   {
@@ -108,17 +116,17 @@ without forcing every connector to know about the UI.
     "name": "PrusaLink",
     "version": "1.2.0",
     "publisher": "Acme",
-    "apiVersion": "1.0",
-    "minHostVersion": "1.1.0",
+    "host": ">=1.1.0 <2.0.0",
     "assembly": "Acme.PrusaLink.dll",
     "entryType": "Acme.PrusaLink.PrusaLinkConnector"
   }
   ```
 
-- The host loads an extension only if its `apiVersion` is supported (same MAJOR, MINOR not newer than
-  the host's). During a MAJOR transition the host may support the previous MAJOR as well.
+- The host loads an extension only if the host's own version satisfies the manifest `host` range. A
+  pre-release host (for example `1.0.17-pre-alpha`) satisfies a range only if the range names that
+  pre-release line. Bundled connectors always match, because they are built with the app.
 - Every extension has one of four states, shown in the Client: **Loaded**, **Disabled** (by the user),
-  **Incompatible** (with the reason, for example "requires API 2.0, agent supports 1.x") or
+  **Incompatible** (with the reason, for example "requires OctaGrid 2.0 or later, this agent is 1.4") or
   **Failed** (load or run error). An incompatible or failing extension never stops the Agent or other
   extensions. Its printers show "connector unavailable" rather than an error loop.
 - Adding an optional capability interface is a MINOR change.
@@ -147,7 +155,7 @@ execute third-party code, which keeps it cheap and safe. For Remote mode:
 
 - Installing, updating, enabling or disabling an extension is an Agent command issued from the Client
   ("Install connector"), subject to the same compatibility checks as the agent update button.
-- The compatibility handshake on connect includes the agent version, extension API version and the
+- The compatibility handshake on connect includes the agent version and the
   list of loaded extensions with their states, so the Client can say "update the agent" or "update the
   connector" instead of failing.
 - Descriptors (settings schema, capabilities, custom commands) travel as data in the Agent protocol.
@@ -192,6 +200,14 @@ with the app, and share the app's version. They are separate assemblies only so 
 SDK as third-party connectors. Only third-party connectors are separate packages. They ship with every
 build and are the reference implementations:
 
+- **Repository:** they stay in this repository (`src/Connectors/OctaGrid.Connectors.<Name>`), not in
+  separate repositories. This keeps SDK and connector changes atomic, avoids version drift and a second
+  release process, and matches common practice (VS Code built-in extensions, Home Assistant core
+  integrations and Obsidian core plugins live in the main repository, community ones do not). To keep
+  them honest as reference implementations, a build check allows them to reference only
+  `OctaGrid.Extensions.Abstractions` and `OctaGrid.Protocol`, never `Agent.Core` internals. Optional
+  official connectors that are not bundled may live in their own repositories and are published like
+  third-party ones. A `samples/` folder and a template repository serve external developers.
 - **Layout:** `extensions/<id>/` next to the app, each with a manifest, exactly like a third-party
   extension. The host sees them as the source *Bundled*.
 - **Every distribution:** Velopack installer, portable zip, MSIX (Store) and Docker image contain them,
@@ -282,7 +298,7 @@ package execute only its own files, so no host can load another package's DLL in
 Consequence for the design: the extension manager keeps a versioned cache
 `<host LocalState>/extensions/<package family>/<version>/`, filled from the package folder when the
 extension is first seen or its version changes, and removed when the package is uninstalled
-(`AppExtensionCatalog` raises install, update and uninstall events). The extension's `apiVersion`
+(`AppExtensionCatalog` raises install, update and uninstall events). The extension's `host` range
 from its manifest properties is checked before anything is copied or loaded.
 
 ### Smart App Control
@@ -352,8 +368,8 @@ Command Palette uses the same discovery mechanism (an app extension contract) bu
 - Third parties can add printers without touching OctaGrid; bundled connectors become the reference.
 - A one-off refactor: move connectors out of `Agent.Core`, replace the `PrinterProtocol` enum and its
   migration, change `DeviceProfile`/`CreatePrinterRequest`, and move `IDeviceClient` to the SDK.
-- The SDK becomes a public API with compatibility promises and its own SemVer line, documented in
-  `docs/VERSIONING.md`.
+- The SDK becomes a public API with compatibility promises. It is versioned with the app (one version
+  line), published from the same tag, and the promise is documented in `docs/VERSIONING.md`.
 - In-process extensions are trusted code. The trust prompt and publisher info are part of the product,
   not an afterthought.
 - Two install paths (catalog download, and Store packages) must be kept consistent through one manifest
@@ -392,7 +408,8 @@ can implement `IConnector` later without changing existing connectors.
    package, Smart App Control, Store certification, arm64) are listed under "Not yet verified".
 3. ~~**Distribution of third-party extensions**~~ **Decided (2026-11-06):** author-owned GitHub
    releases plus a curated index repository and in-app catalog (section 11).
-4. **Extension API version vs app version:** one SemVer line or two? This ADR assumes two.
+4. ~~**Extension API version vs app version**~~ **Decided (2026-11-06):** one version line. The SDK is
+   released with the app and extensions declare a host version range (section 5).
 5. ~~**Naming**~~ **Decided (2026-11-06):** *Connector* for the kind, *Extension* for the package
    (section 9).
 6. ~~**Store policy**~~ **Decided (2026-11-06):** follow the PowerToys Command Palette practice. Each
