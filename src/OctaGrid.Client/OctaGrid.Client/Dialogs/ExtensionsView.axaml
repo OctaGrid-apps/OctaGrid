@@ -1,0 +1,85 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.ExtensionsView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="560"
+    d:DesignWidth="560"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:ExtensionsViewModel"
+    mc:Ignorable="d">
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <ScrollViewer MaxHeight="420">
+            <StackPanel Classes="form">
+                <TextBlock
+                    Classes="small secondary"
+                    Text="Extensions add support for printers and other features. Turning one off stops the printers that use it."
+                    TextWrapping="Wrap" />
+
+                <TextBlock
+                    Classes="body secondary"
+                    IsVisible="{Binding IsEmpty}"
+                    Text="No extensions installed." />
+
+                <ItemsControl IsEnabled="{Binding CanEdit}" ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Classes="card-content" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ExtensionItemViewModel">
+                            <Border
+                                Background="{DynamicResource SystemBaseLowColor}"
+                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                BorderThickness="1"
+                                Classes="tile">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Gap.IconLabel}">
+                                    <StackPanel Classes="gap-0_5">
+                                        <StackPanel Classes="inline">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Classes="lead"
+                                                Text="{Binding Name}" />
+                                            <Border Background="{DynamicResource SystemBaseMediumLowColor}" Classes="badge">
+                                                <TextBlock Classes="caption" Text="{Binding StateText}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Classes="small secondary" Text="{Binding Details}" />
+                                        <TextBlock Classes="caption secondary" Text="{Binding CapabilitiesText}" />
+                                        <TextBlock
+                                            Classes="small"
+                                            IsVisible="{Binding HasStateMessage}"
+                                            Text="{Binding StateMessage}"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        IsChecked="{Binding IsEnabled}"
+                                        IsEnabled="{Binding CanToggle}"
+                                        OffContent=""
+                                        OnContent="" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button
+                Classes="primary"
+                Command="{Binding CloseCommand}"
+                Content="Close" />
+        </StackPanel>
+    </Grid>
+</UserControl>

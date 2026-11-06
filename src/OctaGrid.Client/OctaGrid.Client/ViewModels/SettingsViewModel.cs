@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 
@@ -17,13 +18,15 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     private readonly IAppSettingsStore _appSettings;
     private readonly ApplicationState _appState;
     private readonly IUpdateService _updateService;
+    private readonly IExtensionsClient? _extensionsClient;
     private readonly ILogger<SettingsViewModel> _logger;
 
     public SettingsViewModel() : this(
         App.Services.GetRequiredService<IAppSettingsStore>(),
         App.Services.GetRequiredService<ApplicationState>(),
         App.Services.GetService<IUpdateService>(),
-        App.Services.GetService<ILogger<SettingsViewModel>>() ?? NullLogger<SettingsViewModel>.Instance)
+        App.Services.GetService<ILogger<SettingsViewModel>>() ?? NullLogger<SettingsViewModel>.Instance,
+        App.Services.GetService<IExtensionsClient>())
     {
     }
 
@@ -31,11 +34,13 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         IAppSettingsStore appSettingsStore,
         ApplicationState appState,
         IUpdateService? updateService = null,
-        ILogger<SettingsViewModel>? logger = null)
+        ILogger<SettingsViewModel>? logger = null,
+        IExtensionsClient? extensionsClient = null)
     {
         _appSettings = appSettingsStore;
         _appState = appState;
         _updateService = updateService ?? new DesignUpdateService();
+        _extensionsClient = extensionsClient;
         _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
 
         _appState.PropertyChanged += (s, e) =>
@@ -208,6 +213,51 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         SelectedAppElementTheme = AppElementThemes.FirstOrDefault(x => x.Value == _appSettings.ClientSettings.ElementTheme) ?? AppElementThemes.First();
         SelectedWindowTransparencyLevel = WindowTransparencyLevels.FirstOrDefault(x => x.Value == _appSettings.ClientSettings.TransparencyLevel) ?? WindowTransparencyLevels.First();
         AskClientModeOnAppStart = _appSettings.ClientSettings.AskToSelectClientMode;
+        await RefreshExtensionsSummaryAsync(cancellationToken);
+    }
+
+    /// <summary>Whether this client can manage extensions at all.</summary>
+    public bool CanManageExtensions => _extensionsClient is not null;
+
+    [ObservableProperty]
+    public partial string ExtensionsSummary { get; set; } = "Add support for more printers";
+
+    [RelayCommand]
+    private async Task ManageExtensions()
+    {
+        if (_extensionsClient is null)
+        {
+            return;
+        }
+
+        _logger.LogInformation("Opening the extension management dialog from Settings");
+        var viewModel = new ExtensionsViewModel(
+            _extensionsClient,
+            App.Services.GetService<INotificationService>(),
+            App.Services.GetService<ILogger<ExtensionsViewModel>>());
+        await this.ShowOverlayDialogAsync("Extensions", viewModel);
+        await RefreshExtensionsSummaryAsync(CancellationToken.None);
+    }
+
+    private async Task RefreshExtensionsSummaryAsync(CancellationToken cancellationToken)
+    {
+        if (_extensionsClient is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var extensions = await _extensionsClient.GetExtensionsAsync(cancellationToken);
+            var active = extensions.Count(e => e.State == Protocol.Extensions.ExtensionState.Loaded);
+            ExtensionsSummary = extensions.Count == 0
+                ? "No extensions installed"
+                : $"{extensions.Count} installed, {active} active";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to read the installed extensions");
+        }
     }
 
     [RelayCommand]

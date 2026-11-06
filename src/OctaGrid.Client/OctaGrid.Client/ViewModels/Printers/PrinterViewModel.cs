@@ -13,7 +13,7 @@ public partial class PrinterViewModel : ViewModelValidatorBase
         Address = printer.Url;
         ApiKey = printer.ApiKey;
         IsEnabled = printer.Enabled;
-        ConnectionProtocol = printer.ConnectionProtocol;
+        ConnectorId = printer.ConnectorId;
     }
 
     [ObservableProperty]
@@ -29,7 +29,7 @@ public partial class PrinterViewModel : ViewModelValidatorBase
     [ObservableProperty]
     [NotifyDataErrorInfo]
     [Required, Length(2, 50)]
-    public partial string ConnectionProtocol { get; set; }
+    public partial string ConnectorId { get; set; }
 
     [ObservableProperty]
     public partial Guid? Id { get; private set; }
@@ -47,7 +47,7 @@ public partial class PrinterViewModel : ViewModelValidatorBase
         if (HasErrors)
         {
             var errors = GetErrors();
-            return !errors.Any(x => x.MemberNames.Any(m => m == nameof(Address) || m == nameof(ConnectionProtocol) || m == nameof(ApiKey)));
+            return !errors.Any(x => x.MemberNames.Any(m => m == nameof(Address) || m == nameof(ConnectorId) || m == nameof(ApiKey)));
         }
         return true;
     }
@@ -57,7 +57,7 @@ public partial class PrinterViewModel : ViewModelValidatorBase
         Id = Id ?? Guid.Empty,
         Name = Name ?? "",
         Url = Address ?? "",
-        ConnectionProtocol = ConnectionProtocol ?? "",
+        ConnectorId = ConnectorId ?? "",
         Enabled = IsEnabled
     };
 }

@@ -5,7 +5,7 @@ using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
@@ -42,7 +42,7 @@ public sealed class PrintersService
         {
             Name = request.Name,
             EndpointAddress = request.Url,
-            Protocol = request.ConnectionProtocol.ParseOrThrow<PrinterProtocol>(),
+            ConnectorId = request.ConnectorId,
             EncryptedApiKey = string.IsNullOrEmpty(request.ApiKey) ? null : request.ApiKey,
             Enabled = request.Enabled,
             WorkspaceId = workspaceId,
@@ -55,8 +55,8 @@ public sealed class PrintersService
         await _context.Printers.AddAsync(printer, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
-            printer.Id, printer.Name, printer.Protocol, printer.EndpointAddress, printer.Enabled, workspaceId, userId);
+        _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {ConnectorId} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.ConnectorId, printer.EndpointAddress, printer.Enabled, workspaceId, userId);
 
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
@@ -79,25 +79,28 @@ public sealed class PrintersService
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Deleted, printer.WorkspaceId));
     }
 
-    public async Task<List<DeviceProfile>> GetDeviceProfiles(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
+    public async Task<List<PrinterProfile>> GetPrinterProfiles(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
     {
         await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
 
         var printers = await _context.Printers
             .AsNoTracking()
             .Where(p => p.WorkspaceId == workspaceId && p.Enabled)
-            .Select(p => new { p.Id, p.Protocol, p.EndpointAddress, p.EncryptedApiKey })
+            .Select(p => new { p.Id, p.ConnectorId, p.EndpointAddress, p.EncryptedApiKey })
             .ToListAsync(cancellationToken);
 
         // ToDo: EncryptedApiKey is currently stored as-is (see Create/Update); decrypt here once it isn't.
         return printers
-            .Select(p => new DeviceProfile(
-                p.Id,
-                p.Protocol.ToString(),
-                p.EndpointAddress,
-                string.IsNullOrEmpty(p.EncryptedApiKey)
-                    ? []
-                    : new Dictionary<string, string> { ["ApiKey"] = p.EncryptedApiKey }))
+            .Select(p =>
+            {
+                var settings = new Dictionary<string, string> { ["url"] = p.EndpointAddress };
+                if (!string.IsNullOrEmpty(p.EncryptedApiKey))
+                {
+                    settings["apiKey"] = p.EncryptedApiKey;
+                }
+
+                return new PrinterProfile(p.Id, p.ConnectorId, settings);
+            })
             .ToList();
     }
 
@@ -112,7 +115,7 @@ public sealed class PrintersService
                 new PrinterResponse(p.Id,
                     p.Name,
                     p.EndpointAddress,
-                    p.Protocol.ToString(),
+                    p.ConnectorId,
                     p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
                     p.EncryptedApiKey,
                     p.Enabled,
@@ -134,7 +137,7 @@ public sealed class PrintersService
                 new PrinterResponse(p.Id,
                     p.Name,
                     p.EndpointAddress,
-                    p.Protocol.ToString(),
+                    p.ConnectorId,
                     p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
                     p.EncryptedApiKey,
                     p.Enabled,
@@ -184,12 +187,12 @@ public sealed class PrintersService
         printer.Name = request.Name!;
         printer.EndpointAddress = request.Url!;
         printer.EncryptedApiKey = string.IsNullOrEmpty(request.ApiKey) ? null : request.ApiKey;
-        printer.Protocol = request.ConnectionProtocol!.ParseOrThrow<PrinterProtocol>();
+        printer.ConnectorId = request.ConnectorId!;
         printer.Enabled = request.Enabled;
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
-            printer.Id, printer.Name, printer.Protocol, printer.EndpointAddress, printer.Enabled, printer.WorkspaceId, userId);
+        _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {ConnectorId} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.ConnectorId, printer.EndpointAddress, printer.Enabled, printer.WorkspaceId, userId);
 
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
@@ -224,5 +227,5 @@ public sealed class PrintersService
     }
 
     private static PrinterResponse MapToResponse(Printer printer) =>
-        new(printer.Id, printer.Name, printer.EndpointAddress, printer.Protocol.ToString(), printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.EncryptedApiKey, printer.Enabled, printer.Version);
+        new(printer.Id, printer.Name, printer.EndpointAddress, printer.ConnectorId, printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.EncryptedApiKey, printer.Enabled, printer.Version);
 }

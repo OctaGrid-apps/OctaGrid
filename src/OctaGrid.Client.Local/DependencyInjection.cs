@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
+using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Client.Contracts;
@@ -38,7 +40,7 @@ public static class DependencyInjection
         services.AddSingleton<LocalAgentSynchronizer>();
         services.AddSingleton<IMessagePublisher, LocalMessageHandler>();
         services.AddSingleton<IMessageHandler, MessageHandler>();
-        services.AddSingleton<ITelemetryService, LocalTelemetryHandler>();
+        services.AddSingleton<ITelemetrySink, LocalTelemetryHandler>();
 
         services.AddSingleton<OctaGridClientLocal>();
         services.AddSingleton<IUsersClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
@@ -47,6 +49,11 @@ public static class DependencyInjection
         services.AddSingleton<IPrintersClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
         services.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
 
+        services.AddSingleton(sp => BundledConnectors.CreateRegistry(sp.GetService<ILoggerFactory>()));
+        services.AddSingleton<IExtensionStateStore>(
+            _ => new FileExtensionStateStore(Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
+        services.AddSingleton<ExtensionManager>();
+        services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
         services.AddSingleton<AgentWorker>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();
         services.AddSingleton<IAgentCommandsService, LocalAgentCommands>();

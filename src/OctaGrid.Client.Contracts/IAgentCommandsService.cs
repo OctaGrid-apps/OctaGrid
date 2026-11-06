@@ -1,4 +1,5 @@
 using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Contracts;
@@ -19,7 +20,10 @@ public interface IAgentCommandsService
 
     Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken);
 
-    Task<ConnectionTestResult> TestConnectionAsync(string protocol, string connectionString, string? apiKey, CancellationToken cancellationToken);
+    /// <summary>The connectors available to add printers with, including their settings and capabilities.</summary>
+    IReadOnlyList<ConnectorDescriptor> Connectors { get; }
+
+    Task<ConnectionTestResult> TestConnectionAsync(string connectorId, string url, string? apiKey, CancellationToken cancellationToken);
 
     Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken);
 

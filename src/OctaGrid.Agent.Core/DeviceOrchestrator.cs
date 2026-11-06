@@ -1,38 +1,49 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core;
 
+/// <summary>
+/// Keeps one live <see cref="IPrinterSession"/> per enabled printer, created by the printer's connector,
+/// and routes commands to the capabilities each session supports.
+/// </summary>
 public class DeviceOrchestrator : IAsyncDisposable
 {
     private sealed record DeviceSession(
-        DeviceProfile Profile,
-        IDeviceClient Client,
+        PrinterProfile Profile,
+        IPrinterSession Session,
         CancellationTokenSource Cts,
         Task ExecutionTask
     );
 
-    private readonly IEnumerable<IDeviceClientFactory> _factories;
+    private readonly string _dataRoot;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DeviceOrchestrator> _logger;
+    private readonly ConnectorRegistry _registry;
     private readonly ConcurrentDictionary<Guid, DeviceSession> _sessions = new();
-    private readonly ITelemetryService _telemetryService;
+    private readonly ITelemetrySink _telemetry;
 
     public DeviceOrchestrator(
-        IEnumerable<IDeviceClientFactory> factories,
-        ITelemetryService telemetryService,
-        ILogger<DeviceOrchestrator>? logger = null)
+        ConnectorRegistry registry,
+        ITelemetrySink telemetry,
+        ILoggerFactory? loggerFactory = null,
+        string? dataRoot = null)
     {
-        _factories = factories;
-        _telemetryService = telemetryService;
-        _logger = logger ?? NullLogger<DeviceOrchestrator>.Instance;
+        _registry = registry;
+        _telemetry = telemetry;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<DeviceOrchestrator>();
+        _dataRoot = dataRoot ?? ConnectorContext.DefaultRoot;
     }
 
-    public async Task ApplyProfilesAsync(IReadOnlyList<DeviceProfile> desiredProfiles)
+    public async Task ApplyProfilesAsync(IReadOnlyList<PrinterProfile> desiredProfiles)
     {
-        var desiredMap = desiredProfiles.ToDictionary(p => p.DeviceId);
+        var desiredMap = desiredProfiles.ToDictionary(p => p.PrinterId);
         var currentIds = _sessions.Keys.ToList();
 
         // 1. Remove deleted devices
@@ -45,17 +56,17 @@ public class DeviceOrchestrator : IAsyncDisposable
             }
         }
 
-        // 2. Add or Update changed devices
+        // 2. Add or update changed devices
         foreach (var desired in desiredProfiles)
         {
-            if (_sessions.TryGetValue(desired.DeviceId, out var session))
+            if (_sessions.TryGetValue(desired.PrinterId, out var session))
             {
-                // Recreate worker if connection string, protocol, or settings changed
-                if (session.Profile != desired)
+                // Recreate the session if the connector or its settings changed
+                if (!ProfilesEqual(session.Profile, desired))
                 {
-                    _logger.LogInformation("Restarting session for device {DeviceId} due to profile change ({Protocol} @ {Endpoint})",
-                        desired.DeviceId, desired.Protocol, desired.ConnectionString);
-                    await StopDeviceSessionAsync(desired.DeviceId);
+                    _logger.LogInformation("Restarting session for device {DeviceId} due to profile change ({ConnectorId})",
+                        desired.PrinterId, desired.ConnectorId);
+                    await StopDeviceSessionAsync(desired.PrinterId);
                     StartDeviceSession(desired);
                 }
             }
@@ -70,13 +81,9 @@ public class DeviceOrchestrator : IAsyncDisposable
 
     public async Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
     {
-        if (_sessions.TryGetValue(deviceId, out var session))
+        if (TryGetCapability<IFileStorage>(deviceId, $"delete file '{fileName}'", out var files))
         {
-            await session.Client.DeleteFileAsync(fileName, cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("Cannot delete file '{FileName}': no active session for device {DeviceId}", fileName, deviceId);
+            await files.DeleteFileAsync(fileName, cancellationToken);
         }
     }
 
@@ -89,73 +96,51 @@ public class DeviceOrchestrator : IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 
-    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken)
-    {
-        if (_sessions.TryGetValue(deviceId, out var session))
-        {
-            return session.Client.GetPrinterFilesAsync(cancellationToken);
-        }
-
-        _logger.LogWarning("Cannot get printer files: no active session for device {DeviceId}", deviceId);
-        return Task.FromResult(Enumerable.Empty<PrintMetadata>());
-    }
+    public async Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
+        TryGetCapability<IFileStorage>(deviceId, "get printer files", out var files)
+            ? await files.ListFilesAsync(cancellationToken)
+            : [];
 
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        _sessions.TryGetValue(deviceId, out var session) && session.Client is IThumbnailProvider provider
-            ? provider.GetThumbnailAsync(fileName, cancellationToken)
+        _sessions.TryGetValue(deviceId, out var session) && session.Session is IThumbnails thumbnails
+            ? thumbnails.GetThumbnailAsync(fileName, cancellationToken)
             : Task.FromResult<PrintThumbnail?>(null);
 
     public async Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken)
     {
-        if (_sessions.TryGetValue(deviceId, out var session))
+        if (TryGetCapability<IPrintControl>(deviceId, "pause print job", out var control))
         {
-            await session.Client.PausePrintJobAsync(cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("Cannot pause print job: no active session for device {DeviceId}", deviceId);
+            await control.PausePrintAsync(cancellationToken);
         }
     }
 
     public async Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken)
     {
-        if (_sessions.TryGetValue(deviceId, out var session))
+        if (TryGetCapability<IPrintControl>(deviceId, "resume print job", out var control))
         {
-            await session.Client.ResumePrintJobAsync(cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("Cannot resume print job: no active session for device {DeviceId}", deviceId);
+            await control.ResumePrintAsync(cancellationToken);
         }
     }
 
     public async Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
     {
-        if (_sessions.TryGetValue(deviceId, out var session))
+        if (TryGetCapability<IPrintControl>(deviceId, $"start print job '{fileName}'", out var control))
         {
-            await session.Client.StartPrintJobAsync(fileName, cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("Cannot start print job '{FileName}': no active session for device {DeviceId}", fileName, deviceId);
+            await control.StartPrintAsync(fileName, cancellationToken);
         }
     }
 
     public async Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken)
     {
-        if (_sessions.TryGetValue(deviceId, out var session))
+        if (TryGetCapability<IPrintControl>(deviceId, "stop print job", out var control))
         {
-            await session.Client.StopPrintJobAsync(cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("Cannot stop print job: no active session for device {DeviceId}", deviceId);
+            await control.StopPrintAsync(cancellationToken);
         }
     }
 
     public Task TriggerInitialStateAsync(Guid deviceId, CancellationToken cancellationToken) =>
         _sessions.TryGetValue(deviceId, out var session)
-            ? session.Client.TriggerInitialStateAsync(cancellationToken)
+            ? session.Session.RequestStateAsync(cancellationToken)
             : Task.CompletedTask;
 
     public async Task TriggerInitialStateAsync(IEnumerable<Guid> devices, CancellationToken cancellationToken)
@@ -165,52 +150,89 @@ public class DeviceOrchestrator : IAsyncDisposable
         {
             if (_sessions.TryGetValue(deviceId, out var session))
             {
-                await session.Client.TriggerInitialStateAsync(cancellationToken);
+                await session.Session.RequestStateAsync(cancellationToken);
             }
         }
     }
 
     public async Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken)
     {
-        if (_sessions.TryGetValue(deviceId, out var session))
+        if (TryGetCapability<IFileStorage>(deviceId, $"upload file '{fileName}'", out var files))
         {
-            await session.Client.UploadFileAsync(stream, fileName, cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("Cannot upload file '{FileName}': no active session for device {DeviceId}", fileName, deviceId);
+            await files.UploadFileAsync(stream, fileName, cancellationToken);
         }
     }
 
-    private void StartDeviceSession(DeviceProfile profile)
+    /// <summary>
+    /// Two profiles are the same when they would produce the same session. Settings are compared by
+    /// content: profiles are rebuilt from the database on every refresh, so reference equality would
+    /// restart every session each time.
+    /// </summary>
+    private static bool ProfilesEqual(PrinterProfile a, PrinterProfile b) =>
+        a.PrinterId == b.PrinterId
+        && string.Equals(a.ConnectorId, b.ConnectorId, StringComparison.OrdinalIgnoreCase)
+        && a.Settings.Count == b.Settings.Count
+        && a.Settings.All(kv => b.Settings.TryGetValue(kv.Key, out var other) && other == kv.Value);
+
+    private bool TryGetCapability<T>(Guid deviceId, string operation, out T capability)
+        where T : class
     {
-        var factory = _factories.FirstOrDefault(f => f.CanHandle(profile.Protocol))
-            ?? throw new NotSupportedException($"Protocol '{profile.Protocol}' is not supported.");
+        if (!_sessions.TryGetValue(deviceId, out var session))
+        {
+            _logger.LogWarning("Cannot {Operation}: no active session for device {DeviceId}", operation, deviceId);
+            capability = null!;
+            return false;
+        }
 
-        _logger.LogInformation("Starting session for device {DeviceId} ({Protocol} @ {Endpoint})",
-            profile.DeviceId, profile.Protocol, profile.ConnectionString);
+        if (session.Session is not T supported)
+        {
+            _logger.LogWarning("Cannot {Operation}: the connector for device {DeviceId} does not support it", operation, deviceId);
+            capability = null!;
+            return false;
+        }
 
-        var client = factory.Create(profile);
+        capability = supported;
+        return true;
+    }
+
+    private void StartDeviceSession(PrinterProfile profile)
+    {
+        // A printer whose connector is missing must not stop the other printers from starting.
+        if (!_registry.TryGet(profile.ConnectorId, out var connector))
+        {
+            _logger.LogError("Cannot start device {DeviceId}: connector '{ConnectorId}' is not available",
+                profile.PrinterId, profile.ConnectorId);
+            return;
+        }
+
+        _logger.LogInformation("Starting session for device {DeviceId} ({ConnectorId})",
+            profile.PrinterId, connector.Descriptor.Id);
+
+        var context = new ConnectorContext(
+            _loggerFactory.CreateLogger($"Connector.{connector.Descriptor.Id}"),
+            Path.Combine(_dataRoot, connector.Descriptor.Id, profile.PrinterId.ToString("N")));
+
+        var session = connector.CreateSession(profile, context);
         var cts = new CancellationTokenSource();
 
         var task = Task.Run(async () =>
         {
             try
             {
-                await client.RunAsync(_telemetryService, cts.Token);
+                await session.RunAsync(_telemetry, cts.Token);
             }
             catch (OperationCanceledException)
             {
-                _logger.LogDebug("Session loop cancelled for device {DeviceId}", profile.DeviceId);
+                _logger.LogDebug("Session loop cancelled for device {DeviceId}", profile.PrinterId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled fault in device worker for device {DeviceId} ({Protocol} @ {Endpoint})",
-                    profile.DeviceId, profile.Protocol, profile.ConnectionString);
+                _logger.LogError(ex, "Unhandled fault in device worker for device {DeviceId} ({ConnectorId})",
+                    profile.PrinterId, profile.ConnectorId);
             }
         });
 
-        _sessions[profile.DeviceId] = new DeviceSession(profile, client, cts, task);
+        _sessions[profile.PrinterId] = new DeviceSession(profile, session, cts, task);
     }
 
     private async Task StopDeviceSessionAsync(Guid deviceId)
@@ -232,7 +254,7 @@ public class DeviceOrchestrator : IAsyncDisposable
                 // Ignored on cancel
             }
 
-            await session.Client.DisposeAsync();
+            await session.Session.DisposeAsync();
             session.Cts.Dispose();
             _logger.LogInformation("Stopped session for device {DeviceId}", deviceId);
         }

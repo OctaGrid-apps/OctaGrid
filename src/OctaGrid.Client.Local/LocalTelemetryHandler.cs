@@ -1,10 +1,10 @@
-using OctaGrid.Agent.Core;
+using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Local;
 
-internal sealed class LocalTelemetryHandler : ITelemetryService
+internal sealed class LocalTelemetryHandler : ITelemetrySink
 {
     private readonly IClientMessageHandler _messageHandler;
 

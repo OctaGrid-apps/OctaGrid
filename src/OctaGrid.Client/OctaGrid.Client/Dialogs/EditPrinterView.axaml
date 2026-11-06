@@ -38,14 +38,16 @@
             <Grid ColumnDefinitions="Auto, *" ColumnSpacing="{DynamicResource Gap.IconLabel}">
                 <Label
                     VerticalAlignment="Center"
-                    Content="Connection protocol:"
+                    Content="Connector:"
                     Target="connectionProtocol" />
                 <ComboBox
                     x:Name="connectionProtocol"
                     Grid.Column="1"
                     HorizontalAlignment="Stretch"
-                    ItemsSource="{Binding PrinterConnectionProtocols}"
-                    SelectedItem="{Binding Item.ConnectionProtocol}" />
+                    DisplayMemberBinding="{Binding DisplayName}"
+                    ItemsSource="{Binding Connectors}"
+                    SelectedValueBinding="{Binding Id}"
+                    SelectedValue="{Binding Item.ConnectorId}" />
             </Grid>
 
             <ToggleSwitch

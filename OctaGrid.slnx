@@ -8,6 +8,16 @@
     <Project Path="src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj" />
     <Project Path="src/OctaGrid.Client/OctaGrid.Client/OctaGrid.Client.csproj" />
   </Folder>
+  <Folder Name="/OctaGrid.Extensions/">
+    <Project Path="src/OctaGrid.Extensions.Abstractions/OctaGrid.Extensions.Abstractions.csproj" />
+    <Project Path="src/Connectors/OctaGrid.Connectors.BambuLab/OctaGrid.Connectors.BambuLab.csproj" />
+    <Project Path="src/Connectors/OctaGrid.Connectors.Moonraker/OctaGrid.Connectors.Moonraker.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/OctaGrid.Agent.Core.Tests/OctaGrid.Agent.Core.Tests.csproj" />
+    <Project Path="tests/OctaGrid.Connectors.Tests/OctaGrid.Connectors.Tests.csproj" />
+    <Project Path="tests/OctaGrid.Extensions.Abstractions.Tests/OctaGrid.Extensions.Abstractions.Tests.csproj" />
+  </Folder>
   <Folder Name="/OctaGrid.Shared/">
     <Project Path="src/OctaGrid.Application/OctaGrid.Application.csproj" Id="93bebeb9-9414-4254-a1b7-be3e45b0bd0d" />
     <Project Path="src/OctaGrid.Data.Abstractions/OctaGrid.Data.Abstractions.csproj" Id="ebc25056-0332-42fa-a9b6-1e78a0049461" />

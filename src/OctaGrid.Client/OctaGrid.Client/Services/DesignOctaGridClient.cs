@@ -23,7 +23,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
         Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, request.Type, 1));
 
     public Task<PrinterResponse> CreatePrinter(Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(new PrinterResponse(Guid.NewGuid(), request.Name, request.Url, request.ConnectionProtocol, "Connected", request.ApiKey ?? string.Empty, request.Enabled, 1));
+        Task.FromResult(new PrinterResponse(Guid.NewGuid(), request.Name, request.Url, request.ConnectorId, "Connected", request.ApiKey ?? string.Empty, request.Enabled, 1));
 
     public Task CreateUser(CreateUserRequest request, CancellationToken cancellationToken) =>
         Task.CompletedTask;
@@ -45,12 +45,12 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
         ]);
 
     public Task<PrinterResponse> GetPrinter(Guid workspaceId, Guid printerId, CancellationToken cancellationToken) =>
-        Task.FromResult(new PrinterResponse(printerId, "Voron 2.4", "http://192.168.1.50", "Moonraker", "Connected", string.Empty, true, 1));
+        Task.FromResult(new PrinterResponse(printerId, "Voron 2.4", "http://192.168.1.50", "octagrid.moonraker", "Connected", string.Empty, true, 1));
 
     public Task<List<PrinterResponse>> GetPrintersList(Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken) =>
         Task.FromResult<List<PrinterResponse>>([
-            new PrinterResponse(Guid.NewGuid(), "Voron 2.4", "http://192.168.1.50", "Moonraker", "Connected", string.Empty, true, 1),
-            new PrinterResponse(Guid.NewGuid(), "Bambu Lab X1C", "192.168.1.51", "BambuMqtt", "Connected", string.Empty, true, 1)
+            new PrinterResponse(Guid.NewGuid(), "Voron 2.4", "http://192.168.1.50", "octagrid.moonraker", "Connected", string.Empty, true, 1),
+            new PrinterResponse(Guid.NewGuid(), "Bambu Lab X1C", "192.168.1.51", "octagrid.bambu-mqtt", "Connected", string.Empty, true, 1)
         ]);
 
     public Task<List<WorkspaceResponse>> GetWorkspaceList(CancellationToken cancellationToken) =>
@@ -79,10 +79,10 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
          Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, "List", 1));
 
     public Task<PrinterResponse> UpdateIdentity(Guid printerId, UpdatePrinterIdentityRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(new PrinterResponse(printerId, "Voron 2.4", "http://192.168.1.50", "Moonraker", "Connected", string.Empty, true, 1));
+        Task.FromResult(new PrinterResponse(printerId, "Voron 2.4", "http://192.168.1.50", "octagrid.moonraker", "Connected", string.Empty, true, 1));
 
     public Task<PrinterResponse> UpdatePrinter(Guid printerId, UpdatePrinterRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(new PrinterResponse(printerId, request.Name ?? string.Empty, request.Url ?? string.Empty, request.ConnectionProtocol ?? string.Empty, "Connected", request.ApiKey ?? string.Empty, request.Enabled, 1));
+        Task.FromResult(new PrinterResponse(printerId, request.Name ?? string.Empty, request.Url ?? string.Empty, request.ConnectorId ?? string.Empty, "Connected", request.ApiKey ?? string.Empty, request.Enabled, 1));
 
     public Task<WorkspaceResponse> UpdateWorkspace(Guid workspaceId, string name, CancellationToken cancellationToken) =>
         Task.FromResult(new WorkspaceResponse(workspaceId, name, 1));

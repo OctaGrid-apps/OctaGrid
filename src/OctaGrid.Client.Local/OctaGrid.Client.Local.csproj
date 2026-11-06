@@ -16,6 +16,8 @@
     <ProjectReference Include="..\OctaGrid.Agent.Core\OctaGrid.Agent.Core.csproj" />
     <ProjectReference Include="..\OctaGrid.Client.Contracts\OctaGrid.Client.Contracts.csproj" />
     <ProjectReference Include="..\OctaGrid.Application\OctaGrid.Application.csproj" />
+    <ProjectReference Include="..\Connectors\OctaGrid.Connectors.BambuLab\OctaGrid.Connectors.BambuLab.csproj" />
+    <ProjectReference Include="..\Connectors\OctaGrid.Connectors.Moonraker\OctaGrid.Connectors.Moonraker.csproj" />
   </ItemGroup>
 
 </Project>
