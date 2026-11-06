@@ -79,10 +79,10 @@ public partial class App : Application
             serviceCollection.AddSingleton<IPrintersClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
             serviceCollection.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
             serviceCollection.AddSingleton<IAuthClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IAppSettingsStore, DesignSettingsStore>();
+            serviceCollection.AddSingleton<IAppSettingsStore, InMemorySettingsStore>();
             serviceCollection.AddSingleton<IAgentCommandsService, AgentCommandsService>();
             serviceCollection.AddSingleton<IExtensionsClient, DesignExtensionsClient>();
-            serviceCollection.AddSingleton<IUpdateService, DesignUpdateService>();
+            serviceCollection.AddSingleton<IUpdateService, NullUpdateService>();
             RegisterAppServices(serviceCollection);
             Services.GetRequiredService<ApplicationState>().SelectedWorkspace = new Workspace
             {

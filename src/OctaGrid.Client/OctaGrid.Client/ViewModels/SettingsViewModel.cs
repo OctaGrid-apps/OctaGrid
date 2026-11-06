@@ -39,7 +39,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     {
         _appSettings = appSettingsStore;
         _appState = appState;
-        _updateService = updateService ?? new DesignUpdateService();
+        _updateService = updateService ?? new NullUpdateService();
         _extensionsClient = extensionsClient;
         _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
 
