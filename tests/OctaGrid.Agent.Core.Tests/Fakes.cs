@@ -1,3 +1,4 @@
+using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
@@ -108,5 +109,20 @@ internal sealed class FakeConnector(string id, Func<PrinterProfile, IPrinterSess
     {
         Created.Add(profile);
         return create(profile);
+    }
+}
+
+internal sealed class InMemoryStateStore : IExtensionStateStore
+{
+    private HashSet<string> _disabled = new(StringComparer.OrdinalIgnoreCase);
+
+    public int Saves { get; private set; }
+
+    public IReadOnlySet<string> LoadDisabled() => new HashSet<string>(_disabled, StringComparer.OrdinalIgnoreCase);
+
+    public void SaveDisabled(IReadOnlyCollection<string> disabledIds)
+    {
+        Saves++;
+        _disabled = new HashSet<string>(disabledIds, StringComparer.OrdinalIgnoreCase);
     }
 }

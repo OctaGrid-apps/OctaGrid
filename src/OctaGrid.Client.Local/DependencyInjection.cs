@@ -50,6 +50,10 @@ public static class DependencyInjection
         services.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
 
         services.AddSingleton(sp => BundledConnectors.CreateRegistry(sp.GetService<ILoggerFactory>()));
+        services.AddSingleton<IExtensionStateStore>(
+            _ => new FileExtensionStateStore(Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
+        services.AddSingleton<ExtensionManager>();
+        services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
         services.AddSingleton<AgentWorker>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();
         services.AddSingleton<IAgentCommandsService, LocalAgentCommands>();

@@ -99,6 +99,16 @@
                 </controls:SettingsCard>
             </controls:SettingsGroup>
 
+            <!--  Extensions Section  -->
+            <controls:SettingsGroup Header="Extensions" IsVisible="{Binding CanManageExtensions}">
+                <controls:SettingsCard
+                    Description="{Binding ExtensionsSummary}"
+                    Header="Installed extensions"
+                    Icon="{StaticResource cube-regular}">
+                    <Button Command="{Binding ManageExtensionsCommand}" Content="Manage extensions" />
+                </controls:SettingsCard>
+            </controls:SettingsGroup>
+
             <!--  Update Section  -->
             <controls:SettingsGroup Header="Updates">
                 <controls:SettingsCard

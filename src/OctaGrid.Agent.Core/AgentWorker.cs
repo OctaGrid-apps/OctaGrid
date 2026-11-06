@@ -10,27 +10,52 @@ namespace OctaGrid.Agent.Core;
 
 public class AgentWorker : IAsyncDisposable
 {
+    private readonly ExtensionManager _extensions;
     private readonly ILogger<AgentWorker> _logger;
     private readonly DeviceOrchestrator _orchestrator;
     private readonly IPrinterProfileSource _profileSource;
-    private readonly ConnectorRegistry _registry;
 
-    /// <param name="registry">The connectors this agent can use.</param>
+    /// <param name="extensions">The installed extensions and which of them are enabled.</param>
     public AgentWorker(
         ITelemetrySink telemetry,
         IPrinterProfileSource profileSource,
-        ConnectorRegistry registry,
+        ExtensionManager extensions,
         ILoggerFactory? loggerFactory = null)
     {
         var factory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = factory.CreateLogger<AgentWorker>();
         _profileSource = profileSource;
-        _registry = registry;
-        _orchestrator = new DeviceOrchestrator(registry, telemetry, factory);
+        _extensions = extensions;
+        _orchestrator = new DeviceOrchestrator(extensions.Registry, telemetry, factory);
     }
 
-    /// <summary>Descriptors of the available connectors, for clients.</summary>
-    public IReadOnlyList<ConnectorDescriptor> ConnectorDescriptors => _registry.Descriptors;
+    /// <summary>Descriptors of the enabled connectors, for clients.</summary>
+    public IReadOnlyList<ConnectorDescriptor> ConnectorDescriptors => _extensions.EnabledDescriptors;
+
+    /// <summary>All installed extensions with their current state.</summary>
+    public IReadOnlyList<ExtensionInfo> GetExtensions() => _extensions.GetExtensions();
+
+    /// <summary>
+    /// Turns an extension on or off. Printers that use a disabled connector stop their session; they
+    /// start again when it is enabled.
+    /// </summary>
+    public async Task SetExtensionEnabledAsync(string extensionId, bool enabled, CancellationToken cancellationToken)
+    {
+        if (!_extensions.SetEnabled(extensionId, enabled))
+        {
+            _logger.LogWarning("Cannot {Action} extension '{ExtensionId}': it is not installed",
+                enabled ? "enable" : "disable", extensionId);
+            return;
+        }
+
+        _logger.LogInformation("Extension '{ExtensionId}' {State}", extensionId, enabled ? "enabled" : "disabled");
+        await RefreshProfilesAsync(cancellationToken);
+    }
+
+    // A printer whose connector the user disabled gets no session; unknown connectors are passed
+    // through so the orchestrator can report them.
+    private List<PrinterProfile> WithoutDisabledConnectors(IReadOnlyList<PrinterProfile> profiles) =>
+        profiles.Where(p => !_extensions.IsDisabled(p.ConnectorId)).ToList();
 
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         _orchestrator.DeleteFileAsync(deviceId, fileName, cancellationToken);
@@ -47,7 +72,7 @@ public class AgentWorker : IAsyncDisposable
         _logger.LogInformation("AgentWorker starting initial profile load");
         var profiles = await _profileSource.GetProfilesAsync(stoppingToken);
         _logger.LogInformation("Loaded {ProfileCount} printer profile(s) from source", profiles.Count);
-        await _orchestrator.ApplyProfilesAsync(profiles);
+        await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
     }
 
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
@@ -64,7 +89,7 @@ public class AgentWorker : IAsyncDisposable
         _logger.LogDebug("Refreshing printer profiles from source");
         var profiles = await _profileSource.GetProfilesAsync(cancellationToken);
         _logger.LogInformation("Applying {ProfileCount} refreshed printer profile(s)", profiles.Count);
-        await _orchestrator.ApplyProfilesAsync(profiles);
+        await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
     }
 
     public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
@@ -81,7 +106,13 @@ public class AgentWorker : IAsyncDisposable
     {
         _logger.LogInformation("Testing printer connection with connector '{ConnectorId}' at '{Endpoint}'", connectorId, url);
 
-        if (!_registry.TryGet(connectorId, out var connector))
+        if (_extensions.IsDisabled(connectorId))
+        {
+            _logger.LogWarning("Connection test failed: connector '{ConnectorId}' is disabled", connectorId);
+            return ConnectionTestResult.Fail($"Connector '{connectorId}' is disabled. Enable it under Settings > Extensions.");
+        }
+
+        if (!_extensions.TryGetConnector(connectorId, out var connector))
         {
             _logger.LogWarning("Connection test failed: connector '{ConnectorId}' is not available", connectorId);
             return ConnectionTestResult.Fail($"Connector '{connectorId}' is not available.");
