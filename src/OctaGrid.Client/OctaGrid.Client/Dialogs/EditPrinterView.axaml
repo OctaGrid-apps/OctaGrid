@@ -22,19 +22,6 @@
                 <TextBox x:Name="printerName" Text="{Binding Item.Name}" />
             </StackPanel>
 
-            <StackPanel Classes="field">
-                <Label Content="Printer Address" Target="printerUrl" />
-                <TextBox
-                    x:Name="printerUrl"
-                    PlaceholderText="192.168.0.1"
-                    Text="{Binding Item.Address}" />
-            </StackPanel>
-
-            <StackPanel Classes="field">
-                <Label Content="API Key" Target="apiKey" />
-                <TextBox x:Name="apiKey" Text="{Binding Item.ApiKey}" />
-            </StackPanel>
-
             <Grid ColumnDefinitions="Auto, *" ColumnSpacing="{DynamicResource Gap.IconLabel}">
                 <Label
                     VerticalAlignment="Center"
@@ -46,9 +33,55 @@
                     HorizontalAlignment="Stretch"
                     DisplayMemberBinding="{Binding DisplayName}"
                     ItemsSource="{Binding Connectors}"
-                    SelectedValueBinding="{Binding Id}"
-                    SelectedValue="{Binding Item.ConnectorId}" />
+                    SelectedValue="{Binding Item.ConnectorId}"
+                    SelectedValueBinding="{Binding Id}" />
             </Grid>
+
+            <TextBlock
+                Classes="small secondary"
+                IsVisible="{Binding !Item.Fields.Count}"
+                Text="This connector is not available. Its saved settings are kept; turn it on under Settings &gt; Extensions to change them."
+                TextWrapping="Wrap" />
+
+            <ItemsControl ItemsSource="{Binding Item.Fields}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Classes="form" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingFieldViewModel">
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="small" Text="{Binding Label}" />
+                            <TextBox IsVisible="{Binding IsTextInput}" Text="{Binding Value}" />
+                            <TextBox
+                                IsVisible="{Binding IsSecretInput}"
+                                PasswordChar="•"
+                                Text="{Binding Value}" />
+                            <ToggleSwitch
+                                IsChecked="{Binding BoolValue}"
+                                IsVisible="{Binding IsToggle}"
+                                OffContent="No"
+                                OnContent="Yes" />
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                IsVisible="{Binding IsChoice}"
+                                ItemsSource="{Binding Choices}"
+                                SelectedItem="{Binding Value}" />
+                            <TextBlock
+                                Classes="caption secondary"
+                                IsVisible="{Binding HasHelp}"
+                                Text="{Binding Help}"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                Classes="caption"
+                                Foreground="{DynamicResource SystemErrorTextColor}"
+                                IsVisible="{Binding HasError}"
+                                Text="{Binding Error}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
             <ToggleSwitch
                 IsChecked="{Binding Item.IsEnabled}"

@@ -9,12 +9,14 @@ using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Controls.Dialogs;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.ViewModels;
 
 public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 {
+    private readonly IAgentCommandsService? _agentCommands;
     private readonly ApplicationState _appState;
     private readonly ILogger<PrinterListViewModel> _logger;
     private readonly INotificationService _notification;
@@ -24,18 +26,23 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         IPrintersClient printersClient,
         INotificationService notification,
         ApplicationState appState,
-        ILogger<PrinterListViewModel>? logger = null)
+        ILogger<PrinterListViewModel>? logger = null,
+        IAgentCommandsService? agentCommands = null)
     {
         _printersClient = printersClient;
         _notification = notification;
         _appState = appState;
         _logger = logger ?? NullLogger<PrinterListViewModel>.Instance;
+        _agentCommands = agentCommands;
         WeakReferenceMessenger.Default.Register<PrinterEntityUpsert>(this, HandlePrinterEntityUpsert);
         WeakReferenceMessenger.Default.Register<PrinterEntityDelete>(this, HandlePrinterEntityDelete);
     }
 
     [ObservableProperty]
     public partial ObservableCollection<IPrinterListItem> Printers { get; set; } = [];
+
+    /// <summary>The connectors that are available, used to name them in the list.</summary>
+    private IReadOnlyList<ConnectorDescriptor> Connectors => _agentCommands?.Connectors ?? [];
 
     [RelayCommand]
     private async Task ChangePrinterEnabled(PrinterListItem printer, CancellationToken cancellationToken)
@@ -69,9 +76,9 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 
         try
         {
-            _logger.LogInformation("Creating printer '{PrinterName}' ({Protocol} @ {Endpoint}) in workspace {WorkspaceId}",
-                result.Name, result.ConnectorId, result.Url, workspaceId);
-            var request = new CreatePrinterRequest(result.Name, result.Url, result.ConnectorId, result.ApiKey, result.Enabled);
+            _logger.LogInformation("Creating printer '{PrinterName}' ({ConnectorId}) in workspace {WorkspaceId}",
+                result.Name, result.ConnectorId, workspaceId);
+            var request = new CreatePrinterRequest(result.Name, result.ConnectorId, result.Settings, result.Secrets, result.Enabled);
             _ = await _printersClient.CreatePrinter(workspaceId, request, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -109,10 +116,10 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         {
             Id = printer.Id,
             Name = printer.Name,
-            Url = printer.Url,
+            Settings = new Dictionary<string, string>(printer.Settings),
             ConnectorId = printer.ConnectorId,
             Enabled = printer.Enabled,
-            ApiKey = printer.EncryptedApiKey,
+            Secrets = new Dictionary<string, string>(printer.Secrets),
         }), App.Services.GetRequiredService<IAgentCommandsService>());
 
         var result = await this.ShowOverlayDialogAsync("Edit printer", printerViewModel);
@@ -123,9 +130,9 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 
         try
         {
-            _logger.LogInformation("Updating printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint})",
-                printer.Id, result.Name, result.ConnectorId, result.Url);
-            _ = await _printersClient.UpdatePrinter(printer.Id, new UpdatePrinterRequest(result.Name, result.Url, result.ConnectorId, result.ApiKey, result.Enabled), cancellationToken);
+            _logger.LogInformation("Updating printer {PrinterId} ('{PrinterName}', {ConnectorId})",
+                printer.Id, result.Name, result.ConnectorId);
+            _ = await _printersClient.UpdatePrinter(printer.Id, new UpdatePrinterRequest(result.Name, result.ConnectorId, result.Settings, result.Secrets, result.Enabled), cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -174,11 +181,11 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             if (printer is null)
             {
                 var insertIndex = Printers.IndexOf(AddPrinterListItem.Instance);
-                Printers.Insert(insertIndex, response.ToPrinterListItem());
+                Printers.Insert(insertIndex, response.ToPrinterListItem(Connectors));
             }
             else
             {
-                Printers[Printers.IndexOf(printer)] = response.ToPrinterListItem();
+                Printers[Printers.IndexOf(printer)] = response.ToPrinterListItem(Connectors);
             }
         }
         catch (Exception ex)
@@ -200,7 +207,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         try
         {
             var response = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: null), cancellationToken);
-            IEnumerable<IPrinterListItem> items = response.Select(p => p.ToPrinterListItem());
+            IEnumerable<IPrinterListItem> items = response.Select(p => p.ToPrinterListItem(Connectors));
             Printers = new ObservableCollection<IPrinterListItem>(items.Append(AddPrinterListItem.Instance));
             _logger.LogDebug("Loaded {PrinterCount} printer(s) for workspace {WorkspaceId}", response.Count, workspaceId);
         }

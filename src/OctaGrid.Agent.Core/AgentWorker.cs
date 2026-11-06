@@ -102,9 +102,14 @@ public class AgentWorker : IAsyncDisposable
         _orchestrator.StopPrintJobAsync(deviceId, cancellationToken);
 
     /// <summary>Checks that a printer can be reached with the given settings, before it is saved.</summary>
-    public async Task<ConnectionTestResult> TestConnectionAsync(string connectorId, string url, string? apiKey, CancellationToken cancellationToken)
+    /// <param name="connectorId">The connector to test with.</param>
+    /// <param name="settings">The settings entered for the printer, including secrets, by the keys the connector declared.</param>
+    /// <param name="cancellationToken">Cancels the test.</param>
+    public async Task<ConnectionTestResult> TestConnectionAsync(
+        string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Testing printer connection with connector '{ConnectorId}' at '{Endpoint}'", connectorId, url);
+        // Settings can hold secrets, so only the connector id is logged.
+        _logger.LogInformation("Testing printer connection with connector '{ConnectorId}'", connectorId);
 
         if (_extensions.IsDisabled(connectorId))
         {
@@ -118,13 +123,10 @@ public class AgentWorker : IAsyncDisposable
             return ConnectionTestResult.Fail($"Connector '{connectorId}' is not available.");
         }
 
-        var settings = new Dictionary<string, string> { ["url"] = url };
-        if (!string.IsNullOrEmpty(apiKey))
-        {
-            settings["apiKey"] = apiKey;
-        }
-
-        var profile = new PrinterProfile(Guid.NewGuid(), connector.Descriptor.Id, settings);
+        var profile = new PrinterProfile(
+            Guid.NewGuid(),
+            connector.Descriptor.Id,
+            settings.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value));
         var context = new ConnectorContext(
             _logger, Path.Combine(ConnectorContext.DefaultRoot, connector.Descriptor.Id, "connection-test"));
 
@@ -132,11 +134,11 @@ public class AgentWorker : IAsyncDisposable
         var result = await session.TestConnectionAsync(cancellationToken);
         if (result.Success)
         {
-            _logger.LogInformation("Connection test succeeded for connector '{ConnectorId}' at '{Endpoint}'", connectorId, url);
+            _logger.LogInformation("Connection test succeeded for connector '{ConnectorId}'", connectorId);
         }
         else
         {
-            _logger.LogWarning("Connection test failed for connector '{ConnectorId}' at '{Endpoint}': {Error}", connectorId, url, result.Error);
+            _logger.LogWarning("Connection test failed for connector '{ConnectorId}': {Error}", connectorId, result.Error);
         }
 
         return result;

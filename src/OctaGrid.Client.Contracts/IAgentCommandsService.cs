@@ -23,7 +23,8 @@ public interface IAgentCommandsService
     /// <summary>The connectors available to add printers with, including their settings and capabilities.</summary>
     IReadOnlyList<ConnectorDescriptor> Connectors { get; }
 
-    Task<ConnectionTestResult> TestConnectionAsync(string connectorId, string url, string? apiKey, CancellationToken cancellationToken);
+    /// <param name="settings">The settings entered for the printer, including secrets, by the keys the connector declared.</param>
+    Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken);
 
     Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken);
 

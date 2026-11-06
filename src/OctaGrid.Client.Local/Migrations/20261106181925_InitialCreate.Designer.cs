@@ -11,7 +11,7 @@ using OctaGrid.Data.Abstractions;
 namespace OctaGrid.Client.Local.Migrations
 {
     [DbContext(typeof(OctaGridContext))]
-    [Migration("20261106154400_InitialCreate")]
+    [Migration("20261106181925_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -240,15 +240,6 @@ namespace OctaGrid.Client.Local.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(false);
 
-                    b.Property<string>("EncryptedApiKey")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EndpointAddress")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -256,6 +247,14 @@ namespace OctaGrid.Client.Local.Migrations
 
                     b.Property<string>("ReportedModel")
                         .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Secrets")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Settings")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("UpdatedAt")

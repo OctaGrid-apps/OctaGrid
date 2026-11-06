@@ -32,6 +32,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         _agentCommands = agentCommands;
         _logger = logger ?? NullLogger<EditPrinterViewModel>.Instance;
         Connectors = agentCommands.Connectors;
+        Item.SetConnectors(Connectors);
 
         if (string.IsNullOrWhiteSpace(Item.ConnectorId) && Connectors.Count > 0)
         {
@@ -39,7 +40,10 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         }
         Item.PropertyChanged += OnItemPropertyChanged;
         Item.ErrorsChanged += OnItemErrorsChanged;
+        Item.FieldsChanged += OnItemFieldsChanged;
     }
+
+    private void OnItemFieldsChanged(object? sender, EventArgs e) => TestConnectionCommand.NotifyCanExecuteChanged();
 
     private void OnItemErrorsChanged(object? sender, System.ComponentModel.DataErrorsChangedEventArgs e)
     {
@@ -83,11 +87,11 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
     [RelayCommand]
     private void Confirm()
     {
-        Item.Validate();
-        if (!Item.HasErrors)
+        var valid = Item.ValidateAll();
+        if (valid)
         {
-            _logger.LogDebug("EditPrinter dialog confirmed for printer '{PrinterName}' ({Protocol} @ {Endpoint})",
-                Item.Name, Item.ConnectorId, Item.Address);
+            _logger.LogDebug("EditPrinter dialog confirmed for printer '{PrinterName}' ({ConnectorId})",
+                Item.Name, Item.ConnectorId);
             this.ReturnResultFromOverlayDialog(Item.ToPrinter());
             Cleanup();
         }
@@ -98,13 +102,14 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         if (Item is not null)
         {
             Item.ErrorsChanged -= OnItemErrorsChanged;
+            Item.FieldsChanged -= OnItemFieldsChanged;
             Item.PropertyChanged -= OnItemPropertyChanged;
         }
     }
 
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(Item.Address) or nameof(Item.ConnectorId) or nameof(Item.ApiKey))
+        if (e.PropertyName is nameof(Item.ConnectorId))
         {
             OnPropertyChanged(nameof(CanTestPritnerConnection));
         }
@@ -118,7 +123,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         try
         {
             var result = await _agentCommands.TestConnectionAsync(
-                Item.ConnectorId, Item.Address, Item.ApiKey, cancellationToken);
+                Item.ConnectorId, Item.CollectSettings(), cancellationToken);
             TestSucceeded = result.Success;
             TestResultMessage = result.Success ? "Connected successfully." : result.Error ?? "Connection failed.";
         }
@@ -128,7 +133,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Connection test threw an exception for '{Endpoint}' ({Protocol})", Item.Address, Item.ConnectorId);
+            _logger.LogError(ex, "Connection test threw an exception for connector {ConnectorId}", Item.ConnectorId);
             TestSucceeded = false;
             TestResultMessage = ex.Message;
         }

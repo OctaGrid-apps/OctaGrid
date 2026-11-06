@@ -41,9 +41,9 @@ public sealed class PrintersService
         var printer = new Printer
         {
             Name = request.Name,
-            EndpointAddress = request.Url,
+            Settings = new Dictionary<string, string>(request.Settings),
             ConnectorId = request.ConnectorId,
-            EncryptedApiKey = string.IsNullOrEmpty(request.ApiKey) ? null : request.ApiKey,
+            Secrets = new Dictionary<string, string>(request.Secrets),
             Enabled = request.Enabled,
             WorkspaceId = workspaceId,
             Status = new PrinterStatus()
@@ -55,8 +55,8 @@ public sealed class PrintersService
         await _context.Printers.AddAsync(printer, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {ConnectorId} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
-            printer.Id, printer.Name, printer.ConnectorId, printer.EndpointAddress, printer.Enabled, workspaceId, userId);
+        _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {ConnectorId}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.ConnectorId, printer.Enabled, workspaceId, userId);
 
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
@@ -86,17 +86,18 @@ public sealed class PrintersService
         var printers = await _context.Printers
             .AsNoTracking()
             .Where(p => p.WorkspaceId == workspaceId && p.Enabled)
-            .Select(p => new { p.Id, p.ConnectorId, p.EndpointAddress, p.EncryptedApiKey })
+            .Select(p => new { p.Id, p.ConnectorId, p.Settings, p.Secrets })
             .ToListAsync(cancellationToken);
 
-        // ToDo: EncryptedApiKey is currently stored as-is (see Create/Update); decrypt here once it isn't.
+        // The connector receives plain settings and secrets together, by the keys it declared.
+        // ToDo: secrets are currently stored as-is (see Create/Update); decrypt them here once they are not.
         return printers
             .Select(p =>
             {
-                var settings = new Dictionary<string, string> { ["url"] = p.EndpointAddress };
-                if (!string.IsNullOrEmpty(p.EncryptedApiKey))
+                var settings = new Dictionary<string, string>(p.Settings);
+                foreach (var (key, value) in p.Secrets)
                 {
-                    settings["apiKey"] = p.EncryptedApiKey;
+                    settings[key] = value;
                 }
 
                 return new PrinterProfile(p.Id, p.ConnectorId, settings);
@@ -114,10 +115,10 @@ public sealed class PrintersService
             .Select(p =>
                 new PrinterResponse(p.Id,
                     p.Name,
-                    p.EndpointAddress,
                     p.ConnectorId,
+                    p.Settings,
+                    p.Secrets,
                     p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
-                    p.EncryptedApiKey,
                     p.Enabled,
                     p.Version))
             .FirstOrDefaultAsync(cancellationToken)
@@ -136,10 +137,10 @@ public sealed class PrintersService
             .Select(p =>
                 new PrinterResponse(p.Id,
                     p.Name,
-                    p.EndpointAddress,
                     p.ConnectorId,
+                    p.Settings,
+                    p.Secrets,
                     p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
-                    p.EncryptedApiKey,
                     p.Enabled,
                     p.Version))
             .ToListAsync(cancellationToken);
@@ -185,14 +186,14 @@ public sealed class PrintersService
         }
 
         printer.Name = request.Name!;
-        printer.EndpointAddress = request.Url!;
-        printer.EncryptedApiKey = string.IsNullOrEmpty(request.ApiKey) ? null : request.ApiKey;
+        printer.Settings = new Dictionary<string, string>(request.Settings!);
+        printer.Secrets = new Dictionary<string, string>(request.Secrets ?? new Dictionary<string, string>());
         printer.ConnectorId = request.ConnectorId!;
         printer.Enabled = request.Enabled;
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {ConnectorId} @ {Endpoint}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
-            printer.Id, printer.Name, printer.ConnectorId, printer.EndpointAddress, printer.Enabled, printer.WorkspaceId, userId);
+        _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {ConnectorId}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
+            printer.Id, printer.Name, printer.ConnectorId, printer.Enabled, printer.WorkspaceId, userId);
 
         _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
@@ -227,5 +228,5 @@ public sealed class PrintersService
     }
 
     private static PrinterResponse MapToResponse(Printer printer) =>
-        new(printer.Id, printer.Name, printer.EndpointAddress, printer.ConnectorId, printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.EncryptedApiKey, printer.Enabled, printer.Version);
+        new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, printer.Secrets, printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.Enabled, printer.Version);
 }

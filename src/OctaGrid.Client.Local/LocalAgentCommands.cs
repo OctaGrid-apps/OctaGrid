@@ -31,8 +31,8 @@ internal sealed class LocalAgentCommands(AgentWorker agentWorker) : IAgentComman
 
     public IReadOnlyList<ConnectorDescriptor> Connectors => agentWorker.ConnectorDescriptors;
 
-    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, string url, string? apiKey, CancellationToken cancellationToken) =>
-        agentWorker.TestConnectionAsync(connectorId, url, apiKey, cancellationToken);
+    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken) =>
+        agentWorker.TestConnectionAsync(connectorId, settings, cancellationToken);
 
     public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>
                                         agentWorker.TriggerInitialStateAsync(printerId, cancellationToken);
