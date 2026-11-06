@@ -178,7 +178,11 @@ explicit user action and confirmation. The Agent never runs a command that the c
 
 ### 10. Bundled connectors
 
-The Bambu Lab and Moonraker connectors ship with every build and are the reference implementations:
+OctaGrid cannot work without printer connectors, so the Bambu Lab and Moonraker connectors are **part of
+the app**, not optional downloads. They live in this repository and solution, are built and released
+with the app, and share the app's version. They are separate assemblies only so that they use the same
+SDK as third-party connectors. Only third-party connectors are separate packages. They ship with every
+build and are the reference implementations:
 
 - **Layout:** `extensions/<id>/` next to the app, each with a manifest, exactly like a third-party
   extension. The host sees them as the source *Bundled*.
@@ -356,7 +360,13 @@ can implement `IConnector` later without changing existing connectors.
 
 1. Create `OctaGrid.Extensions.Abstractions`; introduce `IConnector`, `IPrinterSession` and the
    capability interfaces; adapt the existing `IDeviceClient` and factories behind them.
-2. Replace the `PrinterProtocol` enum with connector ids (EF migration with value mapping).
+2. Replace the `PrinterProtocol` enum with connector ids. **Pre-alpha database policy:** the app has no
+   stable release yet, so schema changes do **not** add new migrations. The single `InitialCreate`
+   migration is regenerated instead, and no enum-to-id data mapping is written. Because a database
+   created by an older `InitialCreate` still records it as applied, `ApplyMigrations` must detect an
+   incompatible database (an applied migration id that the assembly does not contain), back the file
+   up, and create a fresh database, instead of failing. From the first stable release on, normal
+   additive migrations are used.
 3. Move the Bambu and Moonraker code into separate projects loaded through the same extension manager.
 4. Add the manifest, compatibility checks, extension states and the settings-schema driven "add
    printer" form.
