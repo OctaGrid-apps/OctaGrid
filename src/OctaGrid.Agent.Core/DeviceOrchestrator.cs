@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core;
@@ -53,6 +54,10 @@ public class DeviceOrchestrator : IAsyncDisposable
             {
                 _logger.LogInformation("Removing session for deleted or disabled device {DeviceId}", id);
                 await StopDeviceSessionAsync(id);
+
+                // Nothing reports for this printer any more, so tell clients it is offline instead of
+                // leaving its last state on screen. (A restart or shutdown does not send this.)
+                _telemetry.Send(new PrinterTelemetry(id));
             }
         }
 
@@ -78,6 +83,10 @@ public class DeviceOrchestrator : IAsyncDisposable
 
         _logger.LogDebug("DeviceOrchestrator active session count: {ActiveSessions}", _sessions.Count);
     }
+
+    /// <summary>How many printers currently have a session created by the given connector.</summary>
+    public int ActiveSessionCount(string connectorId) =>
+        _sessions.Values.Count(s => string.Equals(s.Profile.ConnectorId, connectorId, StringComparison.OrdinalIgnoreCase));
 
     public async Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
     {

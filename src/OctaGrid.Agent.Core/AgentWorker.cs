@@ -33,7 +33,10 @@ public class AgentWorker : IAsyncDisposable
     public IReadOnlyList<ConnectorDescriptor> ConnectorDescriptors => _extensions.EnabledDescriptors;
 
     /// <summary>All installed extensions with their current state.</summary>
-    public IReadOnlyList<ExtensionInfo> GetExtensions() => _extensions.GetExtensions();
+    public IReadOnlyList<ExtensionInfo> GetExtensions() =>
+        _extensions.GetExtensions()
+            .Select(e => e with { ActivePrinters = _orchestrator.ActiveSessionCount(e.Id) })
+            .ToList();
 
     /// <summary>
     /// Turns an extension on or off. Printers that use a disabled connector stop their session; they

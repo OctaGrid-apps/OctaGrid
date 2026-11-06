@@ -44,6 +44,15 @@ public partial class ExtensionItemViewModel : ObservableObject
 
     public bool HasStateMessage => !string.IsNullOrWhiteSpace(Info.StateMessage);
 
+    /// <summary>Tells the user what turning the extension off would stop.</summary>
+    public string? UsageText => Info is { State: ExtensionState.Loaded, ActivePrinters: > 0 }
+        ? Info.ActivePrinters == 1
+            ? "1 printer is connected through this. Turning it off stops that printer."
+            : $"{Info.ActivePrinters} printers are connected through this. Turning it off stops them."
+        : null;
+
+    public bool HasUsage => UsageText is not null;
+
     /// <summary>An extension that is incompatible or failed cannot simply be switched on.</summary>
     public bool CanToggle => Info.State is ExtensionState.Loaded or ExtensionState.Disabled;
 

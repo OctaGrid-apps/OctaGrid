@@ -174,4 +174,43 @@ public class DeviceOrchestratorTests
         Assert.Null(await orchestrator.GetThumbnailAsync(profile.PrinterId, "a.gcode", ct));
         await orchestrator.DisposeAsync();
     }
+
+    [Fact]
+    public async Task Tells_clients_a_printer_is_offline_when_its_session_is_removed()
+    {
+        var (orchestrator, _, _, telemetry) = Create();
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+
+        await orchestrator.ApplyProfilesAsync([]);
+
+        var offline = Assert.Single(telemetry.Sent);
+        Assert.Equal(profile.PrinterId, offline.PrinterId);
+        Assert.Equal(OctaGrid.Protocol.Messaging.UniversalPrinterState.Offline, offline.State);
+    }
+
+    [Fact]
+    public async Task Does_not_report_offline_for_a_restart_or_a_shutdown()
+    {
+        var (orchestrator, _, _, telemetry) = Create();
+        var id = Guid.NewGuid();
+        await orchestrator.ApplyProfilesAsync([Profile(id, url: "10.0.0.1")]);
+
+        await orchestrator.ApplyProfilesAsync([Profile(id, url: "10.0.0.2")]);
+        await orchestrator.DisposeAsync();
+
+        Assert.Empty(telemetry.Sent);
+    }
+
+    [Fact]
+    public async Task Counts_the_active_sessions_per_connector()
+    {
+        var (orchestrator, _, _, _) = Create();
+        await orchestrator.ApplyProfilesAsync([Profile(), Profile(), Profile(connectorId: "acme.missing")]);
+
+        Assert.Equal(2, orchestrator.ActiveSessionCount(Id));
+        Assert.Equal(2, orchestrator.ActiveSessionCount("ACME.FAKE"));
+        Assert.Equal(0, orchestrator.ActiveSessionCount("acme.missing"));
+        await orchestrator.DisposeAsync();
+    }
 }

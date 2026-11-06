@@ -151,4 +151,17 @@ public class AgentWorkerTests
 
         Assert.Empty(store.LoadDisabled());
     }
+
+    [Fact]
+    public async Task Reports_how_many_printers_use_each_extension()
+    {
+        var (worker, _, _, _) = Create(Printer(), Printer());
+        await worker.ExecuteAsync(CancellationToken.None);
+
+        Assert.Equal(2, Assert.Single(worker.GetExtensions()).ActivePrinters);
+
+        await worker.SetExtensionEnabledAsync("acme.fake", false, CancellationToken.None);
+
+        Assert.Equal(0, Assert.Single(worker.GetExtensions()).ActivePrinters);
+    }
 }
