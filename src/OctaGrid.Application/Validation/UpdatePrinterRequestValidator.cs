@@ -1,5 +1,5 @@
 using FluentValidation;
-using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Application.Validation;
@@ -10,7 +10,7 @@ public class UpdatePrinterRequestValidator : AbstractValidator<UpdatePrinterRequ
     {
         RuleFor(x => x.Name).NotEmpty();
         RuleFor(x => x.Url).NotEmpty();
-        RuleFor(x => x.ConnectionProtocol).NotEmpty().IsEnumName(typeof(PrinterProtocol));
+        RuleFor(x => x.ConnectorId).NotEmpty().Must(ExtensionId.IsValid).WithMessage("The connector id must look like 'publisher.name'.");
         RuleFor(x => x.ApiKey).NotEmpty().When(x => !string.IsNullOrEmpty(x.ApiKey));
     }
 }

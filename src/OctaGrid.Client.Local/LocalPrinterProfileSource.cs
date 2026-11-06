@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.Local;
 
@@ -17,7 +17,7 @@ internal sealed class LocalPrinterProfileSource(
 {
     private readonly ILogger<LocalPrinterProfileSource> _logger = logger ?? NullLogger<LocalPrinterProfileSource>.Instance;
 
-    public async Task<IReadOnlyList<DeviceProfile>> GetProfilesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken)
     {
         var rawUserId = currentUser.GetCurrentUserId();
         Guid userId;
@@ -40,7 +40,7 @@ internal sealed class LocalPrinterProfileSource(
             return [];
         }
 
-        var profiles = await printers.GetDeviceProfiles(userId, workspace.Id, cancellationToken);
+        var profiles = await printers.GetPrinterProfiles(userId, workspace.Id, cancellationToken);
         _logger.LogDebug("Loaded {ProfileCount} enabled printer profile(s) for workspace {WorkspaceId}", profiles.Count, workspace.Id);
         return profiles;
     }

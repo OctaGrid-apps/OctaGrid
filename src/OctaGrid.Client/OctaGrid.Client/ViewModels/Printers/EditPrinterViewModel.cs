@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.ViewModels;
 
@@ -30,15 +31,11 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         Item = printer;
         _agentCommands = agentCommands;
         _logger = logger ?? NullLogger<EditPrinterViewModel>.Instance;
-        PrinterConnectionProtocols = [
-            "Moonraker",
-            "BambuMqtt",
-            "PrusaLink"
-            ];
+        Connectors = agentCommands.Connectors;
 
-        if (string.IsNullOrWhiteSpace(Item.ConnectionProtocol))
+        if (string.IsNullOrWhiteSpace(Item.ConnectorId) && Connectors.Count > 0)
         {
-            Item.ConnectionProtocol = PrinterConnectionProtocols.First();
+            Item.ConnectorId = Connectors[0].Id;
         }
         Item.PropertyChanged += OnItemPropertyChanged;
         Item.ErrorsChanged += OnItemErrorsChanged;
@@ -59,7 +56,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
     public partial PrinterViewModel Item { get; private set; }
 
     [ObservableProperty]
-    public partial List<string> PrinterConnectionProtocols { get; set; }
+    public partial IReadOnlyList<ConnectorDescriptor> Connectors { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTestResult))]
@@ -90,7 +87,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         if (!Item.HasErrors)
         {
             _logger.LogDebug("EditPrinter dialog confirmed for printer '{PrinterName}' ({Protocol} @ {Endpoint})",
-                Item.Name, Item.ConnectionProtocol, Item.Address);
+                Item.Name, Item.ConnectorId, Item.Address);
             this.ReturnResultFromOverlayDialog(Item.ToPrinter());
             Cleanup();
         }
@@ -107,7 +104,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
 
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(Item.Address) or nameof(Item.ConnectionProtocol) or nameof(Item.ApiKey))
+        if (e.PropertyName is nameof(Item.Address) or nameof(Item.ConnectorId) or nameof(Item.ApiKey))
         {
             OnPropertyChanged(nameof(CanTestPritnerConnection));
         }
@@ -121,7 +118,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         try
         {
             var result = await _agentCommands.TestConnectionAsync(
-                Item.ConnectionProtocol, Item.Address, Item.ApiKey, cancellationToken);
+                Item.ConnectorId, Item.Address, Item.ApiKey, cancellationToken);
             TestSucceeded = result.Success;
             TestResultMessage = result.Success ? "Connected successfully." : result.Error ?? "Connection failed.";
         }
@@ -131,7 +128,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Connection test threw an exception for '{Endpoint}' ({Protocol})", Item.Address, Item.ConnectionProtocol);
+            _logger.LogError(ex, "Connection test threw an exception for '{Endpoint}' ({Protocol})", Item.Address, Item.ConnectorId);
             TestSucceeded = false;
             TestResultMessage = ex.Message;
         }

@@ -1,8 +1,8 @@
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Agent.Core;
 
 public interface IPrinterProfileSource
 {
-    Task<IReadOnlyList<DeviceProfile>> GetProfilesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken);
 }

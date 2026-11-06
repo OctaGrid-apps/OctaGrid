@@ -70,8 +70,8 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         try
         {
             _logger.LogInformation("Creating printer '{PrinterName}' ({Protocol} @ {Endpoint}) in workspace {WorkspaceId}",
-                result.Name, result.ConnectionProtocol, result.Url, workspaceId);
-            var request = new CreatePrinterRequest(result.Name, result.Url, result.ConnectionProtocol, result.ApiKey, result.Enabled);
+                result.Name, result.ConnectorId, result.Url, workspaceId);
+            var request = new CreatePrinterRequest(result.Name, result.Url, result.ConnectorId, result.ApiKey, result.Enabled);
             _ = await _printersClient.CreatePrinter(workspaceId, request, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -110,7 +110,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             Id = printer.Id,
             Name = printer.Name,
             Url = printer.Url,
-            ConnectionProtocol = printer.ConnectionProtocol,
+            ConnectorId = printer.ConnectorId,
             Enabled = printer.Enabled,
             ApiKey = printer.EncryptedApiKey,
         }), App.Services.GetRequiredService<IAgentCommandsService>());
@@ -124,8 +124,8 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         try
         {
             _logger.LogInformation("Updating printer {PrinterId} ('{PrinterName}', {Protocol} @ {Endpoint})",
-                printer.Id, result.Name, result.ConnectionProtocol, result.Url);
-            _ = await _printersClient.UpdatePrinter(printer.Id, new UpdatePrinterRequest(result.Name, result.Url, result.ConnectionProtocol, result.ApiKey, result.Enabled), cancellationToken);
+                printer.Id, result.Name, result.ConnectorId, result.Url);
+            _ = await _printersClient.UpdatePrinter(printer.Id, new UpdatePrinterRequest(result.Name, result.Url, result.ConnectorId, result.ApiKey, result.Enabled), cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

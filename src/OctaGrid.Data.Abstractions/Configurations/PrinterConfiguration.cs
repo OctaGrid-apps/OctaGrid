@@ -19,10 +19,9 @@ internal sealed class PrinterConfiguration : EntityConfiguration<Printer>
             .HasDefaultValue(false)
             .IsRequired();
 
-        builder.Property(u => u.Protocol)
+        builder.Property(u => u.ConnectorId)
             .IsRequired()
-            .HasConversion<string>()
-            .HasMaxLength(50);
+            .HasMaxLength(100);
 
         builder.Property(u => u.EndpointAddress)
             .IsRequired()

@@ -6,7 +6,7 @@ public sealed class Printer : Entity
     public Guid WorkspaceId { get; set; }
     public string? ReportedModel { get; set; }
     public bool Enabled { get; set; }
-    public PrinterProtocol Protocol { get; set; }
+    public string ConnectorId { get; set; } = string.Empty;
     public string EndpointAddress { get; set; } = string.Empty;
     public string? EncryptedApiKey { get; set; }
 
