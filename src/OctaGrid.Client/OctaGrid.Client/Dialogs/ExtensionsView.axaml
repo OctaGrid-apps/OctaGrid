@@ -53,6 +53,11 @@
                                         <TextBlock Classes="caption secondary" Text="{Binding CapabilitiesText}" />
                                         <TextBlock
                                             Classes="small"
+                                            IsVisible="{Binding HasUsage}"
+                                            Text="{Binding UsageText}"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Classes="small"
                                             IsVisible="{Binding HasStateMessage}"
                                             Text="{Binding StateMessage}"
                                             TextWrapping="Wrap" />

@@ -40,6 +40,7 @@ public enum ExtensionState
 /// <param name="StateMessage">Explains <see cref="ExtensionState.Incompatible"/> and <see cref="ExtensionState.Failed"/>.</param>
 /// <param name="Capabilities">What the extension can do, when it is a connector.</param>
 /// <param name="CanUninstall">Whether the user can remove it.</param>
+/// <param name="ActivePrinters">How many printers are connected through this extension right now.</param>
 public sealed record ExtensionInfo(
     string Id,
     string Name,
@@ -50,4 +51,5 @@ public sealed record ExtensionInfo(
     ExtensionState State,
     string? StateMessage,
     ConnectorCapabilities Capabilities,
-    bool CanUninstall);
+    bool CanUninstall,
+    int ActivePrinters = 0);
