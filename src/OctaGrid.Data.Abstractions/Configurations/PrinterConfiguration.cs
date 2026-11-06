@@ -23,12 +23,13 @@ internal sealed class PrinterConfiguration : EntityConfiguration<Printer>
             .IsRequired()
             .HasMaxLength(100);
 
-        builder.Property(u => u.EndpointAddress)
+        builder.Property(u => u.Settings)
             .IsRequired()
-            .HasMaxLength(500);
+            .HasConversion(DictionaryJson.Converter, DictionaryJson.Comparer);
 
-        builder.Property(u => u.EncryptedApiKey)
-            .HasMaxLength(1000);
+        builder.Property(u => u.Secrets)
+            .IsRequired()
+            .HasConversion(DictionaryJson.Converter, DictionaryJson.Comparer);
 
         builder.HasOne(s => s.Workspace)
             .WithMany(w => w.Printers)

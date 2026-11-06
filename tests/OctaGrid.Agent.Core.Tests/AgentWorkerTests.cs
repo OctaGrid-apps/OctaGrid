@@ -28,6 +28,17 @@ public class AgentWorkerTests
         return (new AgentWorker(new FakeTelemetry(), new FixedProfiles(profiles), extensions), connector, sessions, store);
     }
 
+    private static Dictionary<string, string> Settings(string url, string? apiKey = null)
+    {
+        var settings = new Dictionary<string, string> { ["url"] = url };
+        if (apiKey is not null)
+        {
+            settings["apiKey"] = apiKey;
+        }
+
+        return settings;
+    }
+
     private static PrinterProfile Printer(string connectorId = "acme.fake") =>
         new(Guid.NewGuid(), connectorId, new Dictionary<string, string> { ["url"] = "10.0.0.1" });
 
@@ -54,7 +65,7 @@ public class AgentWorkerTests
     {
         var (worker, _, _, _) = Create();
 
-        var result = await worker.TestConnectionAsync("acme.missing", "10.0.0.1", null, CancellationToken.None);
+        var result = await worker.TestConnectionAsync("acme.missing", Settings("10.0.0.1"), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Contains("acme.missing", result.Error);
@@ -65,7 +76,7 @@ public class AgentWorkerTests
     {
         var (worker, connector, _, _) = Create();
 
-        var result = await worker.TestConnectionAsync("acme.fake", "10.0.0.1", "key", CancellationToken.None);
+        var result = await worker.TestConnectionAsync("acme.fake", Settings("10.0.0.1", "key"), CancellationToken.None);
 
         Assert.True(result.Success);
         var profile = Assert.Single(connector.Created);
@@ -78,7 +89,7 @@ public class AgentWorkerTests
     {
         var (worker, connector, _, _) = Create();
 
-        await worker.TestConnectionAsync("acme.fake", "10.0.0.1", "", CancellationToken.None);
+        await worker.TestConnectionAsync("acme.fake", Settings("10.0.0.1", ""), CancellationToken.None);
 
         Assert.Null(Assert.Single(connector.Created).Get("apiKey"));
     }
@@ -135,7 +146,7 @@ public class AgentWorkerTests
         var (worker, connector, _, _) = Create();
         await worker.SetExtensionEnabledAsync("acme.fake", false, CancellationToken.None);
 
-        var result = await worker.TestConnectionAsync("acme.fake", "10.0.0.1", null, CancellationToken.None);
+        var result = await worker.TestConnectionAsync("acme.fake", Settings("10.0.0.1"), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Contains("disabled", result.Error);
@@ -150,6 +161,26 @@ public class AgentWorkerTests
         await worker.SetExtensionEnabledAsync("acme.missing", false, CancellationToken.None);
 
         Assert.Empty(store.LoadDisabled());
+    }
+
+    [Fact]
+    public async Task Connection_test_passes_every_entered_setting_to_the_connector()
+    {
+        var (worker, connector, _, _) = Create();
+        var settings = new Dictionary<string, string>
+        {
+            ["url"] = "10.0.0.1",
+            ["serialNumber"] = "01P",
+            ["accessCode"] = "123456",
+            ["empty"] = "",
+        };
+
+        await worker.TestConnectionAsync("acme.fake", settings, CancellationToken.None);
+
+        var profile = Assert.Single(connector.Created);
+        Assert.Equal("01P", profile.Get("serialNumber"));
+        Assert.Equal("123456", profile.Get("accessCode"));
+        Assert.Null(profile.Get("empty"));
     }
 
     [Fact]

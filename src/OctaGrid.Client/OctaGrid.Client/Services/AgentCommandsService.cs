@@ -30,7 +30,7 @@ internal sealed class AgentCommandsService : IAgentCommandsService
 
     public IReadOnlyList<ConnectorDescriptor> Connectors { get; } = [];
 
-    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, string url, string? apiKey, CancellationToken cancellationToken) =>
+    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken) =>
         Task.FromResult(new ConnectionTestResult(true, null));
 
     public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>

@@ -121,8 +121,8 @@ namespace OctaGrid.Client.Local.Migrations
                     ReportedModel = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
                     Enabled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
                     ConnectorId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    EndpointAddress = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    EncryptedApiKey = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
+                    Settings = table.Column<string>(type: "TEXT", nullable: false),
+                    Secrets = table.Column<string>(type: "TEXT", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
                     Version = table.Column<long>(type: "INTEGER", nullable: false)

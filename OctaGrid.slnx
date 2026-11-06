@@ -15,6 +15,8 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/OctaGrid.Agent.Core.Tests/OctaGrid.Agent.Core.Tests.csproj" />
+    <Project Path="tests/OctaGrid.Application.Tests/OctaGrid.Application.Tests.csproj" />
+    <Project Path="tests/OctaGrid.Client.Tests/OctaGrid.Client.Tests.csproj" />
     <Project Path="tests/OctaGrid.Connectors.Tests/OctaGrid.Connectors.Tests.csproj" />
     <Project Path="tests/OctaGrid.Extensions.Abstractions.Tests/OctaGrid.Extensions.Abstractions.Tests.csproj" />
   </Folder>
