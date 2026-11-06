@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
@@ -14,34 +13,33 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 {
+    private readonly IAgentCommandsService _agentCommands;
     private readonly IAppSettingsStore _appSettingsStore;
     private readonly ApplicationState _appState;
     private readonly IDashboardsClient _dashboardsClient;
+    private readonly IByteArrayImageCache _imageCache;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DashboardsViewModel> _logger;
     private readonly IPrintersClient _printersClient;
-
-    // Design-time only — see MainViewModel's parameterless constructor for why this exists.
-    public DashboardsViewModel() : this(
-        App.Services.GetRequiredService<IDashboardsClient>(),
-        App.Services.GetRequiredService<IPrintersClient>(),
-        App.Services.GetRequiredService<IAppSettingsStore>(),
-        App.Services.GetRequiredService<ApplicationState>(),
-        App.Services.GetService<ILogger<DashboardsViewModel>>() ?? NullLogger<DashboardsViewModel>.Instance)
-    {
-    }
 
     public DashboardsViewModel(
         IDashboardsClient dashboardsClient,
         IPrintersClient printersClient,
         IAppSettingsStore appSettingsStore,
         ApplicationState appState,
-        ILogger<DashboardsViewModel>? logger = null)
+        IAgentCommandsService agentCommands,
+        IByteArrayImageCache imageCache,
+        ILoggerFactory? loggerFactory = null)
     {
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _agentCommands = agentCommands;
+        _imageCache = imageCache;
+        var logger = _loggerFactory.CreateLogger<DashboardsViewModel>();
         _dashboardsClient = dashboardsClient;
         _printersClient = printersClient;
         _appSettingsStore = appSettingsStore;
         _appState = appState;
-        _logger = logger ?? NullLogger<DashboardsViewModel>.Instance;
+        _logger = logger;
         _appState.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(ApplicationState.SelectedWorkspace) && _appState.SelectedWorkspace is not null)
@@ -65,7 +63,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private async Task CreateDashboard(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Opening Create Dashboard dialog");
-        var dashboardViewModel = new EditDashboardViewModel();
+        var dashboardViewModel = new EditDashboardViewModel(new DashboardViewModel(), _loggerFactory.CreateLogger<EditDashboardViewModel>());
 
         // Show the dialog and wait for the result.
         var result = await this.ShowOverlayDialogAsync("Create new dashboard", dashboardViewModel);
@@ -104,7 +102,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
-        var printerViewModel = new EditDashboardViewModel(new DashboardViewModel(SelectedDashboard.Name), App.Services.GetRequiredService<ILogger<EditDashboardViewModel>>());
+        var printerViewModel = new EditDashboardViewModel(new DashboardViewModel(SelectedDashboard.Name), _loggerFactory.CreateLogger<EditDashboardViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Edit dashboard", printerViewModel);
         if (result is null)
@@ -189,7 +187,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
             {
                 Id = printer.Id,
                 Name = printer.Name
-            })));
+            }, _agentCommands, _imageCache, _loggerFactory)));
             _logger.LogInformation("Loaded {Count} printers for workspace {WorkspaceId}", printers.Count, workspaceId);
         }
         catch (OperationCanceledException)

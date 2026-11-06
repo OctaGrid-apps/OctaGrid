@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:designtime="using:OctaGrid.Client.DesignTime"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:services="using:OctaGrid.Client.Services"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
@@ -15,6 +16,9 @@
     Background="Transparent"
     Header="Settings"
     mc:Ignorable="d">
+    <Design.DataContext>
+        <x:Static Member="designtime:DesignData.SettingsPage" />
+    </Design.DataContext>
 
     <ContentPage.Styles>
         <Style Selector="controls|SettingsCard.highlight">

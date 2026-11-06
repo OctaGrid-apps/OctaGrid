@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Services;
@@ -11,13 +10,9 @@ public partial class EditDashboardViewModel : ViewModelBase, IDialogParticipant<
 {
     private readonly ILogger<EditDashboardViewModel> _logger;
 
-    public EditDashboardViewModel() : this(new DashboardViewModel(), App.Services.GetService<ILogger<EditDashboardViewModel>>() ?? NullLogger<EditDashboardViewModel>.Instance)
+    public EditDashboardViewModel(DashboardViewModel dashboard, ILogger<EditDashboardViewModel>? logger = null)
     {
-    }
-
-    public EditDashboardViewModel(DashboardViewModel dashboard, ILogger<EditDashboardViewModel> logger)
-    {
-        _logger = logger;
+        _logger = logger ?? NullLogger<EditDashboardViewModel>.Instance;
         Item = dashboard;
         Item.ErrorsChanged += (s, e) => ConfirmCommand.NotifyCanExecuteChanged();
     }

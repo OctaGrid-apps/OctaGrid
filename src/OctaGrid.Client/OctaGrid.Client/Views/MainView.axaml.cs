@@ -1,6 +1,4 @@
 using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
-using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Views;
@@ -8,21 +6,22 @@ namespace OctaGrid.Client.Views;
 [ViewFor(typeof(MainViewModel))]
 public partial class MainView : UserControl
 {
-    private readonly MainViewModel _dataContext;
-
     public MainView()
     {
         InitializeComponent();
-        _dataContext = App.Services.GetRequiredService<MainViewModel>();
-        DataContext = _dataContext;
         Loaded += async (_, _) =>
         {
-            if (TopLevel.GetTopLevel(this) is { } topLevel)
+            if (DataContext is not MainViewModel viewModel)
             {
-                App.Services.GetRequiredService<INotificationService>().Attach(topLevel);
+                return;
             }
 
-            await _dataContext.LoadDataCommand.ExecuteAsync(null);
+            if (TopLevel.GetTopLevel(this) is { } topLevel)
+            {
+                viewModel.AttachNotifications(topLevel);
+            }
+
+            await viewModel.LoadDataCommand.ExecuteAsync(null);
         };
     }
 }

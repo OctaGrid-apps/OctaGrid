@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
@@ -17,11 +16,15 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILogger<FilePickerViewModel> _logger;
 
-    public FilePickerViewModel(Guid deviceId, ILogger<FilePickerViewModel>? logger = null)
+    public FilePickerViewModel(
+        Guid deviceId,
+        IAgentCommandsService agentCommands,
+        IByteArrayImageCache imageCache,
+        ILogger<FilePickerViewModel>? logger = null)
     {
-        _agentCommandsService = App.Services.GetRequiredService<IAgentCommandsService>();
-        _imageCache = App.Services.GetRequiredService<IByteArrayImageCache>();
-        _logger = logger ?? App.Services.GetService<ILogger<FilePickerViewModel>>() ?? NullLogger<FilePickerViewModel>.Instance;
+        _agentCommandsService = agentCommands;
+        _imageCache = imageCache;
+        _logger = logger ?? NullLogger<FilePickerViewModel>.Instance;
         _deviceId = deviceId;
     }
 

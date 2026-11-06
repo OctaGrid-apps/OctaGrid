@@ -15,14 +15,6 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
     private readonly IAgentCommandsService _agentCommands;
     private readonly ILogger<EditPrinterViewModel> _logger;
 
-    // Design-time only — see MainViewModel's parameterless constructor for why this exists.
-    public EditPrinterViewModel() : this(
-        new PrinterViewModel(new Printer()),
-        App.Services.GetRequiredService<IAgentCommandsService>(),
-        App.Services.GetService<ILogger<EditPrinterViewModel>>() ?? NullLogger<EditPrinterViewModel>.Instance)
-    {
-    }
-
     public EditPrinterViewModel(
         PrinterViewModel printer,
         IAgentCommandsService agentCommands,

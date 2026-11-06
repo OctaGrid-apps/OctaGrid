@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Views;
@@ -10,6 +9,5 @@ public partial class IdentityView : Window
     public IdentityView()
     {
         InitializeComponent();
-        DataContext = App.Services.GetRequiredService<IdentityViewModel>();
     }
 }

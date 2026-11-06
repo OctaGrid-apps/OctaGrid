@@ -18,7 +18,11 @@ namespace OctaGrid.Client;
 public partial class App : Application
 {
     private readonly CancellationTokenSource _cts = new();
-    public static IServiceProvider Services { get; set; } = null!;
+    /// <summary>
+    /// The application container. Set once at startup and used only by the application root to create
+    /// the first view model; it is null in the designer and in tests that build their own view models.
+    /// </summary>
+    public static IServiceProvider? Services { get; set; }
 
     public static void RegisterAppServices(IServiceCollection services)
     {
@@ -44,9 +48,10 @@ public partial class App : Application
             services.AddTransient<EditDashboardViewModel>();
             services.AddTransient<SafetyDisclaimerViewModel>();
 
-            Services = services.BuildServiceProvider();
+            var provider = services.BuildServiceProvider();
+            Services = provider;
 
-            var logger = Services.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
+            var logger = provider.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
             logger.LogInformation("Application services registered successfully");
         }
         catch (Exception ex)
@@ -69,44 +74,34 @@ public partial class App : Application
             Styles.Add(micaTheme);
         }
 
-        if (Design.IsDesignMode)
-        {
-            var serviceCollection = new ServiceCollection();
-            serviceCollection.AddSingleton<DesignOctaGridClient>();
-            serviceCollection.AddSingleton<IUsersClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IWorkspacesClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IDashboardsClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IPrintersClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IAuthClient>(sp => sp.GetRequiredService<DesignOctaGridClient>());
-            serviceCollection.AddSingleton<IAppSettingsStore, InMemorySettingsStore>();
-            serviceCollection.AddSingleton<IAgentCommandsService, AgentCommandsService>();
-            serviceCollection.AddSingleton<IExtensionsClient, DesignExtensionsClient>();
-            serviceCollection.AddSingleton<IUpdateService, NullUpdateService>();
-            RegisterAppServices(serviceCollection);
-            Services.GetRequiredService<ApplicationState>().SelectedWorkspace = new Workspace
-            {
-                Id = DesignOctaGridClient.DefaultWorkspaceId,
-                Name = "Default Workspace"
-            };
-        }
-
-        var logger = Services.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
-        logger.LogInformation("Application initialized");
+        Logger.LogInformation("Application initialized");
 
 #if DEBUG
         this.AttachDeveloperTools();
 #endif
     }
 
+    private static ILogger Logger => Services?.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
+
     public override void OnFrameworkInitializationCompleted()
     {
-        var logger = Services.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
+        // View models are matched to their views by type (see ViewLocator). Pages and dialogs never
+        // look their own view model up: whoever shows a view supplies it.
+        DataTemplates.Add(new ViewLocator(typeof(App).Assembly));
+
+        // The designer and tests have no container; they create the view models they need directly.
+        if (Services is not { } services)
+        {
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
+        var logger = Logger;
         logger.LogInformation("Framework initialization started with lifetime: {Lifetime}", ApplicationLifetime?.GetType().Name);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var settingsStore = Services.GetRequiredService<IAppSettingsStore>();
+            var settingsStore = services.GetRequiredService<IAppSettingsStore>();
 
             // Local mode only. Remote mode is future feature
             settingsStore.Update(s => s with
@@ -121,7 +116,10 @@ public partial class App : Application
             if (settings.Mode == ClientMode.Undefined)
             {
                 logger.LogInformation("Client mode is Undefined, showing ModeSelectionWindow");
-                desktop.MainWindow = new ModeSelectionWindow();
+                desktop.MainWindow = new ModeSelectionWindow
+                {
+                    DataContext = services.GetRequiredService<ModeSelectionViewModel>()
+                };
             }
             else
             {
@@ -132,7 +130,7 @@ public partial class App : Application
 
                 // Each mode registers what it needs running: Local hosts the in-process agent,
                 // Remote holds the server connection. App stays mode-agnostic.
-                foreach (var runtime in Services.GetServices<IClientRuntime>())
+                foreach (var runtime in services.GetServices<IClientRuntime>())
                 {
                     _ = RunRuntimeAsync(runtime, logger, _cts.Token);
                 }
@@ -144,24 +142,33 @@ public partial class App : Application
                     _cts.Dispose();
                 };
 
-                desktop.MainWindow = new MainWindow();
+                var mainWindow = new MainWindow
+                {
+                    DataContext = services.GetRequiredService<MainViewModel>()
+                };
+                settingsStore.SettingsChanged += (_, changed) => mainWindow.ApplyTheme(changed);
+                desktop.MainWindow = mainWindow;
             }
+
             logger.LogInformation("Applying theme {ElementTheme} to main window", settings.ElementTheme);
             desktop.MainWindow.ApplyTheme(settings);
         }
         else if (ApplicationLifetime is IActivityApplicationLifetime singleViewFactoryApplicationLifetime)
         {
             logger.LogInformation("Configuring activity application lifetime main view factory");
-            singleViewFactoryApplicationLifetime.MainViewFactory = () => new MainView();
+            singleViewFactoryApplicationLifetime.MainViewFactory = () => new MainView
+            {
+                DataContext = services.GetRequiredService<MainViewModel>()
+            };
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
             logger.LogInformation("Configuring single view application lifetime main view");
-            singleViewPlatform.MainView = new MainView();
+            singleViewPlatform.MainView = new MainView
+            {
+                DataContext = services.GetRequiredService<MainViewModel>()
+            };
         }
-
-        var locator = new ViewLocator(typeof(App).Assembly);
-        DataTemplates.Add(locator);
 
         base.OnFrameworkInitializationCompleted();
         logger.LogInformation("Framework initialization completed");

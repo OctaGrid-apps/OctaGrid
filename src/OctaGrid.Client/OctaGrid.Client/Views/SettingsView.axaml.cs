@@ -1,19 +1,20 @@
 using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Views;
 
 public partial class SettingsView : ContentPage
 {
-    private readonly SettingsViewModel _dataContext;
-
     public SettingsView()
     {
         InitializeComponent();
-        _dataContext = App.Services.GetRequiredService<SettingsViewModel>();
-        DataContext = _dataContext;
-
-        Loaded += async (_, _) => await _dataContext.LoadDataCommand.ExecuteAsync(null);
+        // The owner of the page supplies its view model (see NavigationRailItem.PageDataContext).
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is SettingsViewModel viewModel)
+            {
+                await viewModel.LoadDataCommand.ExecuteAsync(null);
+            }
+        };
     }
 }

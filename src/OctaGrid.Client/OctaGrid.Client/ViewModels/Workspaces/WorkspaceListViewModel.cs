@@ -17,14 +17,6 @@ public partial class WorkspaceListViewModel : ViewModelBase, IDialogParticipant
     private readonly ILogger<WorkspaceListViewModel> _logger;
     private readonly IWorkspacesClient _workspacesClient;
 
-    // Design-time only — see MainViewModel's parameterless constructor for why this exists.
-    public WorkspaceListViewModel() : this(
-        App.Services.GetRequiredService<IWorkspacesClient>(),
-        App.Services.GetRequiredService<ApplicationState>(),
-        App.Services.GetService<ILogger<WorkspaceListViewModel>>() ?? NullLogger<WorkspaceListViewModel>.Instance)
-    {
-    }
-
     public WorkspaceListViewModel(
         IWorkspacesClient workspacesClient,
         ApplicationState appState,
