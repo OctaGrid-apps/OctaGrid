@@ -152,6 +152,14 @@ execute third-party code, which keeps it cheap and safe. For Remote mode:
   connector" instead of failing.
 - Descriptors (settings schema, capabilities, custom commands) travel as data in the Agent protocol.
   Extensions never ship client-side UI code in v1.
+- **WASM and other thin clients:** connector code never runs in the Client, so it never runs in the
+  browser. Raw TCP (MQTT, FTPS), process start and file access are not available in WASM anyway. A WASM
+  client shows extension-defined content (connector list, settings forms, capabilities, custom
+  commands) from descriptors received from the Agent. For that, the descriptor, settings-schema and
+  manifest-summary types live in `OctaGrid.Protocol` (WASM-safe, no agent dependencies), while the
+  runtime interfaces (`IConnector`, `IPrinterSession`, ...) live in `OctaGrid.Extensions.Abstractions`,
+  which only the Agent references. Client-side extension kinds (themes, widgets) are out of scope for
+  v1; in WASM they would need pure managed assemblies fetched from the server.
 
 ### 8. Security model
 
@@ -362,11 +370,10 @@ can implement `IConnector` later without changing existing connectors.
    capability interfaces; adapt the existing `IDeviceClient` and factories behind them.
 2. Replace the `PrinterProtocol` enum with connector ids. **Pre-alpha database policy:** the app has no
    stable release yet, so schema changes do **not** add new migrations. The single `InitialCreate`
-   migration is regenerated instead, and no enum-to-id data mapping is written. Because a database
-   created by an older `InitialCreate` still records it as applied, `ApplyMigrations` must detect an
-   incompatible database (an applied migration id that the assembly does not contain), back the file
-   up, and create a fresh database, instead of failing. From the first stable release on, normal
-   additive migrations are used.
+   migration is regenerated instead, and no enum-to-id data mapping is written. The app does **not**
+   back up, delete or recreate databases itself: a database created by an older `InitialCreate` must be
+   removed manually by the developer or tester (`octagrid.db` in the OctaGrid data folder). From the
+   first stable release on, normal additive migrations are used.
 3. Move the Bambu and Moonraker code into separate projects loaded through the same extension manager.
 4. Add the manifest, compatibility checks, extension states and the settings-schema driven "add
    printer" form.
@@ -388,5 +395,7 @@ can implement `IConnector` later without changing existing connectors.
 4. **Extension API version vs app version:** one SemVer line or two? This ADR assumes two.
 5. ~~**Naming**~~ **Decided (2026-11-06):** *Connector* for the kind, *Extension* for the package
    (section 9).
-6. **Store policy:** confirm during certification that an extension-only package and the
-   "OctaGrid discovers separately installed extensions" model are accepted (policy 10.2.2 to 10.2.4).
+6. ~~**Store policy**~~ **Decided (2026-11-06):** follow the PowerToys Command Palette practice. Each
+   extension is its own Store listing with an app extension declaration; the host app discovers it
+   and does not download extension code. Command Palette ships this way in the Store, so it is the
+   reference for certification.
