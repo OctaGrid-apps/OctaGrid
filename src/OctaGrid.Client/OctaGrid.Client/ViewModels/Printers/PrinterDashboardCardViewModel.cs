@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
@@ -15,14 +14,20 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 {
     private readonly IAgentCommandsService _agentCommands;
     private readonly IByteArrayImageCache _imageCache;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<PrinterDashboardCardViewModel> _logger;
 
-    public PrinterDashboardCardViewModel(PrinterStatusWidget item, ILogger<PrinterDashboardCardViewModel>? logger = null)
+    public PrinterDashboardCardViewModel(
+        PrinterStatusWidget item,
+        IAgentCommandsService agentCommands,
+        IByteArrayImageCache imageCache,
+        ILoggerFactory? loggerFactory = null)
     {
         Item = item;
-        _agentCommands = App.Services.GetRequiredService<IAgentCommandsService>();
-        _imageCache = App.Services.GetRequiredService<IByteArrayImageCache>();
-        _logger = logger ?? App.Services.GetService<ILogger<PrinterDashboardCardViewModel>>() ?? NullLogger<PrinterDashboardCardViewModel>.Instance;
+        _agentCommands = agentCommands;
+        _imageCache = imageCache;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<PrinterDashboardCardViewModel>();
 
         WeakReferenceMessenger.Default.Register<PrinterTelemetryData, Guid>(this, item.Id, HandlePrinterTelemetry);
         _ = LoadData(CancellationToken.None);
@@ -88,7 +93,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     [RelayCommand]
     private async Task ShowPrinterFiles(CancellationToken cancellationToken)
     {
-        var dashboardViewModel = new FilePickerViewModel(Item.Id);
+        var dashboardViewModel = new FilePickerViewModel(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
         _ = dashboardViewModel.LoadDataCommand.ExecuteAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         var result = await this.ShowOverlayDialogAsync(null, dashboardViewModel);
@@ -116,7 +121,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             else if (Item.State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
                      or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed)
             {
-                var dashboardViewModel = new FilePickerViewModel(Item.Id);
+                var dashboardViewModel = new FilePickerViewModel(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
                 _ = dashboardViewModel.LoadDataCommand.ExecuteAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
                 var result = await this.ShowOverlayDialogAsync(null, dashboardViewModel);

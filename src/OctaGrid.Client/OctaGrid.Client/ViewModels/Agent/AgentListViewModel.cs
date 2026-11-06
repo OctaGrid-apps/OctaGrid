@@ -17,14 +17,6 @@ public partial class AgentListViewModel : ViewModelBase, IDialogParticipant
     private readonly ApplicationState _appState;
     private readonly ILogger<AgentListViewModel> _logger;
 
-    // Design-time only — see MainViewModel's parameterless constructor for why this exists.
-    public AgentListViewModel() : this(
-        App.Services.GetRequiredService<IAgentsClient>(),
-        App.Services.GetRequiredService<ApplicationState>(),
-        App.Services.GetService<ILogger<AgentListViewModel>>() ?? NullLogger<AgentListViewModel>.Instance)
-    {
-    }
-
     public AgentListViewModel(IAgentsClient agentsClient, ApplicationState appState, ILogger<AgentListViewModel>? logger = null)
     {
         _agentsClient = agentsClient;

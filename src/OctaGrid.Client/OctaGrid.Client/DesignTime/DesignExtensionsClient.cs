@@ -1,9 +1,9 @@
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Extensions;
 
-namespace OctaGrid.Client.Services;
+namespace OctaGrid.Client.DesignTime;
 
-/// <summary>Sample data for the designer and for modes that do not have an agent yet.</summary>
+/// <summary>Sample extensions for the designer and for tests.</summary>
 internal sealed class DesignExtensionsClient : IExtensionsClient
 {
     private const ConnectorCapabilities All =

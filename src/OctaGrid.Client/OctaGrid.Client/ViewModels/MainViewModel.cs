@@ -16,26 +16,12 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAgentsClient _agentsClient;
     private readonly IAppSettingsStore _appSettings;
+    private readonly INotificationService _notifications;
     private readonly IDashboardsClient _dashboardsClient;
     private readonly IUpdateService _updateService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IWorkspacesClient _workspacesClient;
     private bool _hasCheckedForUpdates;
-
-    // Design-time only: MainView.axaml's <Design.DataContext> instantiates this directly via
-    // <vm:MainViewModel/>, which needs a public parameterless constructor. Never used at
-    // runtime — App.axaml.cs's Initialize() populates App.Services with design-time mocks
-    // (DesignOctaGridClient etc.) before the previewer can reach this.
-    public MainViewModel() : this(
-        App.Services.GetRequiredService<IWorkspacesClient>(),
-        App.Services.GetRequiredService<IAgentsClient>(),
-        App.Services.GetRequiredService<IDashboardsClient>(),
-        App.Services.GetRequiredService<IUpdateService>(),
-        App.Services.GetRequiredService<IAppSettingsStore>(),
-        App.Services.GetRequiredService<ApplicationState>(),
-        App.Services.GetService<ILogger<MainViewModel>>() ?? NullLogger<MainViewModel>.Instance)
-    {
-    }
 
     public MainViewModel(
         IWorkspacesClient workspacesClient,
@@ -44,8 +30,20 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         IUpdateService updateService,
         IAppSettingsStore appSettings,
         ApplicationState appState,
+        INotificationService notifications,
+        DashboardsViewModel dashboardsPage,
+        PrinterListViewModel printersPage,
+        AgentListViewModel agentsPage,
+        WorkspaceListViewModel workspacesPage,
+        SettingsViewModel settingsPage,
         ILogger<MainViewModel>? logger = null)
     {
+        _notifications = notifications;
+        DashboardsPage = dashboardsPage;
+        PrintersPage = printersPage;
+        AgentsPage = agentsPage;
+        WorkspacesPage = workspacesPage;
+        SettingsPage = settingsPage;
         _workspacesClient = workspacesClient;
         _agentsClient = agentsClient;
         _dashboardsClient = dashboardsClient;
@@ -65,11 +63,29 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         };
     }
 
+    /// <summary>The page shown under "Dashboard"; given to the navigation item as its data context.</summary>
+    public DashboardsViewModel DashboardsPage { get; }
+
+    /// <summary>The page shown under "Printers".</summary>
+    public PrinterListViewModel PrintersPage { get; }
+
+    /// <summary>The page shown under "Agents" (Remote mode).</summary>
+    public AgentListViewModel AgentsPage { get; }
+
+    /// <summary>The page shown under "Workspaces" (Remote mode).</summary>
+    public WorkspaceListViewModel WorkspacesPage { get; }
+
+    /// <summary>The page shown under "Settings".</summary>
+    public SettingsViewModel SettingsPage { get; }
+
     [ObservableProperty]
     public partial ApplicationState AppStateService { get; set; }
 
     [ObservableProperty]
     public partial bool IsUpdateAvailable { get; set; }
+
+    /// <summary>Lets notifications appear in the window once the view has one.</summary>
+    public void AttachNotifications(Avalonia.Controls.TopLevel topLevel) => _notifications.Attach(topLevel);
 
     public bool IsRemoteMode => _appSettings.StartupSettings.Mode == ClientMode.Remote;
 
@@ -129,10 +145,11 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         {
             await LoadWorkspacesAsync(cancellationToken);
 
-            if (!_appSettings.ClientSettings.IsSafetyDisclaimerAccepted)
+            // The designer has no overlay layer to show the dialog in, and nobody to answer it.
+            if (!Avalonia.Controls.Design.IsDesignMode && !_appSettings.ClientSettings.IsSafetyDisclaimerAccepted)
             {
                 _logger.LogInformation("Safety disclaimer has not been accepted yet; displaying SafetyDisclaimerView");
-                var disclaimerViewModel = new SafetyDisclaimerViewModel();
+                var disclaimerViewModel = new SafetyDisclaimerViewModel(null);
                 var accepted = await this.ShowOverlayDialogAsync("Safety Warning & Disclaimer", disclaimerViewModel);
                 if (accepted)
                 {

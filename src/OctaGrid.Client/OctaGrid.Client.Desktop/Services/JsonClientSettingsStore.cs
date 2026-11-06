@@ -7,63 +7,55 @@ using OctaGrid.Client.Services;
 
 namespace OctaGrid.Client.Desktop.Services;
 
-public class JsonClientSettingsStore : IAppSettingsStore
+/// <summary>Keeps the client settings in a JSON file, loaded on first use.</summary>
+public class JsonClientSettingsStore : InMemorySettingsStore
 {
     private readonly ILogger<JsonClientSettingsStore> _logger;
     private readonly string _settingsFilePath;
-    private ClientSettings? _clientSettings;
     private bool _settingsIsLoaded;
-    private ClientSettings? _startupSettings;
 
-    public JsonClientSettingsStore(ILogger<JsonClientSettingsStore>? logger = null)
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="settingsFilePath">The settings file; defaults to the one in the OctaGrid data folder.</param>
+    public JsonClientSettingsStore(ILogger<JsonClientSettingsStore>? logger = null, string? settingsFilePath = null)
     {
         _logger = logger ?? NullLogger<JsonClientSettingsStore>.Instance;
-        _settingsFilePath = OctaGridDataPaths.SettingsPath;
+        _settingsFilePath = settingsFilePath ?? OctaGridDataPaths.SettingsPath;
     }
 
-    public event EventHandler<ClientSettings>? SettingsChanged;
-
-    public ClientSettings ClientSettings
+    public override ClientSettings ClientSettings
     {
         get
         {
-            if (!_settingsIsLoaded)
-            {
-                Load();
-            }
-            return _clientSettings!;
+            EnsureLoaded();
+            return base.ClientSettings;
         }
     }
 
-    public ClientSettings StartupSettings
+    public override ClientSettings StartupSettings
     {
         get
         {
-            if (!_settingsIsLoaded)
-            {
-                Load();
-            }
-            return _startupSettings!;
+            EnsureLoaded();
+            return base.StartupSettings;
         }
     }
 
-    public void Update(Func<ClientSettings, ClientSettings> update)
+    protected override void Persist(ClientSettings settings)
     {
-        var current = ClientSettings;
-        var updated = update(current);
-        if (updated == current)
-        {
-            return;
-        }
-
-        _clientSettings = updated;
         using (var fs = new FileStream(_settingsFilePath, FileMode.Create, FileAccess.Write))
         {
-            JsonSerializer.Serialize(fs, _clientSettings, JsonSerializerOptions.Web);
+            JsonSerializer.Serialize(fs, settings, JsonSerializerOptions.Web);
         }
 
         _logger.LogInformation("Saved updated client settings to {SettingsPath}", _settingsFilePath);
-        SettingsChanged?.Invoke(this, _clientSettings);
+    }
+
+    private void EnsureLoaded()
+    {
+        if (!_settingsIsLoaded)
+        {
+            Load();
+        }
     }
 
     private void Load()
@@ -81,8 +73,8 @@ public class JsonClientSettingsStore : IAppSettingsStore
                 _logger.LogWarning(ex, "Failed to deserialize client settings from {SettingsPath}, using defaults", _settingsFilePath);
             }
         }
+
         _settingsIsLoaded = true;
-        _clientSettings = response is null ? new ClientSettings() : response;
-        _startupSettings = _clientSettings;
+        Initialize(response ?? new ClientSettings());
     }
 }

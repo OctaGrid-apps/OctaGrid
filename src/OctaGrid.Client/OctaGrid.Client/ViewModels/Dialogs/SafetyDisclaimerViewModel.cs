@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Services;
@@ -10,14 +9,9 @@ public partial class SafetyDisclaimerViewModel : ViewModelBase, IDialogParticipa
 {
     private readonly ILogger<SafetyDisclaimerViewModel> _logger;
 
-    public SafetyDisclaimerViewModel() : this(
-        App.Services.GetService<ILogger<SafetyDisclaimerViewModel>>() ?? NullLogger<SafetyDisclaimerViewModel>.Instance)
+    public SafetyDisclaimerViewModel(ILogger<SafetyDisclaimerViewModel>? logger = null)
     {
-    }
-
-    public SafetyDisclaimerViewModel(ILogger<SafetyDisclaimerViewModel> logger)
-    {
-        _logger = logger;
+        _logger = logger ?? NullLogger<SafetyDisclaimerViewModel>.Instance;
         _logger.LogDebug("SafetyDisclaimerViewModel initialized");
     }
 

@@ -5,6 +5,7 @@
     xmlns:agents="using:OctaGrid.Protocol.Agents"
     xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:designtime="using:OctaGrid.Client.DesignTime"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:services="using:OctaGrid.Client.Services"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
@@ -17,7 +18,7 @@
     Header="Agents"
     mc:Ignorable="d">
     <Design.DataContext>
-        <vm:AgentListViewModel />
+        <x:Static Member="designtime:DesignData.Agents" />
     </Design.DataContext>
 
     <Grid RowDefinitions="Auto,*" RowSpacing="{DynamicResource Gap.PageSection}">

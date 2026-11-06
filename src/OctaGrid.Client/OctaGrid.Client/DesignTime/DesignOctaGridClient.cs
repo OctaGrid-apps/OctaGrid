@@ -5,13 +5,18 @@ using OctaGrid.Protocol.Printers;
 using OctaGrid.Protocol.Users;
 using OctaGrid.Protocol.Workspaces;
 
-namespace OctaGrid.Client.Services;
+namespace OctaGrid.Client.DesignTime;
 
-// A single mock backing every client interface for the XAML previewer only
+/// <summary>
+/// One in-memory client that backs every client interface with sample data.
+/// Used by the XAML designer (through <see cref="DesignData"/>) and by tests; never by the running app.
+/// </summary>
 internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IPrintersClient, IAgentsClient, IAuthClient, IDashboardsClient
 {
     public static readonly Guid DefaultDashboardId = Guid.Parse("00000000-0000-0000-0000-000000000002");
     public static readonly Guid DefaultWorkspaceId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    public static readonly Guid VoronPrinterId = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
+    public static readonly Guid BambuPrinterId = Guid.Parse("00000000-0000-0000-0000-0000000000a2");
 
     private static readonly IReadOnlyDictionary<string, string> NoSecrets = new Dictionary<string, string>();
     private static readonly IReadOnlyDictionary<string, string> VoronSettings = new Dictionary<string, string> { ["url"] = "192.168.1.50:7125" };
@@ -52,8 +57,8 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
 
     public Task<List<PrinterResponse>> GetPrintersList(Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken) =>
         Task.FromResult<List<PrinterResponse>>([
-            new PrinterResponse(Guid.NewGuid(), "Voron 2.4", "octagrid.moonraker", VoronSettings, NoSecrets, "Connected", true, 1),
-            new PrinterResponse(Guid.NewGuid(), "Bambu Lab X1C", "octagrid.bambu-mqtt", new Dictionary<string, string> { ["url"] = "192.168.1.51" }, NoSecrets, "Connected", true, 1)
+            new PrinterResponse(VoronPrinterId, "Voron 2.4", "octagrid.moonraker", VoronSettings, NoSecrets, "Connected", true, 1),
+            new PrinterResponse(BambuPrinterId, "Bambu Lab X1C", "octagrid.bambu-mqtt", new Dictionary<string, string> { ["url"] = "192.168.1.51" }, NoSecrets, "Connected", true, 1)
         ]);
 
     public Task<List<WorkspaceResponse>> GetWorkspaceList(CancellationToken cancellationToken) =>

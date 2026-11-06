@@ -39,6 +39,9 @@ public class NavigationRailItem : AvaloniaObject
     public static readonly StyledProperty<Type?> PageTypeProperty =
         AvaloniaProperty.Register<NavigationRailItem, Type?>(nameof(PageType));
 
+    public static readonly StyledProperty<object?> PageDataContextProperty =
+        AvaloniaProperty.Register<NavigationRailItem, object?>(nameof(PageDataContext));
+
     public static readonly StyledProperty<bool> ShowBadgeProperty =
         AvaloniaProperty.Register<NavigationRailItem, bool>(nameof(ShowBadge));
 
@@ -132,12 +135,28 @@ public class NavigationRailItem : AvaloniaObject
         set => SetValue(ShowBadgeProperty, value);
     }
 
+    /// <summary>
+    /// The data context given to the page when it is created from <see cref="PageType"/>. The owner of
+    /// the rail supplies it (usually from its own view model), so pages never look their view model up
+    /// from a container themselves.
+    /// </summary>
+    public object? PageDataContext
+    {
+        get => GetValue(PageDataContextProperty);
+        set => SetValue(PageDataContextProperty, value);
+    }
+
     public Control? EnsurePage()
     {
         if (Page is null && PageType is not null)
         {
-            Page = (App.Services?.GetService(PageType) as Control)
-                ?? (Control)Activator.CreateInstance(PageType)!;
+            var page = (Control)Activator.CreateInstance(PageType)!;
+            if (PageDataContext is not null)
+            {
+                page.DataContext = PageDataContext;
+            }
+
+            Page = page;
         }
 
         return Page;

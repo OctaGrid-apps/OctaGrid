@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
@@ -16,7 +15,8 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 {
-    private readonly IAgentCommandsService? _agentCommands;
+    private readonly IAgentCommandsService _agentCommands;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ApplicationState _appState;
     private readonly ILogger<PrinterListViewModel> _logger;
     private readonly INotificationService _notification;
@@ -26,13 +26,14 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         IPrintersClient printersClient,
         INotificationService notification,
         ApplicationState appState,
-        ILogger<PrinterListViewModel>? logger = null,
-        IAgentCommandsService? agentCommands = null)
+        IAgentCommandsService agentCommands,
+        ILoggerFactory? loggerFactory = null)
     {
         _printersClient = printersClient;
         _notification = notification;
         _appState = appState;
-        _logger = logger ?? NullLogger<PrinterListViewModel>.Instance;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<PrinterListViewModel>();
         _agentCommands = agentCommands;
         WeakReferenceMessenger.Default.Register<PrinterEntityUpsert>(this, HandlePrinterEntityUpsert);
         WeakReferenceMessenger.Default.Register<PrinterEntityDelete>(this, HandlePrinterEntityDelete);
@@ -42,7 +43,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     public partial ObservableCollection<IPrinterListItem> Printers { get; set; } = [];
 
     /// <summary>The connectors that are available, used to name them in the list.</summary>
-    private IReadOnlyList<ConnectorDescriptor> Connectors => _agentCommands?.Connectors ?? [];
+    private IReadOnlyList<ConnectorDescriptor> Connectors => _agentCommands.Connectors;
 
     [RelayCommand]
     private async Task ChangePrinterEnabled(PrinterListItem printer, CancellationToken cancellationToken)
@@ -64,7 +65,8 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     [RelayCommand]
     private async Task CreatePrinter(CancellationToken cancellationToken)
     {
-        var printerViewModel = new EditPrinterViewModel();
+        var printerViewModel = new EditPrinterViewModel(
+            new PrinterViewModel(new Printer()), _agentCommands, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Create new printer", printerViewModel);
         if (result is null)
@@ -120,7 +122,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             ConnectorId = printer.ConnectorId,
             Enabled = printer.Enabled,
             Secrets = new Dictionary<string, string>(printer.Secrets),
-        }), App.Services.GetRequiredService<IAgentCommandsService>());
+        }), _agentCommands, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Edit printer", printerViewModel);
         if (result is null)

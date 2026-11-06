@@ -3,9 +3,10 @@ using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;
 
-namespace OctaGrid.Client.Services;
+namespace OctaGrid.Client.DesignTime;
 
-internal sealed class AgentCommandsService : IAgentCommandsService
+/// <summary>Agent commands that do nothing, for the designer and for tests.</summary>
+internal sealed class DesignAgentCommands : IAgentCommandsService
 {
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;

@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Views;
@@ -7,14 +6,16 @@ namespace OctaGrid.Client.Views;
 [ViewFor(typeof(DashboardsViewModel))]
 public partial class DashboardsView : ContentPage
 {
-    private readonly DashboardsViewModel _dataContext;
-
     public DashboardsView()
     {
         InitializeComponent();
-        _dataContext = App.Services.GetRequiredService<DashboardsViewModel>();
-        DataContext = _dataContext;
-
-        Loaded += async (_, _) => await _dataContext.LoadDataCommand.ExecuteAsync(null);
+        // The owner of the page supplies its view model (see NavigationRailItem.PageDataContext).
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is DashboardsViewModel viewModel)
+            {
+                await viewModel.LoadDataCommand.ExecuteAsync(null);
+            }
+        };
     }
 }

@@ -4,17 +4,19 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:designtime="using:OctaGrid.Client.DesignTime"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:services="using:OctaGrid.Client.Services"
     xmlns:views="using:OctaGrid.Client.Views"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     d:DesignHeight="450"
     d:DesignWidth="800"
+    Background="{DynamicResource AppWindowBackground}"
     services:DialogManager.Register="{Binding}"
     x:DataType="vm:MainViewModel"
     mc:Ignorable="d">
     <Design.DataContext>
-        <vm:MainViewModel />
+        <x:Static Member="designtime:DesignData.Main" />
     </Design.DataContext>
 
     <controls:NavigationRail HideHeaderWhenSelected="True">
@@ -22,23 +24,27 @@
         <controls:NavigationRailItem
             Header="Dashboard"
             Icon="{StaticResource dashboard-regular}"
+            PageDataContext="{Binding DashboardsPage}"
             PageType="{x:Type views:DashboardsView}" />
 
         <controls:NavigationRailItem
             Header="Printers"
             Icon="{StaticResource print-regular}"
+            PageDataContext="{Binding PrintersPage}"
             PageType="{x:Type views:PrinterListView}" />
 
         <controls:NavigationRailItem
             Header="Agents"
             Icon="{StaticResource agents-regular}"
             IsVisible="{Binding IsRemoteMode}"
+            PageDataContext="{Binding AgentsPage}"
             PageType="{x:Type views:AgentListView}" />
 
         <controls:NavigationRailItem
             Header="Workspaces"
             Icon="{StaticResource grid-dots-regular}"
             IsVisible="{Binding IsRemoteMode}"
+            PageDataContext="{Binding WorkspacesPage}"
             PageType="{x:Type views:WorkspaceListView}" />
 
         <controls:NavigationRail.FooterItems>
@@ -52,6 +58,7 @@
             <controls:NavigationRailItem
                 Header="Settings"
                 Icon="{StaticResource settings-regular}"
+                PageDataContext="{Binding SettingsPage}"
                 PageType="{x:Type views:SettingsView}"
                 ShowBadge="{Binding IsUpdateAvailable}" />
         </controls:NavigationRail.FooterItems>

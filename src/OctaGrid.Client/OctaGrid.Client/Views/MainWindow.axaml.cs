@@ -5,8 +5,6 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
-using Microsoft.Extensions.DependencyInjection;
-using OctaGrid.Client.Services;
 
 namespace OctaGrid.Client.Views;
 
@@ -22,8 +20,6 @@ public partial class MainWindow : Window
     {
         base.OnLoaded(e);
         HideBuiltInDrawnTitle();
-        var _settings = App.Services.GetRequiredService<IAppSettingsStore>();
-        _settings.SettingsChanged += (e, settings) => this.ApplyTheme(settings);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

@@ -11,7 +11,7 @@ public static class Extensions
     {
         services.AddOctoGridClientLocal();
         App.RegisterAppServices(services);
-        App.Services.ApplyMigrations();
+        (App.Services ?? throw new InvalidOperationException("Application services were not registered.")).ApplyMigrations();
         return services;
     }
 

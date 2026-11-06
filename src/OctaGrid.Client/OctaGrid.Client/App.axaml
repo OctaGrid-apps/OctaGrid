@@ -21,6 +21,8 @@
     </Application.Resources>
 
     <Application.Styles>
+        <!--  The default theme everywhere, including the designer. Windows layers MicaTheme on top (see App.axaml.cs).  -->
+        <StyleInclude Source="avares://OctaGrid.Client/Styles/Themes/SolidTheme.axaml" />
         <StyleInclude Source="avares://OctaGrid.Client/Styles/Styles.axaml" />
         <StyleInclude Source="avares://OctaGrid.Client/Styles/TypographyStyles.axaml" />
         <StyleInclude Source="avares://OctaGrid.Client/Controls/NavigationView/NavigationRail.axaml" />

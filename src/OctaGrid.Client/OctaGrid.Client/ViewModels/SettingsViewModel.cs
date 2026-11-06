@@ -4,7 +4,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
@@ -19,28 +18,25 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     private readonly ApplicationState _appState;
     private readonly IUpdateService _updateService;
     private readonly IExtensionsClient? _extensionsClient;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly INotificationService? _notifications;
     private readonly ILogger<SettingsViewModel> _logger;
-
-    public SettingsViewModel() : this(
-        App.Services.GetRequiredService<IAppSettingsStore>(),
-        App.Services.GetRequiredService<ApplicationState>(),
-        App.Services.GetService<IUpdateService>(),
-        App.Services.GetService<ILogger<SettingsViewModel>>() ?? NullLogger<SettingsViewModel>.Instance,
-        App.Services.GetService<IExtensionsClient>())
-    {
-    }
 
     public SettingsViewModel(
         IAppSettingsStore appSettingsStore,
         ApplicationState appState,
         IUpdateService? updateService = null,
         ILogger<SettingsViewModel>? logger = null,
-        IExtensionsClient? extensionsClient = null)
+        IExtensionsClient? extensionsClient = null,
+        INotificationService? notifications = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _appSettings = appSettingsStore;
         _appState = appState;
-        _updateService = updateService ?? new DesignUpdateService();
+        _updateService = updateService ?? new NullUpdateService();
         _extensionsClient = extensionsClient;
+        _notifications = notifications;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
 
         _appState.PropertyChanged += (s, e) =>
@@ -63,8 +59,17 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Dark), ElementTheme.Dark));
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Light), ElementTheme.Light));
 
-        WindowTransparencyLevels.Add(new Option<TransparencyLevel>(nameof(TransparencyLevel.Mica), TransparencyLevel.Mica));
+        // Mica is a Windows 11 backdrop; the other platforms use the opaque Solid theme.
+        if (OperatingSystem.IsWindows())
+        {
+            WindowTransparencyLevels.Add(new Option<TransparencyLevel>(nameof(TransparencyLevel.Mica), TransparencyLevel.Mica));
+        }
+
+        WindowTransparencyLevels.Add(new Option<TransparencyLevel>("Solid", TransparencyLevel.None));
     }
+
+    /// <summary>The window style can only be chosen where the platform offers more than the solid theme.</summary>
+    public bool CanChooseWindowStyle => WindowTransparencyLevels.Count > 1;
 
     private void ApplyUpdateInfo(AppUpdateInfo? info)
     {
@@ -233,8 +238,8 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         _logger.LogInformation("Opening the extension management dialog from Settings");
         var viewModel = new ExtensionsViewModel(
             _extensionsClient,
-            App.Services.GetService<INotificationService>(),
-            App.Services.GetService<ILogger<ExtensionsViewModel>>());
+            _notifications,
+            _loggerFactory.CreateLogger<ExtensionsViewModel>());
         await this.ShowOverlayDialogAsync("Extensions", viewModel);
         await RefreshExtensionsSummaryAsync(CancellationToken.None);
     }
@@ -340,7 +345,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     private async Task ShowSafetyDisclaimer()
     {
         _logger.LogInformation("Opening Safety Warning & Disclaimer dialog from Settings");
-        var disclaimerViewModel = new SafetyDisclaimerViewModel();
+        var disclaimerViewModel = new SafetyDisclaimerViewModel(_loggerFactory.CreateLogger<SafetyDisclaimerViewModel>());
         var accepted = await this.ShowOverlayDialogAsync("Safety Warning & Disclaimer", disclaimerViewModel);
         if (accepted && !_appSettings.ClientSettings.IsSafetyDisclaimerAccepted)
         {
