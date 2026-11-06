@@ -1,14 +1,15 @@
 # ADR 0001: Connector extension API
 
 - **Status:** Proposed
-- **Date:** 2026-11-05
+- **Date:** 2026-11-05 (updated 2026-11-06)
 - **Scope:** Agent-side printer connectors (Bambu Lab MQTT, Moonraker, third-party)
 
 ## Context
 
 Printer support is currently compiled into `OctaGrid.Agent.Core`. We want third-party developers
 to add connectors, with some shipped and enabled by default and others installed by the user
-(Microsoft Store add-ons in the Store build). Remote mode, where the Agent runs as a separate
+(in the Store build, as separate Store packages; see "Store distribution and prototype findings").
+Remote mode, where the Agent runs as a separate
 process on Windows, Linux or Docker, is planned next, so the design must not assume the Agent
 runs inside the desktop app.
 
@@ -128,14 +129,16 @@ without forcing every connector to know about the UI.
   `Microsoft.Extensions.*` abstractions resolve from the host's context so type identity matches.
   Everything else (MQTTnet, FluentFTP, a vendor SDK) comes from the extension's folder.
 - **Sources** (an `IExtensionSource` abstraction, since where files live differs per platform):
-  1. *Bundled*: shipped next to the app, enabled by default.
-  2. *User folder*: `<data>/extensions/<id>/<version>/`, installed from a package file or a feed.
+  1. *Bundled*: shipped inside the app package (section 10), loaded in-process, enabled by default.
+  2. *User folder*: `<data>/extensions/<id>/<version>/`, installed from the catalog, a package file
+     or a developer folder (section 12). Loaded in-process.
   3. *Store extension package*: a separate MSIX that declares an app extension for OctaGrid (see
      "Store distribution and prototype findings"). The Store handles download, signing and update.
-     The host discovers it, copies its files into its own data folder and loads the copy.
-  4. *Docker*: a mounted volume on the agent image.
+     The host discovers it and runs it **out of process** through the package's execution alias.
+     Files are never copied.
+  4. *Docker / Linux / macOS*: a mounted or installed folder; same as 2.
 - User-installed extensions are not enabled until the user confirms a trust prompt that names the
-  publisher and the permissions it needs (network, file access).
+  publisher and the permissions it needs (network, file access). Bundled extensions skip the prompt.
 
 ### 7. Remote mode and hosting
 
@@ -153,7 +156,7 @@ execute third-party code, which keeps it cheap and safe. For Remote mode:
 ### 8. Security model
 
 In-process .NET plugins run with the full privileges of the Agent. They cannot be sandboxed. For v1 we
-accept that and reduce the risk with explicit user trust, signed Store add-ons, and publisher info.
+accept that and reduce the risk with explicit user trust, Store-signed extension packages, and publisher info.
 A future option is out-of-process connectors over JSON-RPC (the repository already uses
 `StreamJsonRpc`), which would isolate crashes and allow limited permissions and other languages. The
 `IConnector` and `IPrinterSession` contracts are designed so that an out-of-process proxy can implement
@@ -161,6 +164,72 @@ them later without changing connectors written in-process.
 
 Custom commands (Expert mode) are declared by the connector, carry a risk level, and require an
 explicit user action and confirmation. The Agent never runs a command that the connector did not declare.
+
+### 9. Naming
+
+- **Connector** is the extension kind that connects OctaGrid to a printer's firmware or API
+  (`octagrid.moonraker`). It is the name used in code, UI and docs.
+- **Extension** is the umbrella term for any installable package. The manifest has `kind: "connector"`,
+  so later kinds (themes, dashboard widgets, command packs) need no renaming.
+- Rejected: *agent client* (clashes with the Agent component and with the Desktop Client) and *driver*
+  (suggests Windows printer drivers or kernel code).
+- Names: SDK `OctaGrid.Extensions.Abstractions`; connector projects `OctaGrid.Connectors.<Name>`;
+  extension ids `publisher.name`.
+
+### 10. Bundled connectors
+
+The Bambu Lab and Moonraker connectors ship with every build and are the reference implementations:
+
+- **Layout:** `extensions/<id>/` next to the app, each with a manifest, exactly like a third-party
+  extension. The host sees them as the source *Bundled*.
+- **Every distribution:** Velopack installer, portable zip, MSIX (Store) and Docker image contain them,
+  because they are part of the build output. Bundled code is fully contained in our package, which is
+  what Store policy 10.2.4 asks for.
+- **Behaviour:** enabled by default, no trust prompt, can be disabled but not uninstalled, updated with
+  the app (through the Store for the Store build).
+- **Overrides:** if a user installs a newer version of the same connector id, the higher SemVer wins and
+  the other copy is listed as *shadowed*. This allows a connector hotfix without an app release.
+- **Execution:** in-process in every build. The main package may execute its own files, so the
+  `WindowsApps` restriction and Smart App Control do not apply.
+- **Build check:** a test copies the bundled connectors into an `extensions/` folder and loads them
+  through the real extension manager, so manifest and API mismatches fail the build.
+
+### 11. Distribution: one format and catalog, several install sources
+
+Store Add-ons are not used to deliver extensions: durable add-ons are licences, and optional packages
+are limited to the main app's publisher. They stay available for selling a licence to our own paid
+features later. Edge-style extension marketplaces work because the host owns the marketplace and the
+installer; for OctaGrid that is our own catalog.
+
+- **Format:** an extension is a folder or `.octaext` zip with `octagrid-extension.json`, built by an
+  `octagrid-ext pack` command that also writes file hashes (and an optional signature).
+- **Publishing:** authors publish from their own GitHub repository using a provided GitHub Action
+  that packs the extension and creates a release. No account with OctaGrid is needed.
+- **Index:** a public repository (`octagrid-extensions`) holds one JSON entry per extension (id,
+  repository, install source, version). Authors list an extension with a pull request. CI validates the
+  manifest schema, API version, hashes and that the id is unclaimed; a short human review follows.
+- **In-app catalog:** reads the index and installs by URL with a pinned hash. Trust levels: *Verified*
+  (reviewed), *Community* (shown with a warning), *Local* (developer folder or file).
+- **Install sources per build:**
+
+  | Build | How an extension is installed |
+  |---|---|
+  | Microsoft Store | As its own Store (or WinGet) app, listed in the catalog. OctaGrid discovers it and runs it out of process. The Store build does **not** download extension code itself: Store policy 10.2.2 forbids extending an app through dynamic inclusion of code, and 10.2.3 restricts installing secondary software. To be confirmed during certification. |
+  | Velopack, portable, Docker, Linux, macOS | The catalog downloads the package into `<data>/extensions/`. |
+
+  Both use the same manifest, compatibility checks and catalog entries; only the transport differs.
+
+### 12. Developer loop without publishing
+
+- `dotnet new octagrid-connector` scaffolds a project, manifest and launch profile.
+- `OctaGrid.Extensions.Testing`: a fake printer server and contract tests, so `dotnet test` verifies a
+  connector without running OctaGrid.
+- **Developer mode** (a setting or `--extensions-dev <folder>`): loads an extension straight from a
+  build output folder, with a file watcher and a *Reload extensions* command. Folder extensions run
+  in-process, so debugging with F5 works.
+- **Install from file:** a `.octaext` can be shared as a beta and installed without the catalog.
+- **Store build:** it can load from a folder, but Smart App Control may block unsigned DLLs. Developers
+  should use the portable build (SAC is normally off on developer machines) or sign their DLLs.
 
 ## Store distribution and prototype findings
 
@@ -275,6 +344,9 @@ Command Palette uses the same discovery mechanism (an app extension contract) bu
   `docs/VERSIONING.md`.
 - In-process extensions are trusted code. The trust prompt and publisher info are part of the product,
   not an afterthought.
+- Two install paths (catalog download, and Store packages) must be kept consistent through one manifest
+  and one compatibility check.
+- We take on running an index repository and its CI, and a small review process for listings.
 
 ## Migration plan
 
@@ -288,8 +360,11 @@ can implement `IConnector` later without changing existing connectors.
 3. Move the Bambu and Moonraker code into separate projects loaded through the same extension manager.
 4. Add the manifest, compatibility checks, extension states and the settings-schema driven "add
    printer" form.
-5. Add user-folder installation and the trust prompt, then Store add-on and Docker sources.
-6. Publish the SDK package and a project template; add an SDK versioning section to `docs/VERSIONING.md`.
+5. Add user-folder installation and the trust prompt, then the Store (out-of-process) and Docker
+   sources.
+6. Add developer mode, the `octagrid-ext pack` command and `OctaGrid.Extensions.Testing`.
+7. Publish the SDK package and a project template; add an SDK versioning section to `docs/VERSIONING.md`.
+8. Create the `octagrid-extensions` index repository with CI validation, then the in-app catalog.
 
 ## Open questions
 
@@ -298,6 +373,10 @@ can implement `IConnector` later without changing existing connectors.
 2. ~~**Store add-ons:** can the app load code from add-on packages?~~ **Answered by the prototype:**
    not in place, but yes by copying into the host's data folder. Remaining checks (Store-signed
    package, Smart App Control, Store certification, arm64) are listed under "Not yet verified".
-3. **Distribution of third-party extensions:** a curated feed, plain GitHub releases, or both?
+3. ~~**Distribution of third-party extensions**~~ **Decided (2026-11-06):** author-owned GitHub
+   releases plus a curated index repository and in-app catalog (section 11).
 4. **Extension API version vs app version:** one SemVer line or two? This ADR assumes two.
-5. **Naming:** "connector" (this ADR), "agent client" (original wording) or "driver"?
+5. ~~**Naming**~~ **Decided (2026-11-06):** *Connector* for the kind, *Extension* for the package
+   (section 9).
+6. **Store policy:** confirm during certification that an extension-only package and the
+   "OctaGrid discovers separately installed extensions" model are accepted (policy 10.2.2 to 10.2.4).
