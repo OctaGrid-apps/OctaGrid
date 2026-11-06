@@ -9,6 +9,9 @@
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
+                    <!--  0. The window shows the OS Mica backdrop  -->
+                    <SolidColorBrush x:Key="AppWindowBackground" Color="Transparent" />
+
                     <!--  1. Placeholder & Secondary Foreground (separate from BaseMedium)  -->
                     <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#9E000000" />
                     <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#9E000000" />
@@ -53,6 +56,9 @@
                     <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#80FFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
+                    <!--  0. The window shows the OS Mica backdrop  -->
+                    <SolidColorBrush x:Key="AppWindowBackground" Color="Transparent" />
+
                     <!--  1. Separate Placeholder & Secondary Foreground from BaseMedium (#10FFFFFF)  -->
                     <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#78FFFFFF" />
                     <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#78FFFFFF" />

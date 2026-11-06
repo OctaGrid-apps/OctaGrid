@@ -81,10 +81,10 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard
-                    Description="Window transparency level"
-                    Header="Transparency level"
+                    Description="Mica shows the Windows 11 backdrop through the window; Solid uses opaque surfaces"
+                    Header="Window style"
                     Icon="{StaticResource square-hint-sparkles-regular}"
-                    IsVisible="False">
+                    IsVisible="{Binding CanChooseWindowStyle}">
                     <ComboBox
                         DisplayMemberBinding="{Binding DisplayText}"
                         ItemsSource="{Binding WindowTransparencyLevels}"

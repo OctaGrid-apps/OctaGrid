@@ -28,12 +28,7 @@
     </Design.PreviewWith>
 
     <Styles.Resources>
-        <SolidColorBrush x:Key="NavigationRailPaneBackground" Color="Transparent" />
-        <SolidColorBrush x:Key="NavigationRailContentBorderBrush" Color="{DynamicResource SystemBaseMediumColor}" />
-        <SolidColorBrush x:Key="NavigationRailItemPointerOverBackground" Color="#05FFFFFF" />
-        <SolidColorBrush x:Key="NavigationRailItemPointerOverForeground" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="NavigationRailItemSelectedBackground" Color="#08FFFFFF" />
-        <SolidColorBrush x:Key="NavigationRailAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+        <!--  The brushes (NavigationRailPaneBackground, NavigationRailAccentBrush, ...) come from the active theme in Styles/Themes.  -->
 
         <!--  Template for each NavigationRailItem  -->
         <DataTemplate

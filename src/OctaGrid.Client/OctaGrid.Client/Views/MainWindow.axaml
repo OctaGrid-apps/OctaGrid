@@ -8,7 +8,7 @@
     Title="OctaGrid"
     d:DesignHeight="450"
     d:DesignWidth="800"
-    Background="Transparent"
+    Background="{DynamicResource AppWindowBackground}"
     ExtendClientAreaTitleBarHeightHint="-1"
     ExtendClientAreaToDecorationsHint="True"
     Icon="/Assets/OctaGrid-logo.ico"

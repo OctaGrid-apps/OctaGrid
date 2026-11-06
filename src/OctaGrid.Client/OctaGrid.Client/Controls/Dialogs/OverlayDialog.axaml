@@ -11,16 +11,7 @@
         </Border>
     </Design.PreviewWith>
 
-    <ResourceDictionary.ThemeDictionaries>
-        <ResourceDictionary x:Key="Default">
-            <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FFFFFFFF" />
-            <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#1A000000" />
-        </ResourceDictionary>
-        <ResourceDictionary x:Key="Dark">
-            <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FF2C2C2C" />
-            <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#24FFFFFF" />
-        </ResourceDictionary>
-    </ResourceDictionary.ThemeDictionaries>
+    <!--  OverlayDialogBackground and OverlayDialogBorderBrush come from the active theme in Styles/Themes.  -->
 
     <!-- <ControlTheme x:Key="{x:Type controls:DialogHost}" TargetType="controls:DialogHost"> -->
     <!--     <Setter Property="Template"> -->

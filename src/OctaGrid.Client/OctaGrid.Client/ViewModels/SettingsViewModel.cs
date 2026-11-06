@@ -59,8 +59,17 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Dark), ElementTheme.Dark));
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Light), ElementTheme.Light));
 
-        WindowTransparencyLevels.Add(new Option<TransparencyLevel>(nameof(TransparencyLevel.Mica), TransparencyLevel.Mica));
+        // Mica is a Windows 11 backdrop; the other platforms use the opaque Solid theme.
+        if (OperatingSystem.IsWindows())
+        {
+            WindowTransparencyLevels.Add(new Option<TransparencyLevel>(nameof(TransparencyLevel.Mica), TransparencyLevel.Mica));
+        }
+
+        WindowTransparencyLevels.Add(new Option<TransparencyLevel>("Solid", TransparencyLevel.None));
     }
+
+    /// <summary>The window style can only be chosen where the platform offers more than the solid theme.</summary>
+    public bool CanChooseWindowStyle => WindowTransparencyLevels.Count > 1;
 
     private void ApplyUpdateInfo(AppUpdateInfo? info)
     {

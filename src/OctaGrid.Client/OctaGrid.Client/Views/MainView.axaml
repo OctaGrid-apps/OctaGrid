@@ -11,6 +11,7 @@
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     d:DesignHeight="450"
     d:DesignWidth="800"
+    Background="{DynamicResource AppWindowBackground}"
     services:DialogManager.Register="{Binding}"
     x:DataType="vm:MainViewModel"
     mc:Ignorable="d">

@@ -65,20 +65,40 @@ public partial class App : Application
     {
         AvaloniaXamlLoader.Load(this);
 
-        if (!Design.IsDesignMode && OperatingSystem.IsWindows() && Styles.Count > 0)
-        {
-            var micaTheme = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://OctaGrid.Client/"))
-            {
-                Source = new Uri("avares://OctaGrid.Client/Styles/Themes/MicaTheme.axaml")
-            };
-            Styles.Add(micaTheme);
-        }
-
         Logger.LogInformation("Application initialized");
 
 #if DEBUG
         this.AttachDeveloperTools();
 #endif
+    }
+
+    private Avalonia.Markup.Xaml.Styling.StyleInclude? _micaTheme;
+
+    /// <summary>
+    /// SolidTheme is always loaded. On Windows the Mica theme is layered on top of it while the Mica backdrop
+    /// is selected; it makes the window transparent, so it must not stay loaded when the backdrop is turned off.
+    /// </summary>
+    private void ApplyBackdropTheme(ClientSettings settings)
+    {
+        var wanted = !Design.IsDesignMode && OperatingSystem.IsWindows() && settings.TransparencyLevel == TransparencyLevel.Mica;
+        if (wanted == (_micaTheme is not null))
+        {
+            return;
+        }
+
+        if (wanted)
+        {
+            _micaTheme = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://OctaGrid.Client/"))
+            {
+                Source = new Uri("avares://OctaGrid.Client/Styles/Themes/MicaTheme.axaml")
+            };
+            Styles.Add(_micaTheme);
+        }
+        else
+        {
+            Styles.Remove(_micaTheme!);
+            _micaTheme = null;
+        }
     }
 
     private static ILogger Logger => Services?.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
@@ -112,6 +132,7 @@ public partial class App : Application
 
             var settings = settingsStore.ClientSettings;
             logger.LogInformation("Client settings loaded: Mode={Mode}, AskToSelectClientMode={AskToSelectClientMode}", settings.Mode, settings.AskToSelectClientMode);
+            ApplyBackdropTheme(settings);
 
             if (settings.Mode == ClientMode.Undefined)
             {
@@ -146,7 +167,11 @@ public partial class App : Application
                 {
                     DataContext = services.GetRequiredService<MainViewModel>()
                 };
-                settingsStore.SettingsChanged += (_, changed) => mainWindow.ApplyTheme(changed);
+                settingsStore.SettingsChanged += (_, changed) =>
+                {
+                    ApplyBackdropTheme(changed);
+                    mainWindow.ApplyTheme(changed);
+                };
                 desktop.MainWindow = mainWindow;
             }
 
