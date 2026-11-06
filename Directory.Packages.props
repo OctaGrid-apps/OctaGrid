@@ -20,6 +20,9 @@
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.94" />
     <PackageVersion Include="SharpCompress" Version="0.50.8" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="StreamJsonRpc" Version="2.26.150" />
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
