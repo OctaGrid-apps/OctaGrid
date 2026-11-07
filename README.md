@@ -87,18 +87,12 @@ dotnet run --project src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client
 
 ### Avalonia Accelerate License Key
 
-The client project references `AvaloniaUI.DiagnosticsSupport`, which uses an `AvaloniaUILicenseKey`. To keep your license key personal and untracked by Git, store it in an `OctaGrid.Client.csproj.user` file (which MSBuild imports automatically and Git ignores via `*.user` in `.gitignore`):
+The client project references `AvaloniaUI.DiagnosticsSupport`, which needs an Avalonia license key. The key is read from the `AVALONIA_TOOLS_LICENSE_KEY` environment variable (see `OctaGrid.Client.csproj`). Set it once for your user account, then restart your IDE, terminal and agent so they pick it up:
 
-1. Create `src/OctaGrid.Client/OctaGrid.Client/OctaGrid.Client.csproj.user` next to `OctaGrid.Client.csproj`.
-2. Add your license key:
-
-```xml
-<Project>
-  <ItemGroup>
-    <AvaloniaUILicenseKey Include="avln_on_key:v1:YOUR_LICENSE_KEY_HERE" />
-  </ItemGroup>
-</Project>
+```powershell
+[Environment]::SetEnvironmentVariable("AVALONIA_TOOLS_LICENSE_KEY", "avln_on_key:v1:YOUR_LICENSE_KEY_HERE", "User")
 ```
+
 
 ---
 

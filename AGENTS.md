@@ -1,278 +1,124 @@
-# Avalonia
+# AGENTS.md
 
-## Overview
+Guidance for AI coding agents working in this repository. Keep it short and factual: add a rule only when it prevents a real mistake, and update it in the same change that makes it stale.
 
-Avalonia is an open-source, cross-platform UI framework for .NET that enables developers to build desktop and mobile applications from a single C# and XAML codebase. It supports Windows, macOS, Linux, iOS, Android, and WebAssembly. Avalonia draws heavily from WPF concepts such as styles, data templates, and data binding but introduces its own styling system and rendering pipeline built on Skia. It supports the MVVM pattern natively and integrates well with ReactiveUI and CommunityToolkit.Mvvm.
+## Project
 
-## Project Setup and Application Bootstrap
+OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printers. Stack: **.NET 10, C# (latest), Avalonia 12, CommunityToolkit.Mvvm, EF Core (SQLite), xunit v3**.
 
-Create a new Avalonia application and configure the application entry point with platform-specific initialization.
+- **Status: pre-alpha.** Local mode only: the Avalonia client hosts an in-process agent and a SQLite database. Windows is the only shipped platform.
+- **Planned (architecture must not block it):** a separate Agent app (Windows/Linux/Docker) plus an ASP.NET Core server, client↔server over SignalR and telemetry over WebRTC; third-party connector extensions; Linux/macOS/WASM clients (WASM is Remote-mode only). **Local mode must keep working.**
+- Do not design for AI/MCP features inside the product.
 
-```csharp
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Markup.Xaml;
+## Solution map and dependency rules
 
-namespace MyAvaloniaApp;
-
-public class App : Application
-{
-    public override void Initialize()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-
-    public override void OnFrameworkInitializationCompleted()
-    {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainWindowViewModel()
-            };
-        }
-        else if (ApplicationLifetime is ISingleViewApplicationLifetime singleView)
-        {
-            singleView.MainView = new MainView
-            {
-                DataContext = new MainWindowViewModel()
-            };
-        }
-
-        base.OnFrameworkInitializationCompleted();
-    }
-}
-
-public static class Program
-{
-    [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
-
-    public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .WithInterFont()
-            .LogToTrace();
-}
+```text
+Client.Desktop ──► Client ──► Client.Contracts ──► Protocol
+      │                              ▲
+      └────────► Client.Local ───────┘      Client.Local ──► Application ──► Data.Abstractions ──► Protocol
+                      │                                      └──► Agent.Core ──► Extensions.Abstractions ──► Protocol
+                      └──► Connectors.* (bundled)             Connectors.* ──► Extensions.Abstractions only
 ```
 
-## MVVM with Data Binding
+| Project | Owns |
+|---|---|
+| `OctaGrid.Protocol` | Wire contract: request/response DTOs, messages, exceptions (`AppException` family), connector descriptors. **Dependency-free and WASM-safe.** Packable SDK package. |
+| `OctaGrid.Extensions.Abstractions` | Connector runtime interfaces (`IConnector`, `IPrinterSession`, capabilities). Agent-side only. Packable SDK package. |
+| `OctaGrid.Data.Abstractions` | EF Core entities (`Models/`), `IEntityTypeConfiguration` classes (`Configurations/`), `OctaGridContext`. Provider-neutral. |
+| `OctaGrid.Application` | Business logic (`Services/`), FluentValidation validators (`Validation/`). Transport-agnostic. |
+| `OctaGrid.Agent.Core` | Connector registry/loader/manager, `DeviceOrchestrator`, `AgentWorker`. No UI, no EF. |
+| `OctaGrid.Client.Contracts` | `I*Client` interfaces the UI talks to. The seam between UI and "where the backend lives". |
+| `OctaGrid.Client.Local` | In-process implementation of the contracts: SQLite, DI wiring, migrations, bundled connectors. |
+| `OctaGrid.Client` | Avalonia UI: views, ViewModels, controls, styles, design-time data. Platform-neutral. |
+| `OctaGrid.Client.Desktop` | Windows host: `Program.cs`, logging, settings file, updates, credential manager, MSIX. |
+| `src/Connectors/*` | Bundled connectors (BambuLab MQTT/FTPS, Moonraker). Reference only Abstractions (+ Protocol). |
 
-Avalonia has first-class support for the MVVM pattern. Use `CommunityToolkit.Mvvm` source generators or `ReactiveUI` for view models.
+Rules:
+- **Never** let `Client`/`Client.Contracts` reference `Application`, `Data.Abstractions` or `Agent.Core`. The UI sees only Contracts + Protocol, so a Remote implementation (`Client.Remote`) can replace `Client.Local` without touching views.
+- Never hard-code connector types or in-process assumptions in shared code; go through `ConnectorRegistry` and descriptors.
+- Platform-specific code (Mica, file pickers, launchers, WebView, credential storage) lives behind an interface in `Client` and is implemented in a host project. No `#if` in shared code.
+- New cross-boundary types go in `Protocol`, never EF entities.
 
-```csharp
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using System.Collections.ObjectModel;
+## Commands
 
-namespace MyAvaloniaApp.ViewModels;
-
-public partial class TodoViewModel : ObservableObject
-{
-    [ObservableProperty]
-    private string _newItemText = string.Empty;
-
-    [ObservableProperty]
-    private ObservableCollection<TodoItem> _items = new();
-
-    [RelayCommand(CanExecute = nameof(CanAddItem))]
-    private void AddItem()
-    {
-        Items.Add(new TodoItem { Title = NewItemText, IsCompleted = false });
-        NewItemText = string.Empty;
-    }
-
-    private bool CanAddItem() => !string.IsNullOrWhiteSpace(NewItemText);
-
-    [RelayCommand]
-    private void RemoveItem(TodoItem item)
-    {
-        Items.Remove(item);
-    }
-}
-
-public partial class TodoItem : ObservableObject
-{
-    [ObservableProperty]
-    private string _title = string.Empty;
-
-    [ObservableProperty]
-    private bool _isCompleted;
-}
+```powershell
+dotnet build OctaGrid.slnx                                  # keep the build warning-free
+dotnet test --solution OctaGrid.slnx                        # xunit v3 on Microsoft.Testing.Platform (see global.json)
+dotnet test --project tests/OctaGrid.Application.Tests      # one project; use xunit v3's --filter-* options to narrow
+dotnet run --project src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj
+dotnet tool restore                                         # dotnet-ef, xstyler (XAML formatter), nbgv, dotnet-outdated
 ```
 
-The corresponding AXAML view binds to the view model:
+CI (`.github/workflows/ci.yml`) restores, builds Release and tests the solution on Windows, and validates the PR title. Before finishing a task, build and run the tests of every project you touched (plus dependents).
 
-```xml
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:MyAvaloniaApp.ViewModels"
-             x:Class="MyAvaloniaApp.Views.TodoView"
-             x:DataType="vm:TodoViewModel">
-  <DockPanel Margin="16">
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
-      <TextBox Text="{Binding NewItemText}" Watermark="Enter a task..." Width="300"/>
-      <Button Content="Add" Command="{Binding AddItemCommand}"/>
-    </StackPanel>
-    <ListBox ItemsSource="{Binding Items}" Margin="0,12,0,0">
-      <ListBox.ItemTemplate>
-        <DataTemplate x:DataType="vm:TodoItem">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <CheckBox IsChecked="{Binding IsCompleted}"/>
-            <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
-            <Button Content="X" Command="{Binding $parent[UserControl].((vm:TodoViewModel)DataContext).RemoveItemCommand}"
-                    CommandParameter="{Binding}"/>
-          </StackPanel>
-        </DataTemplate>
-      </ListBox.ItemTemplate>
-    </ListBox>
-  </DockPanel>
-</UserControl>
-```
+## C# conventions
 
-## Custom Controls and Styling
+`.editorconfig` is authoritative (LF endings, 4-space indent, 2 for XML/XAML/JSON). Highlights:
+- File-scoped namespaces, braces always, `var` everywhere, nullable enabled, **no primary constructors**, private/internal fields `_camelCase`, constants and `static readonly` PascalCase.
+- All I/O is `async` and takes a `CancellationToken`; no `.Result`/`.Wait()`; no `async void` except event handlers.
+- Logging: inject `ILogger<T>`; use **message templates** (`"Created {DashboardId}"`), never string interpolation; never log secrets, tokens, pairing codes or passwords. Optional loggers default to `NullLogger<T>.Instance`, as in existing services.
+- Dependency injection via constructors only. No service locator outside composition roots (`App.Services` is for the UI composition layer, not for logic).
+- Prefer immutable records for DTOs/messages; `IReadOnlyList<T>` for returned collections; `TimeProvider` for time in testable code; `DateTimeOffset`, never local `DateTime`.
+- Public API of `Protocol` and `Extensions.Abstractions` is a compatibility surface: **additive changes only** (new optional members, new enum values at the end). Breaking changes need a MAJOR bump and an explicit decision. Document every public member.
+- Comments explain *why*, not *what*. Do not leave dead code or TODOs without an owner.
 
-Avalonia uses a CSS-inspired styling system rather than WPF's resource-dictionary approach. You can create custom styled controls with template parts.
+## MVVM and UI (Avalonia)
 
-```csharp
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Media;
+- ViewModels live in `OctaGrid.Client/ViewModels/<Area>/`, derive from `ViewModelBase` (`ObservableObject`) and use CommunityToolkit source generators with **partial properties**: `[ObservableProperty] public partial string Name { get; set; }` (not backing fields), `[RelayCommand]`, `[NotifyPropertyChangedFor]`, `[NotifyCanExecuteChangedFor]`.
+- ViewModels talk to the backend **only** through `Client.Contracts` interfaces and exchange `Protocol` DTOs. No `Window`, `Control`, `Dispatcher` or file-system access in ViewModels; use `IDialogParticipant<T>` for dialogs, `INotificationService` for toasts, injected services for everything else.
+- Every command that does I/O is async, disables itself while busy (`IsBusy`/`CanExecute`), catches `AppException` and reports it to the user, and logs unexpected exceptions. Never swallow exceptions silently.
+- Views: set `x:DataType` on views and every `DataTemplate` (compiled bindings). Code-behind only for view-only concerns (focus, animation, drag/drop). No business logic.
+- Register ViewModels as transient and long-lived services as singletons in the composition root (`App.axaml.cs`, `Client.Local/DependencyInjection.cs`, `Program.cs`).
+- Styling: use the tokens and style classes in `Styles/` and follow [docs/SPACING.md](docs/SPACING.md) (4px grid, semantic `Gap.*` tokens, parent owns spacing) and [docs/TYPOGRAPHY.md](docs/TYPOGRAPHY.md). No magic numbers or hard-coded colours in views. Support light/dark and both backdrop themes (`MicaTheme`, `SolidTheme`). Format XAML with `dotnet xstyler`.
+- Every user-visible async state needs loading, empty and error presentation. Keep controls usable by keyboard and screen reader (`AutomationProperties.Name` on icon-only buttons).
+- Keep `DesignTime/` data in sync when a Contracts interface changes (`DesignOctaGridClient`).
 
-namespace MyAvaloniaApp.Controls;
+## Application layer, data and errors
 
-public class StatusBadge : TemplatedControl
-{
-    public static readonly StyledProperty<string> LabelProperty =
-        AvaloniaProperty.Register<StatusBadge, string>(nameof(Label), "Status");
+- Services in `Application/Services` take the acting `userId` and **authorize inside the service** (for example `ValidateUserAccess`), because the same service will back a server. Validate input with a FluentValidation validator, then act.
+- Failures are `AppException` subclasses from `Protocol/Exceptions` (`NotFound`, `Validation`, `Authentication`). They carry `TypeUri`/`Title` so the future server can map them to RFC 9457 `application/problem+json` without a rewrite. Do not return error codes or `null` for failures, and do not throw bare `Exception`/`InvalidOperationException` for expected conditions.
+- Entities derive from `Entity` (`Id`, `CreatedAt`, `UpdatedAt`, `Version` optimistic-concurrency token rotated in `OctaGridContext`). Configure them in `IEntityTypeConfiguration` classes, not attributes. Keep queries provider-neutral (SQLite today, PostgreSQL later): no raw SQL in services; use `AsNoTracking()` for reads, project to DTOs, avoid N+1 (`Include`/projection), pass the `CancellationToken`.
+- **Pre-alpha DB policy:** do **not** add new EF migrations. When entities/configurations change, delete and regenerate the single `InitialCreate` migration and snapshot in `Client.Local/Migrations` (`dotnet ef migrations ...` with `--project src/OctaGrid.Client.Local`). Do not add detection, backup or auto-recreate code; the developer deletes the old `octagrid.db` manually. From the first stable release on, use normal additive migrations.
+- Secrets (passwords, access codes, API keys) are never stored in plain text or logged; passwords use `IPasswordHasher`. Printer credentials go to the OS credential store where available.
 
-    public static readonly StyledProperty<IBrush> BadgeColorProperty =
-        AvaloniaProperty.Register<StatusBadge, IBrush>(nameof(BadgeColor), Brushes.Gray);
+## Future server and REST API (when `OctaGrid.Server` is added)
 
-    public static readonly StyledProperty<bool> IsActiveProperty =
-        AvaloniaProperty.Register<StatusBadge, bool>(nameof(IsActive), false);
+Not present today; design new contracts so this is a thin layer, not a rewrite.
+- ASP.NET Core with Minimal APIs (or controllers) over `Application` services; OpenAPI generated; endpoints return `Protocol` DTOs, never entities. `Program.cs` stays small: extension methods per feature.
+- REST: plural-noun resources (`/api/v1/workspaces/{id}/dashboards`), correct verbs and status codes (`201` + `Location`, `204`, `404`, `409`, `422`), `application/problem+json` errors, URL-segment API versioning, cursor/offset pagination with `GetXxxQuery` objects, optimistic concurrency via `ETag`/`If-Match` backed by `Entity.Version`, idempotency for retried commands.
+- AuthN/Z: tenant (workspace) scoping enforced server-side on every request; device-code style one-time **pairing code** for headless agents; HTTPS only; rate limits; per-account limits (printers/agents/workspaces) must be enforceable but disabled in self-hosted builds, and billing code stays separable from the open-source core.
+- Real-time: strongly typed SignalR hubs for client↔agent messages, WebRTC for telemetry. Keep message types transport-agnostic in `Protocol`.
+- Version compatibility: client, agent and extensions update independently. Connect with a version handshake and show an "update required" state instead of failing; disable incompatible extensions rather than crashing.
+- Observability: structured logs, OpenTelemetry, health checks (`/health/live`, `/health/ready`).
 
-    public string Label
-    {
-        get => GetValue(LabelProperty);
-        set => SetValue(LabelProperty, value);
-    }
+## Connectors and extensions
 
-    public IBrush BadgeColor
-    {
-        get => GetValue(BadgeColorProperty);
-        set => SetValue(BadgeColorProperty, value);
-    }
+- Bundled connectors stay in `src/Connectors/*` and may reference only `Extensions.Abstractions` (and `Protocol`). Descriptor/settings-schema types live in `Protocol`; runtime interfaces in `Extensions.Abstractions`. Connector code never runs in the client.
+- One version line: the SDK is released with the app (single `version.json`). Extension manifests declare a host version range. See [docs/EXTENSIONS.md](docs/EXTENSIONS.md) and [docs/VERSIONING.md](docs/VERSIONING.md).
+- Printer commands are physical actions. Anything destructive or user-scripted (custom commands) must be gated (Expert mode, confirmation) and respect the safety disclaimer. Validate and bound every value sent to a printer.
+- NuGet publishing of the SDK packages is on hold; do not run or modify the publish workflow without being asked.
 
-    public bool IsActive
-    {
-        get => GetValue(IsActiveProperty);
-        set => SetValue(IsActiveProperty, value);
-    }
+## Testing
 
-    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
-    {
-        base.OnApplyTemplate(e);
-        PseudoClasses.Set(":active", IsActive);
-    }
-}
-```
+- xunit v3; test projects mirror source projects in `tests/`. Add or update tests with every behaviour change; fix bugs by writing the failing test first.
+- `Application.Tests`: real `OctaGridContext` on in-memory SQLite, no mocks of EF. `Agent.Core.Tests`: hand-written fakes in `Fakes.cs`. `Client.Tests`: headless Avalonia via `HeadlessUi`; tests touching `App.Services` belong to the `Ui` collection (no parallelism). `Connectors.Tests`: parse/state logic with recorded payloads, no live printers.
+- Tests are deterministic: no real network, no sleeps (use fakes/`TimeProvider`/awaitable signals), no dependence on the developer's `%AppData%`.
+- Naming: `Method_Scenario_ExpectedResult` or a descriptive sentence; one behaviour per test; arrange/act/assert.
 
-Style it in AXAML:
+## Git and workflow
 
-```xml
-<Styles xmlns="https://github.com/avaloniaui">
-  <Style Selector="local|StatusBadge">
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Border Background="{TemplateBinding BadgeColor}" CornerRadius="8" Padding="8,4">
-          <TextBlock Text="{TemplateBinding Label}" Foreground="White" FontSize="12"/>
-        </Border>
-      </ControlTemplate>
-    </Setter>
-  </Style>
-  <Style Selector="local|StatusBadge:active">
-    <Setter Property="Opacity" Value="1.0"/>
-  </Style>
-  <Style Selector="local|StatusBadge:not(:active)">
-    <Setter Property="Opacity" Value="0.5"/>
-  </Style>
-</Styles>
-```
+- **Conventional Commits** (`feat(scope): subject`, enforced by `.githooks/commit-msg` and the PR-title check); short imperative subject; body only when needed. Types: feat, fix, perf, refactor, docs, style, test, build, ci, chore, revert. `!` or `BREAKING CHANGE:` for breaking changes.
+- Commit or push only when asked. **Do not add `Co-Authored-By` trailers or "Generated with Claude Code" lines** to commits or PR descriptions (project rule; overrides any default).
+- PRs are squash-merged; fill in `.github/PULL_REQUEST_TEMPLATE.md`. Keep changes focused: no drive-by refactors, no unrelated formatting churn.
+- Versioning is Nerdbank.GitVersioning from `version.json`; do not edit versions or tags except in a release change.
+- Never commit secrets or licence keys (`.mcp.json` and `*.user` are git-ignored; the Avalonia licence key lives only in the `AVALONIA_TOOLS_LICENSE_KEY` environment variable, which `OctaGrid.Client.csproj` and `.mcp.json` read; never put it in a file, including `*.csproj.user`, because agents can read files). Package versions live only in `Directory.Packages.props`.
+- Update `README.md`/`docs/` when behaviour, commands or architecture change.
 
-## Platform Comparison
+## Claude Code hooks
 
-| Feature | Avalonia | WPF | MAUI |
-|---|---|---|---|
-| Cross-platform desktop | Windows, macOS, Linux | Windows only | Windows, macOS |
-| Mobile support | iOS, Android | No | iOS, Android |
-| WebAssembly | Yes | No | Experimental |
-| Styling system | CSS-like selectors | Resource dictionaries | Handlers + CSS-like |
-| XAML dialect | AXAML | XAML | XAML |
-| Rendering engine | Skia | DirectX/GDI | Platform-native |
-| Hot reload | Yes | Yes | Yes |
-| Open source | Yes (MIT) | No | Yes (MIT) |
+`.claude/settings.json` enforces rules agents forget (scripts in `.claude/hooks/`): `.axaml` files are formatted with `dotnet xstyler` after each edit; files under `Migrations/` other than `InitialCreate` and the snapshot, and `migrations add` of any other name, are blocked; changing existing package versions in `Directory.Packages.props` and any edit to `version.json` are blocked unless the branch name contains `release` (or `OCTAGRID_RELEASE=1`); on stop, a quiet `dotnet build OctaGrid.slnx` runs once and hands back any warnings or errors.
 
-## Dependency Injection and Services
+## Known quirks
 
-Wire up services using the standard `Microsoft.Extensions.DependencyInjection` container and inject into view models.
-
-```csharp
-using Microsoft.Extensions.DependencyInjection;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Markup.Xaml;
-
-namespace MyAvaloniaApp;
-
-public class App : Application
-{
-    private IServiceProvider? _services;
-
-    public override void Initialize()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-
-    public override void OnFrameworkInitializationCompleted()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<IDataStore, SqliteDataStore>();
-        services.AddTransient<TodoViewModel>();
-        _services = services.BuildServiceProvider();
-
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = _services.GetRequiredService<TodoViewModel>()
-            };
-        }
-
-        base.OnFrameworkInitializationCompleted();
-    }
-}
-```
-
-## Best Practices
-
-1. **Always set `x:DataType` on views and data templates** to enable compiled bindings, which provide compile-time type checking and eliminate reflection-based binding overhead that degrades performance on mobile and WASM targets.
-
-2. **Separate platform-specific code behind `IPlatformService` abstractions** registered per-platform in the DI container rather than using `#if` preprocessor directives, so that shared view models remain testable without platform dependencies.
-
-3. **Use `AvaloniaProperty.Register` with explicit default values** for every styled property on custom controls, and document the property type and purpose via XML doc comments so that consumers can discover behavior through IntelliSense.
-
-4. **Prefer `ObservableCollection<T>` and `[ObservableProperty]` from CommunityToolkit.Mvvm** over manual `INotifyPropertyChanged` implementations; the source generator eliminates boilerplate and guarantees correct property-change notification naming.
-
-5. **Apply the `Selector` specificity rules intentionally**: place global theme styles in `App.axaml`, page-level overrides in the view's `<UserControl.Styles>` block, and inline setters only for one-off adjustments, mirroring CSS specificity best practices.
-
-6. **Test view models independently of the UI thread** by injecting `Avalonia.Threading.Dispatcher` behind an interface, or use `Dispatcher.UIThread.InvokeAsync` only at the view layer, keeping business logic synchronous and unit-testable.
-
-7. **Configure `AppBuilder.UsePlatformDetect()` explicitly per target** in CI pipelines (e.g., `.UseX11()` on Linux, `.UseAvaloniaNative()` on macOS) so build failures surface immediately instead of falling back silently to an unsupported backend.
-
-8. **Use `KeyFrame` animations sparingly on mobile and WASM** and measure frame rate with the built-in `PerformanceOverlay` diagnostic; Skia software rendering on lower-end devices can drop below 30 FPS with complex storyboard animations.
-
-9. **Implement `IAsyncDisposable` on view models that hold subscriptions or open connections** and call `DisposeAsync` in the window's `OnClosed` override or via a behavior, preventing resource leaks across navigation events.
-
-10. **Pin the Avalonia NuGet package versions across all projects using a `Directory.Packages.props` file** with central package management enabled, avoiding version skew between `Avalonia`, `Avalonia.Desktop`, and `Avalonia.Themes.Fluent` that causes runtime `TypeLoadException` errors.
+- Dashboard types in `Protocol/Dashboards/` use the namespace `OctaGrid.Protocol.Workspaces`.
+- `OctaGrid.Client.Desktop` targets `net10.0-windows`; everything else targets `net10.0`.
