@@ -13,22 +13,15 @@
     mc:Ignorable="d">
 
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{DynamicResource Gap.Form}">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Gap.IconLabel}">
-            <TextBlock
-                VerticalAlignment="Center"
-                Classes="small secondary"
-                Text="The default dashboard opens first. Deleting a dashboard does not delete your printers."
-                TextWrapping="Wrap" />
-            <Button
-                Grid.Column="1"
-                Command="{Binding AddCommand}"
-                IsEnabled="{Binding CanEdit}">
-                <StackPanel Classes="inline">
-                    <PathIcon Width="12" Data="{StaticResource add-regular}" />
-                    <TextBlock VerticalAlignment="Center" Text="New dashboard" />
-                </StackPanel>
-            </Button>
-        </Grid>
+        <Button
+            HorizontalAlignment="Right"
+            Command="{Binding AddCommand}"
+            IsEnabled="{Binding CanEdit}">
+            <StackPanel Classes="inline">
+                <PathIcon Width="12" Data="{StaticResource add-regular}" />
+                <TextBlock VerticalAlignment="Center" Text="New dashboard" />
+            </StackPanel>
+        </Button>
 
         <ScrollViewer Grid.Row="1" MaxHeight="420">
             <ItemsControl IsEnabled="{Binding CanEdit}" ItemsSource="{Binding Items}">
