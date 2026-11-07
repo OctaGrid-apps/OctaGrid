@@ -75,7 +75,7 @@ public sealed class ExtensionLoaderTests : IDisposable
         }
         """;
 
-    private ExtensionLoader Loader() => new(Host);
+    private static ExtensionLoader Loader() => new(Host);
 
     [Fact]
     public void A_missing_folder_has_no_extensions() =>

@@ -147,7 +147,7 @@ public class UpdateCardTests
             var card = Card(window);
 
             Assert.Equal(["Update and restart"], HeaderButtons(card));
-            Assert.True(card.Classes.Contains("highlight"));
+            Assert.Contains("highlight", card.Classes);
             AssertHeaderFits(card);
             window.Close();
             return Task.CompletedTask;

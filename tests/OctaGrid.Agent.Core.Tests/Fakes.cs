@@ -34,7 +34,7 @@ internal sealed class FakeTelemetry : ITelemetrySink
 }
 
 /// <summary>A minimal SDK session with every capability, recording what the host asks of it.</summary>
-internal class FakeSession : IPrinterSession, IPrintControl, IFileStorage, IThumbnails
+internal sealed class FakeSession : IPrinterSession, IPrintControl, IFileStorage, IThumbnails
 {
     private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
