@@ -28,7 +28,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
         Task.FromResult(new AgentResponse(Guid.NewGuid(), name, "Online", "octa_dev_token", 1));
 
     public Task<DashboardResponse> CreateDashboard(Guid workspaceId, CreateDashboardRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, request.Type, 1));
+        Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, request.Type, false, 1));
 
     public Task<PrinterResponse> CreatePrinter(Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken) =>
         Task.FromResult(new PrinterResponse(Guid.NewGuid(), request.Name, request.ConnectorId, request.Settings, request.Secrets, "Connected", request.Enabled, 1));
@@ -49,7 +49,8 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
 
     public Task<List<DashboardResponse>> GetDashboardList(Guid workspaceId, CancellationToken cancellationToken) =>
         Task.FromResult<List<DashboardResponse>>([
-            new DashboardResponse(DefaultDashboardId, "Main Dashboard", "List", 1)
+            new DashboardResponse(DefaultDashboardId, "Main Dashboard", DashboardType.List, true, 1),
+            new DashboardResponse(Guid.Parse("00000000-0000-0000-0000-000000000003"), "Workshop", DashboardType.List, false, 1)
         ]);
 
     public Task<PrinterResponse> GetPrinter(Guid workspaceId, Guid printerId, CancellationToken cancellationToken) =>
@@ -83,8 +84,14 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
     public Task<AgentResponse> UpdateAgent(Guid agentId, string name, CancellationToken cancellationToken) =>
         Task.FromResult(new AgentResponse(agentId, name, "Online", "octa_local_token", 1));
 
+    public Task DeleteDashboard(Guid dashboardId, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    public Task<DashboardResponse> SetDefaultDashboard(Guid dashboardId, CancellationToken cancellationToken) =>
+        Task.FromResult(new DashboardResponse(dashboardId, "Main Dashboard", DashboardType.List, true, 1));
+
     public Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken) =>
-         Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, "List", 1));
+         Task.FromResult(new DashboardResponse(dashboardId, request.Name, DashboardType.List, false, 1));
 
     public Task<PrinterResponse> UpdateIdentity(Guid printerId, UpdatePrinterIdentityRequest request, CancellationToken cancellationToken) =>
         Task.FromResult(new PrinterResponse(printerId, "Voron 2.4", "octagrid.moonraker", VoronSettings, NoSecrets, "Connected", true, 1));

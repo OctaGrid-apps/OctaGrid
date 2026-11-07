@@ -130,6 +130,18 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
         return await _agents.Update(userId, agentId, new UpdateAgentRequest(name), cancellationToken);
     }
 
+    public async Task DeleteDashboard(Guid dashboardId, CancellationToken cancellationToken)
+    {
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        await _dashboards.Delete(userId, dashboardId, cancellationToken);
+    }
+
+    public async Task<DashboardResponse> SetDefaultDashboard(Guid dashboardId, CancellationToken cancellationToken)
+    {
+        var userId = await EnsureCurrentUserIdAsync(cancellationToken);
+        return await _dashboards.SetDefault(userId, dashboardId, cancellationToken);
+    }
+
     public async Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken)
     {
         var userId = await EnsureCurrentUserIdAsync(cancellationToken);

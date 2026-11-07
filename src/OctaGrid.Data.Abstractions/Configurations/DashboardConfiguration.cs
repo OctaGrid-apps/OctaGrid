@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Data.Abstractions.Configurations;
 

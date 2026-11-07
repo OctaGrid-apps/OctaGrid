@@ -97,7 +97,6 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         const string DefaultWorkspaceName = "Default";
         const string DefaultAgentName = "Local";
         const string DefaultDashboardName = "Default";
-        const string DefaultDashboardType = "List";
 
         _logger.LogInformation("No workspaces found; provisioning default workspace '{WorkspaceName}', agent '{AgentName}', and dashboard '{DashboardName}'",
             DefaultWorkspaceName, DefaultAgentName, DefaultDashboardName);
@@ -114,16 +113,13 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         _ = await _agentsClient.CreateAgent(workspaceResponse.Id, DefaultAgentName, cancellationToken);
 
         var dashboards = await _dashboardsClient.GetDashboardList(workspaceResponse.Id, cancellationToken);
-        var defaultDashboard = dashboards.FirstOrDefault();
-        if (defaultDashboard is null)
+        if (dashboards.Count == 0)
         {
-            defaultDashboard = await _dashboardsClient.CreateDashboard(
+            _ = await _dashboardsClient.CreateDashboard(
                 workspaceResponse.Id,
-                new CreateDashboardRequest(DefaultDashboardName, DefaultDashboardType),
+                new CreateDashboardRequest(DefaultDashboardName, DashboardsViewModel.DefaultType),
                 cancellationToken);
         }
-
-        _appSettings.Update(s => s with { DefaultDashboard = defaultDashboard.Id });
     }
 
     private async void HandleWorkspaceChanged(object recipient, WorkspaceEntityChanged message)

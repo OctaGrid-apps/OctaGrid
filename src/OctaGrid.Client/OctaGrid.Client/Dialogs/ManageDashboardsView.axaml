@@ -1,0 +1,122 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.ManageDashboardsView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="520"
+    d:DesignWidth="520"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:ManageDashboardsViewModel"
+    mc:Ignorable="d">
+
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <Button
+            HorizontalAlignment="Right"
+            Command="{Binding AddCommand}">
+            <StackPanel Classes="inline">
+                <PathIcon Width="12" Data="{StaticResource add-regular}" />
+                <TextBlock VerticalAlignment="Center" Text="New dashboard" />
+            </StackPanel>
+        </Button>
+
+        <ScrollViewer Grid.Row="1" MaxHeight="420">
+            <ItemsControl IsEnabled="{Binding CanEdit}" ItemsSource="{Binding Items}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Classes="card-content" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DashboardItemViewModel">
+                        <Border
+                            Background="{DynamicResource SystemBaseLowColor}"
+                            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                            BorderThickness="1"
+                            Classes="tile">
+                            <Panel>
+                                <!--  Showing the dashboard  -->
+                                <Grid
+                                    ColumnDefinitions="*,Auto"
+                                    ColumnSpacing="{DynamicResource Gap.IconLabel}"
+                                    IsVisible="{Binding IsNotEditing}">
+                                    <StackPanel VerticalAlignment="Center" Classes="gap-0_5">
+                                        <StackPanel Classes="inline">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Classes="lead"
+                                                Text="{Binding Name}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <Border
+                                                Background="{DynamicResource SystemBaseMediumLowColor}"
+                                                Classes="badge"
+                                                IsVisible="{Binding IsDefault}">
+                                                <TextBlock Classes="caption" Text="Default" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Classes="small secondary" Text="{Binding TypeText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Classes="inline">
+                                        <Button
+                                            Classes="icon"
+                                            Command="{Binding MakeDefaultCommand}"
+                                            IsVisible="{Binding CanMakeDefault}"
+                                            ToolTip.Tip="Make default">
+                                            <PathIcon Margin="8,0" Data="{StaticResource star-regular}" />
+                                        </Button>
+                                        <Button
+                                            Classes="icon"
+                                            Command="{Binding RenameCommand}"
+                                            ToolTip.Tip="Rename">
+                                            <PathIcon Margin="8,0" Data="{StaticResource edit-regular}" />
+                                        </Button>
+                                        <Button
+                                            Classes="icon"
+                                            Command="{Binding DeleteCommand}"
+                                            ToolTip.ShowOnDisabled="True"
+                                            ToolTip.Tip="{Binding DeleteTip}">
+                                            <PathIcon Margin="8,0" Data="{StaticResource delete-regular}" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!--  Naming a new dashboard or renaming one  -->
+                                <Grid
+                                    ColumnDefinitions="*,Auto"
+                                    ColumnSpacing="{DynamicResource Gap.IconLabel}"
+                                    IsVisible="{Binding IsEditing}">
+                                    <TextBox
+                                        VerticalAlignment="Center"
+                                        MaxLength="100"
+                                        PlaceholderText="Dashboard name"
+                                        Text="{Binding EditName}">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Command="{Binding SaveCommand}" Gesture="Enter" />
+                                            <KeyBinding Command="{Binding CancelEditCommand}" Gesture="Escape" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
+                                    <StackPanel Grid.Column="1" Classes="inline">
+                                        <Button
+                                            Classes="primary"
+                                            Command="{Binding SaveCommand}"
+                                            Content="Save" />
+                                        <Button Command="{Binding CancelEditCommand}" Content="Cancel" />
+                                    </StackPanel>
+                                </Grid>
+                            </Panel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Button
+            Grid.Row="2"
+            HorizontalAlignment="Right"
+            Classes="primary"
+            Command="{Binding CloseCommand}"
+            Content="Close" />
+    </Grid>
+</UserControl>

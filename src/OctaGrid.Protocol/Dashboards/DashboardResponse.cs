@@ -1,3 +1,3 @@
 namespace OctaGrid.Protocol.Workspaces;
 
-public record DashboardResponse(Guid Id, string Name, string Type, long Version);
+public record DashboardResponse(Guid Id, string Name, DashboardType Type, bool IsDefault, long Version);

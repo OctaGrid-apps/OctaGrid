@@ -10,6 +10,7 @@ using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Data.Abstractions;
+using OctaGrid.Protocol.Workspaces;
 using OctaGrid.Data.Abstractions.Models;
 
 namespace OctaGrid.Client.Local;

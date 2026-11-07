@@ -32,7 +32,7 @@ internal static class DesignData
 
     public static AgentListViewModel Agents => new(Client, State);
 
-    public static DashboardsViewModel Dashboards => new(Client, Client, Settings, State, AgentCommands, Images);
+    public static DashboardsViewModel Dashboards => new(Client, Client, State, AgentCommands, Images, Notifications);
 
     public static MainViewModel Main => new(
         Client, Client, Client, Updates, Settings, State, Notifications,
