@@ -49,10 +49,19 @@ public static class DependencyInjection
         services.AddSingleton<IPrintersClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
         services.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
 
-        services.AddSingleton(sp => BundledConnectors.CreateRegistry(sp.GetService<ILoggerFactory>()));
         services.AddSingleton<IExtensionStateStore>(
             _ => new FileExtensionStateStore(Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
-        services.AddSingleton<ExtensionManager>();
+
+        // The manager owns the registry: it starts with the bundled connectors and adds the ones found in
+        // <data>/extensions before anything can create a session.
+        services.AddSingleton(sp =>
+        {
+            var loggerFactory = sp.GetService<ILoggerFactory>();
+            var manager = new ExtensionManager(BundledConnectors.CreateRegistry(loggerFactory), sp.GetRequiredService<IExtensionStateStore>());
+            manager.AddFolderExtensions(new ExtensionLoader(loggerFactory: loggerFactory).LoadAll(OctaGridDataPaths.ExtensionsFolder));
+            return manager;
+        });
+        services.AddSingleton(sp => sp.GetRequiredService<ExtensionManager>().Registry);
         services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
         services.AddSingleton<AgentWorker>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();
