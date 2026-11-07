@@ -12,6 +12,9 @@ public static class OctaGridDataPaths
 
     public static string LogsFolder => Path.Combine(DataFolder, "logs");
 
+    /// <summary>Where users put extensions: <c>&lt;id&gt;/&lt;version&gt;/octagrid-extension.json</c> or a developer's build folder.</summary>
+    public static string ExtensionsFolder => Path.Combine(DataFolder, "extensions");
+
     private static string InitializeDataFolder()
     {
         var targetDir = Path.Combine(

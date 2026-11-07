@@ -6,12 +6,13 @@ namespace OctaGrid.Agent.Core.Connectors;
 
 /// <summary>
 /// Knows which extensions are installed, whether each is enabled, and remembers the user's choice.
-/// Today every extension is a bundled connector; installed and Store extensions plug in here later.
+/// Extensions are bundled connectors or connectors loaded from the extensions folder; Store extensions plug in here later.
 /// </summary>
 public sealed class ExtensionManager
 {
     private readonly object _gate = new();
     private readonly HashSet<string> _disabled;
+    private readonly List<ExtensionInfo> _unavailable = [];
     private readonly ConnectorRegistry _registry;
     private readonly IExtensionStateStore _store;
 
@@ -28,6 +29,37 @@ public sealed class ExtensionManager
     /// <summary>Raised after an extension is enabled or disabled.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Adds the extensions found in the extensions folder. Loaded ones join the registry; the others are
+    /// listed with their state and the reason, so the user can see why an extension is not available.
+    /// </summary>
+    public void AddFolderExtensions(IEnumerable<ExtensionLoadResult> results)
+    {
+        lock (_gate)
+        {
+            foreach (var result in results)
+            {
+                if (result is { State: ExtensionState.Loaded, Connector: { } connector })
+                {
+                    try
+                    {
+                        _registry.Add(connector, ExtensionSource.UserFolder);
+                        continue;
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _unavailable.Add(ToUnavailableInfo(result with { State = ExtensionState.Failed, Message = ex.Message }));
+                        continue;
+                    }
+                }
+
+                _unavailable.Add(ToUnavailableInfo(result));
+            }
+        }
+
+        Changed?.Invoke();
+    }
+
     /// <summary>All installed extensions, ordered by name.</summary>
     public IReadOnlyList<ExtensionInfo> GetExtensions()
     {
@@ -35,6 +67,7 @@ public sealed class ExtensionManager
         {
             return _registry.Connectors
                 .Select(ToInfo)
+                .Concat(_unavailable)
                 .OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
@@ -92,6 +125,18 @@ public sealed class ExtensionManager
 
         return true;
     }
+
+    private static ExtensionInfo ToUnavailableInfo(ExtensionLoadResult result) => new(
+        result.Id,
+        result.Manifest?.Name ?? result.Id,
+        result.Manifest?.Version ?? string.Empty,
+        result.Manifest?.Publisher ?? string.Empty,
+        result.Manifest?.Kind ?? ExtensionKinds.Connector,
+        ExtensionSource.UserFolder,
+        result.State,
+        result.Message,
+        ConnectorCapabilities.None,
+        CanUninstall: true);
 
     private ExtensionInfo ToInfo(IConnector connector)
     {
