@@ -120,11 +120,35 @@ public sealed partial class ExtensionVersion : IComparable<ExtensionVersion>, IE
         return a.Length.CompareTo(b.Length);
     }
 
-    private static ExtensionVersion ReadHostVersion()
+    [GeneratedRegex(@"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+.*)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex AssemblyVersionPattern();
+
+    /// <summary>
+    /// Reads the version stamped into an assembly, for example <c>1.0.19.4-pre-alpha+e75a240c04</c>. That text has a
+    /// fourth number (the git height) that is not SemVer: on a pre-release it becomes part of the label
+    /// (<c>1.0.19-pre-alpha.4</c>) and on a stable version it is dropped. Returns 0.0.0 when the text cannot be read.
+    /// </summary>
+    public static ExtensionVersion FromAssemblyVersion(string? text)
     {
-        var text = typeof(ExtensionVersion).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        return TryParse(text, out var version) ? version : new ExtensionVersion(0, 0, 0, null);
+        if (text is not null && AssemblyVersionPattern().Match(text.Trim()) is { Success: true } match
+            && int.TryParse(match.Groups[1].Value, out var major)
+            && int.TryParse(match.Groups[2].Value, out var minor)
+            && int.TryParse(match.Groups[3].Value, out var patch))
+        {
+            var label = match.Groups[5].Success ? match.Groups[5].Value : null;
+            if (label is not null && match.Groups[4].Success)
+            {
+                label += "." + match.Groups[4].Value;
+            }
+
+            return new ExtensionVersion(major, minor, patch, label);
+        }
+
+        return new ExtensionVersion(0, 0, 0, null);
     }
+
+    private static ExtensionVersion ReadHostVersion() =>
+        FromAssemblyVersion(typeof(ExtensionVersion).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
 }
 
 /// <summary>

@@ -51,6 +51,29 @@ public class HostVersionRangeTests
         Assert.Equal(ordered, sorted);
     }
 
+    [Theory]
+    [InlineData("1.0.19.4-pre-alpha+e75a240c04", "1.0.19-pre-alpha.4")]
+    [InlineData("1.0.19-pre-alpha", "1.0.19-pre-alpha")]
+    [InlineData("1.2.0.7", "1.2.0")]
+    [InlineData("1.2.0+abc", "1.2.0")]
+    [InlineData("2.0.0-rc.1+g1234", "2.0.0-rc.1")]
+    [InlineData("nonsense", "0.0.0")]
+    [InlineData(null, "0.0.0")]
+    public void Reads_the_version_stamped_into_an_assembly(string? text, string expected) =>
+        Assert.Equal(expected, ExtensionVersion.FromAssemblyVersion(text).ToString());
+
+    [Fact]
+    public void The_running_host_has_a_real_version_that_a_matching_range_accepts()
+    {
+        var host = ExtensionVersion.Host;
+
+        Assert.NotEqual("0.0.0", host.ToString());
+        var range = host.IsPreRelease
+            ? $">={host.Major}.{host.Minor}.{host.Patch}-{host.PreRelease!.Split('.')[0]} <{host.Major + 1}.0.0"
+            : $">={host.Major}.{host.Minor}.{host.Patch} <{host.Major + 1}.0.0";
+        Assert.True(Satisfies(range, host.ToString()), range);
+    }
+
     [Fact]
     public void Ignores_build_metadata()
     {
