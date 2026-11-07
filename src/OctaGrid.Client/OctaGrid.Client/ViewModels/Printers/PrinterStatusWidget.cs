@@ -57,6 +57,9 @@ public class PrinterStatusWidget : INotifyPropertyChanged
 
     public Guid Id { get; set; }
 
+    /// <summary>Id of the connector that talks to the printer; used to filter the dashboard.</summary>
+    public string ConnectorId { get; set; } = string.Empty;
+
     public bool IsPaused => State == UniversalPrinterState.Paused;
 
     public bool IsPrinting => State == UniversalPrinterState.Printing;
@@ -162,12 +165,17 @@ public class PrinterStatusWidget : INotifyPropertyChanged
         _ => "Start"
     };
 
+    /// <summary>False until the printer has reported a state, so the default <see cref="State" /> is not mistaken for a real Offline.</summary>
+    public bool IsStateKnown { get; private set; }
+
     public UniversalPrinterState State
     {
         get;
         set
         {
-            if (field != value)
+            var firstReport = !IsStateKnown;
+            IsStateKnown = true;
+            if (field != value || firstReport)
             {
                 field = value;
                 OnPropertyChanged(nameof(State));

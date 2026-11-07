@@ -91,7 +91,7 @@ public class DashboardManagementTests
         {
             SelectedWorkspace = new Workspace { Id = DesignOctaGridClient.DefaultWorkspaceId, Name = "Default" },
         };
-        return new DashboardsViewModel(client, new DesignOctaGridClient(), state, new DesignAgentCommands(), new ByteArrayImageCache());
+        return new DashboardsViewModel(client, new DesignOctaGridClient(), state, new DesignAgentCommands(), new ByteArrayImageCache(), new InMemorySettingsStore());
     }
 
     [Fact]

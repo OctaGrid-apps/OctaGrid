@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Client.Desktop.Services;
 using OctaGrid.Client.Models;
+using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Desktop.Tests;
 
@@ -41,6 +42,19 @@ public sealed class JsonClientSettingsStoreTests : IDisposable
         Assert.Equal(ElementTheme.Dark, next.ClientSettings.ElementTheme);
         Assert.True(next.ClientSettings.AskToSelectClientMode);
         Assert.Equal(ClientMode.Local, next.ClientSettings.Mode);
+    }
+
+    [Fact]
+    public void Dashboard_filters_survive_a_restart_and_old_files_without_them_load()
+    {
+        File.WriteAllText(SettingsPath, "{}");
+        Assert.Null(NewStore().ClientSettings.DashboardStatusFilter);
+
+        NewStore().Update(s => s with { DashboardStatusFilter = UniversalPrinterState.Printing, DashboardConnectorFilter = "bambu" });
+
+        var next = NewStore();
+        Assert.Equal(UniversalPrinterState.Printing, next.ClientSettings.DashboardStatusFilter);
+        Assert.Equal("bambu", next.ClientSettings.DashboardConnectorFilter);
     }
 
     [Fact]
