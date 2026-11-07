@@ -90,6 +90,33 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <Border
+                    Background="{DynamicResource SystemBaseLowColor}"
+                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                    BorderThickness="1"
+                    Classes="tile">
+                    <StackPanel Classes="card-content" IsEnabled="{Binding CanEdit}">
+                        <StackPanel Classes="gap-0_5">
+                            <TextBlock Classes="lead" Text="Developer mode" />
+                            <TextBlock
+                                Classes="small secondary"
+                                Text="{Binding DeveloperStatus}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Classes="inline">
+                            <Button Click="OnChooseDeveloperFolder" Content="Choose folder…" />
+                            <Button
+                                Command="{Binding ReloadDeveloperCommand}"
+                                Content="Reload"
+                                IsVisible="{Binding IsDeveloperMode}" />
+                            <Button
+                                Command="{Binding TurnOffDeveloperModeCommand}"
+                                Content="Turn off"
+                                IsVisible="{Binding IsDeveloperMode}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 

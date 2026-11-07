@@ -45,6 +45,25 @@ public partial class ExtensionsView : UserControl
         }
     }
 
+    private async void OnChooseDeveloperFolder(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage || DataContext is not ExtensionsViewModel viewModel)
+        {
+            return;
+        }
+
+        var folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose the folder your extension is built into",
+            AllowMultiple = false,
+        });
+
+        if (folders.Count == 1 && folders[0].TryGetLocalPath() is { } path)
+        {
+            await viewModel.SetDeveloperFolderAsync(path);
+        }
+    }
+
     private async void OnInstallFromFolder(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage || DataContext is not ExtensionsViewModel viewModel)

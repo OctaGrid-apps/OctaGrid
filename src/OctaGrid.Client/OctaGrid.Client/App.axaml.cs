@@ -156,6 +156,8 @@ public partial class App : Application
                     _ = RunRuntimeAsync(runtime, logger, _cts.Token);
                 }
 
+                _ = StartDeveloperModeAsync(services, desktop.Args, settings, logger);
+
                 desktop.Exit += (s, e) =>
                 {
                     logger.LogInformation("Desktop application exit requested");
@@ -197,6 +199,27 @@ public partial class App : Application
 
         base.OnFrameworkInitializationCompleted();
         logger.LogInformation("Framework initialization completed");
+    }
+
+    // Developer mode: the folder comes from --extensions-dev, the environment or the saved setting. Modes that cannot
+    // load extensions (no extensions client) simply have nothing to do.
+    private static async Task StartDeveloperModeAsync(IServiceProvider services, IReadOnlyList<string>? args, ClientSettings settings, ILogger logger)
+    {
+        try
+        {
+            var folder = DeveloperMode.ResolveFolder(args, settings.DeveloperExtensionsFolder);
+            if (folder is null || services.GetService<IExtensionsClient>() is not { } extensions)
+            {
+                return;
+            }
+
+            var result = await extensions.SetDeveloperFolderAsync(folder, CancellationToken.None);
+            logger.LogInformation("Developer mode for {Folder}: {Success} {Message}", folder, result.Success, result.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to start developer mode");
+        }
     }
 
     private static async Task RunRuntimeAsync(IClientRuntime runtime, ILogger logger, CancellationToken cancellationToken)

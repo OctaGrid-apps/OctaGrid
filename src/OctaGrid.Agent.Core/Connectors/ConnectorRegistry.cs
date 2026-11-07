@@ -41,6 +41,23 @@ public sealed class ConnectorRegistry
         return this;
     }
 
+    /// <summary>
+    /// Takes a connector out of the registry, for example before its extension is reloaded in developer mode.
+    /// Printers that use it keep their session until the orchestrator is told to stop it.
+    /// </summary>
+    /// <returns>False when no such connector is registered.</returns>
+    public bool Remove(string id)
+    {
+        if (!_byId.Remove(id, out var connector))
+        {
+            return false;
+        }
+
+        _connectors.Remove(connector);
+        _sources.Remove(id);
+        return true;
+    }
+
     /// <summary>Where a registered connector came from.</summary>
     public ExtensionSource GetSource(string id) => _sources[id];
 

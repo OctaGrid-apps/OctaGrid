@@ -20,6 +20,9 @@ public sealed class ExtensionManager
     private readonly Dictionary<string, ExtensionLoadResult> _notLoaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _folders = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _removed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ExtensionLoadResult> _development = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _reloading = new(StringComparer.OrdinalIgnoreCase);
+    private string? _developerFolder;
     private readonly ConnectorRegistry _registry;
     private readonly IExtensionStateStore _store;
     private readonly ExtensionLoader _loader;
@@ -215,6 +218,12 @@ public sealed class ExtensionManager
                 return ExtensionInstallResult.Fail("Built-in extensions cannot be removed. You can turn them off instead.", id);
             }
 
+            if (isLoaded && _registry.GetSource(connector!.Descriptor.Id) == ExtensionSource.Development
+                || _development.ContainsKey(id))
+            {
+                return ExtensionInstallResult.Fail("This extension comes from the developer folder. Change or clear the developer folder to stop loading it.", id);
+            }
+
             if (!_folders.TryGetValue(id, out var folder))
             {
                 return ExtensionInstallResult.Fail("This extension is not installed.", id);
@@ -250,6 +259,105 @@ public sealed class ExtensionManager
         return ExtensionInstallResult.Ok(id, message);
     }
 
+    /// <summary>The folder extensions are loaded from in developer mode, or null when developer mode is off.</summary>
+    public string? DeveloperFolder
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _developerFolder;
+            }
+        }
+    }
+
+    /// <summary>Sets (or clears) the developer folder. Nothing is loaded until the next <see cref="CompleteDeveloperReload"/>.</summary>
+    public void SetDeveloperFolder(string? folder)
+    {
+        lock (_gate)
+        {
+            _developerFolder = string.IsNullOrWhiteSpace(folder) ? null : Path.GetFullPath(folder);
+        }
+    }
+
+    /// <summary>
+    /// First half of a developer reload: turns the loaded developer extensions off, so that the caller can stop the
+    /// sessions that use them. Follow with <see cref="CompleteDeveloperReload"/>.
+    /// </summary>
+    public void BeginDeveloperReload()
+    {
+        lock (_gate)
+        {
+            foreach (var (id, result) in _development)
+            {
+                if (result.State == ExtensionState.Loaded)
+                {
+                    _reloading.Add(id);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Second half of a developer reload: unloads the old versions, loads whatever is in the developer folder now and
+    /// turns the extensions back on. The caller starts the sessions again afterwards.
+    /// </summary>
+    public void CompleteDeveloperReload()
+    {
+        var old = new List<ExtensionLoadResult>();
+        lock (_gate)
+        {
+            foreach (var (id, result) in _development)
+            {
+                if (result.State == ExtensionState.Loaded)
+                {
+                    _registry.Remove(id);
+                }
+
+                old.Add(result);
+            }
+
+            _development.Clear();
+        }
+
+        foreach (var result in old)
+        {
+            result.Handle?.Unload();
+        }
+
+        old.Clear();
+
+        var folder = DeveloperFolder;
+        var loaded = folder is null ? [] : _loader.LoadDevelopment(folder);
+
+        lock (_gate)
+        {
+            foreach (var result in loaded)
+            {
+                var entry = result;
+                if (result is { State: ExtensionState.Loaded, Connector: { } connector })
+                {
+                    try
+                    {
+                        _registry.Add(connector, ExtensionSource.Development);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        // For example an installed extension with the same id.
+                        result.Handle?.Unload();
+                        entry = result with { State = ExtensionState.Failed, Message = ex.Message, Connector = null, Handle = null };
+                    }
+                }
+
+                _development[entry.Id] = entry;
+            }
+
+            _reloading.Clear();
+        }
+
+        Changed?.Invoke();
+    }
+
     /// <summary>All installed extensions, ordered by name.</summary>
     public IReadOnlyList<ExtensionInfo> GetExtensions()
     {
@@ -257,7 +365,8 @@ public sealed class ExtensionManager
         {
             return _registry.Connectors
                 .Select(ToInfo)
-                .Concat(_notLoaded.Values.Select(ToUnavailableInfo))
+                .Concat(_notLoaded.Values.Select(r => ToUnavailableInfo(r)))
+                .Concat(_development.Values.Where(r => r.State != ExtensionState.Loaded).Select(r => ToUnavailableInfo(r, ExtensionSource.Development)))
                 .OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
@@ -321,19 +430,19 @@ public sealed class ExtensionManager
         return true;
     }
 
-    private bool IsOff(string id) => _disabled.Contains(id) || _removed.Contains(id);
+    private bool IsOff(string id) => _disabled.Contains(id) || _removed.Contains(id) || _reloading.Contains(id);
 
-    private static ExtensionInfo ToUnavailableInfo(ExtensionLoadResult result) => new(
+    private static ExtensionInfo ToUnavailableInfo(ExtensionLoadResult result, ExtensionSource source = ExtensionSource.UserFolder) => new(
         result.Id,
         result.Manifest?.Name ?? result.Id,
         result.Manifest?.Version ?? string.Empty,
         result.Manifest?.Publisher ?? string.Empty,
         result.Manifest?.Kind ?? ExtensionKinds.Connector,
-        ExtensionSource.UserFolder,
+        source,
         result.State,
         result.Message,
         ConnectorCapabilities.None,
-        CanUninstall: true,
+        CanUninstall: source == ExtensionSource.UserFolder,
         Permissions: result.Manifest?.Permissions);
 
     private ExtensionInfo ToInfo(IConnector connector)
@@ -351,6 +460,6 @@ public sealed class ExtensionManager
             removed || _disabled.Contains(descriptor.Id) ? ExtensionState.Disabled : ExtensionState.Loaded,
             StateMessage: removed ? "Removed. It is turned off and will be deleted when OctaGrid restarts." : null,
             descriptor.Capabilities,
-            CanUninstall: source != ExtensionSource.Bundled && !removed);
+            CanUninstall: source == ExtensionSource.UserFolder && !removed);
     }
 }
