@@ -1,0 +1,17 @@
+<Project>
+  <!-- NuGet metadata shared by the packable projects (they set IsPackable and PackageId themselves). -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/OctaGrid-apps/OctaGrid</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/OctaGrid-apps/OctaGrid</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildProjectDirectory)\PACKAGE.md" Pack="true" PackagePath="README.md" Condition="Exists('$(MSBuildProjectDirectory)\PACKAGE.md')" />
+  </ItemGroup>
+</Project>

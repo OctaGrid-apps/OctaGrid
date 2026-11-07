@@ -1,1 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared message and model types. Published because OctaGrid.Extensions.Abstractions depends on it. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>OctaGrid.Protocol</PackageId>
+    <Description>Shared protocol and model types used by OctaGrid and its extensions.</Description>
+    <PackageTags>octagrid;3d-printing;protocol</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>
