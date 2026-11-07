@@ -172,26 +172,31 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public bool HasReleaseNotes => HasAvailableUpdate && !string.IsNullOrWhiteSpace(AvailableUpdate?.ReleaseNotes);
 
     /// <summary>
-    /// Wraps the release notes in a page that paints its own opaque background in the app's theme.
-    /// The web view draws nothing behind the page, so without it the dialog is see-through.
+    /// Wraps the release notes in a page whose text follows the app theme. The page has no background of its own:
+    /// the dialog's <see cref="NativeWebDialog.DefaultBackground"/> paints the window and the web view behind it.
     /// </summary>
-    internal static string BuildReleaseNotesHtml(string notes, bool dark)
-    {
-        var (background, foreground, muted, link, code) = dark
-            ? ("#171B25", "#E8EBF2", "#98A2B3", "#8C9BFF", "#232937")
-            : ("#FFFFFF", "#151A24", "#667085", "#4A5BD9", "#EDF0F5");
-        var scheme = dark ? "dark" : "light";
+    internal static string BuildReleaseNotesHtml(string notes, bool dark, string foreground, string link) =>
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+        $"<meta name=\"color-scheme\" content=\"{(dark ? "dark" : "light")}\">" +
+        "<style>" +
+        $"body {{ color: {foreground}; font-family: 'Segoe UI', system-ui, sans-serif; margin: 16px; line-height: 1.5; }}" +
+        $"a {{ color: {link}; }}" +
+        "code, pre { background: color-mix(in srgb, currentColor 12%, transparent); border-radius: 4px; padding: 1px 4px; }" +
+        "hr { border: 0; border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent); }" +
+        "</style></head><body>" + notes + "</body></html>";
 
-        return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
-            $"<meta name=\"color-scheme\" content=\"{scheme}\">" +
-            "<style>" +
-            $"html, body {{ background: {background}; color: {foreground}; }}" +
-            "body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 16px; line-height: 1.5; }" +
-            $"a {{ color: {link}; }}" +
-            $"code, pre {{ background: {code}; border-radius: 4px; padding: 1px 4px; }}" +
-            $"hr {{ border: 0; border-top: 1px solid {muted}; }}" +
-            "</style></head><body>" + notes + "</body></html>";
+    /// <summary>Reads a color from the theme resources for the current theme variant.</summary>
+    private static Avalonia.Media.Color ThemeColor(string resourceKey, Avalonia.Media.Color fallback)
+    {
+        var app = Avalonia.Application.Current;
+        return app is not null
+            && app.TryGetResource(resourceKey, app.ActualThemeVariant, out var value)
+            && value is Avalonia.Media.ISolidColorBrush brush
+                ? brush.Color
+                : fallback;
     }
+
+    private static string Hex(Avalonia.Media.Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
     [RelayCommand(CanExecute = nameof(HasReleaseNotes))]
     private void ShowReleaseNotes()
@@ -204,11 +209,18 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
         try
         {
-            var dark = Avalonia.Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
-            var html = BuildReleaseNotesHtml(notes, dark);
+            var dark = Avalonia.Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+            var background = ThemeColor("OverlayDialogBackground", dark ? Avalonia.Media.Color.Parse("#171B25") : Avalonia.Media.Colors.White);
+            var foreground = ThemeColor("SystemControlForegroundBaseHighBrush", dark ? Avalonia.Media.Colors.White : Avalonia.Media.Colors.Black);
+            var link = ThemeColor("NavigationRailAccentBrush", foreground);
+            var html = BuildReleaseNotesHtml(notes, dark, Hex(foreground), Hex(link));
 
-            var dialog = new NativeWebDialog { Title = $"What's new in {AvailableUpdate?.TargetVersion}" };
-            dialog.CanUserResize = true;
+            var dialog = new NativeWebDialog
+            {
+                Title = $"What's new in {AvailableUpdate?.TargetVersion}",
+                CanUserResize = true,
+                DefaultBackground = background,
+            };
             dialog.NavigateToString(html);
 
             var owner = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;

@@ -94,14 +94,18 @@ public class UpdateTests
     }
 
     [Theory]
-    [InlineData(true, "#171B25")]
-    [InlineData(false, "#FFFFFF")]
-    public void The_release_notes_page_paints_its_own_opaque_background(bool dark, string background)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void The_release_notes_page_takes_its_colors_from_the_theme_and_leaves_the_background_to_the_dialog(bool dark)
     {
-        var html = SettingsViewModel.BuildReleaseNotesHtml("<p>Notes</p>", dark);
+        var html = SettingsViewModel.BuildReleaseNotesHtml("<p>Notes</p>", dark, "#112233", "#445566");
 
-        Assert.Contains($"background: {background}", html);
+        Assert.Contains("color: #112233", html);
+        Assert.Contains("a { color: #445566", html);
         Assert.Contains($"content=\"{(dark ? "dark" : "light")}\"", html);
         Assert.Contains("<p>Notes</p>", html);
+
+        // The dialog's DefaultBackground paints the window and the web view; the page must not cover it.
+        Assert.DoesNotContain("background:", html.Replace("color-mix", string.Empty).Split("code, pre")[0]);
     }
 }
