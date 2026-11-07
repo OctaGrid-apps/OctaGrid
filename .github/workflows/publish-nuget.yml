@@ -2,10 +2,10 @@ name: Publish NuGet packages
 
 # Registered as the workflow file of the trusted publishing policy on nuget.org;
 # renaming this file means updating that policy.
+# Publishing to nuget.org is on hold until the app has stable releases, so this workflow only runs by hand and
+# a release tag does not start it. To publish again, add back a `push: tags: ['v*']` trigger and make sure the
+# repository allows the NuGet/login action and defines the NUGET_USER variable.
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
