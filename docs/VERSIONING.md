@@ -46,8 +46,8 @@ Precedence example: `1.1.0-pre-alpha` < `1.1.0-preview.1` < `1.1.0-preview.2` < 
 | Where | Value | Source |
 |---|---|---|
 | Git tag | `v1.0.17-pre-alpha` | Must equal `v` + `version.json` (enforced by CI) |
-| Assembly / InformationalVersion | `1.0.17-pre-alpha` (+ commit id on non-release builds) | NBGV |
-| App UI (window title, Settings) | `v1.0.17-pre-alpha` | `Helper.GetAppVersion()` |
+| Assembly / InformationalVersion | `1.0.17.4-pre-alpha+4f6d5bb` (the 4th number is the git height, the part after `+` the commit) | NBGV |
+| App UI (window title, Settings) | `v1.0.17-pre-alpha` (height and commit removed) | `Helper.GetAppVersion()` |
 | Velopack package / installer | `1.0.17-pre-alpha` | `version.json` |
 | GitHub release | Title `OctaGrid 1.0.17-pre-alpha (pre-alpha)`, flagged *Pre-release* | Derived from the label |
 | MSIX / Microsoft Store | `1.0.17.0` | Numeric part only; Store builds are stable only |
@@ -122,6 +122,7 @@ expected and may ship in a `MINOR` or `PATCH` bump.
   label in workflow inputs or scripts, and never type a tag by hand with a different label.
 - Pre-release versions must never be submitted to the Microsoft Store.
 - Hotfix for a stable release: bump `PATCH`, tag, release.
+- The root `version.json` is the product version. A component that is released on its own (for example a separate agent) may have its own `version.json` next to it, but always with the full `major.minor.patch` (never `1.0-…`), `"inherit": true`, its own tag prefix (for example `agent-v1.2.0`) and a release workflow that checks that tag against its file the way `release.yml` does. Add `"pathFilters"` so commits that only touch other components do not raise its git height.
 
 ## Troubleshooting
 
@@ -131,3 +132,4 @@ expected and may ship in a `MINOR` or `PATCH` bump.
 | Release not marked pre-release | The version has no `-label` in `version.json`. |
 | App shows a `+g<hash>` suffix | Not built from a release tag (local/dev build) — expected. |
 | Tester doesn't receive pre-releases | Installed version has no `-label`; install a pre-release build once. |
+| App shows a different number than the release (for example `1.0.38` for release `1.0.20`) | A `version.json` with only `major.minor` (for example `1.0-pre-alpha`) sits closer to the project than the root one. Nerdbank.GitVersioning uses the nearest file, and without a patch number it uses the git height instead. Every `version.json` must name `major.minor.patch` (a test checks this). |
