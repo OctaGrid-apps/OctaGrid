@@ -44,6 +44,19 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
         return Task.FromResult(ExtensionInstallResult.Ok(extensionId, "Removed."));
     }
 
+    private string? _developerFolder;
+
+    public Task<string?> GetDeveloperFolderAsync(CancellationToken cancellationToken) => Task.FromResult(_developerFolder);
+
+    public Task<ExtensionInstallResult> SetDeveloperFolderAsync(string? folder, CancellationToken cancellationToken)
+    {
+        _developerFolder = string.IsNullOrWhiteSpace(folder) ? null : folder;
+        return Task.FromResult(ExtensionInstallResult.Ok(null, _developerFolder is null ? "Developer mode is off." : "Developer mode is on."));
+    }
+
+    public Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(ExtensionInstallResult.Ok(null, "Developer extensions reloaded."));
+
     private void Replace(string extensionId, Func<ExtensionInfo, ExtensionInfo> change)
     {
         var index = _extensions.FindIndex(e => e.Id == extensionId);

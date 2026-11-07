@@ -281,7 +281,8 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         var viewModel = new ExtensionsViewModel(
             _extensionsClient,
             _notifications,
-            _loggerFactory.CreateLogger<ExtensionsViewModel>());
+            _loggerFactory.CreateLogger<ExtensionsViewModel>(),
+            _appSettings);
         await this.ShowOverlayDialogAsync("Extensions", viewModel);
         await RefreshExtensionsSummaryAsync(CancellationToken.None);
     }

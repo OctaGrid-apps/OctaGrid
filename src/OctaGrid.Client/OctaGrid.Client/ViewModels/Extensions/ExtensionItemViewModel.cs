@@ -37,6 +37,7 @@ public partial class ExtensionItemViewModel : ObservableObject
     {
         ExtensionSource.Bundled => "Built in",
         ExtensionSource.Store => "Microsoft Store",
+        ExtensionSource.Development => "Developer folder",
         _ => "Installed",
     };
 

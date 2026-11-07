@@ -14,15 +14,69 @@ namespace OctaGrid.Agent.Core.Connectors;
 /// <param name="State"><see cref="ExtensionState.Loaded"/>, <see cref="ExtensionState.Incompatible"/> or <see cref="ExtensionState.Failed"/>.</param>
 /// <param name="Message">Why the extension was not loaded.</param>
 /// <param name="Connector">The connector, when the extension was loaded.</param>
+/// <param name="Handle">Lets the host unload an extension that was loaded in developer mode; null otherwise.</param>
 public sealed record ExtensionLoadResult(
     string Folder,
     ExtensionManifest? Manifest,
     ExtensionState State,
     string? Message,
-    IConnector? Connector)
+    IConnector? Connector,
+    ExtensionHandle? Handle = null)
 {
     /// <summary>The manifest id, or the folder name when there is no readable manifest.</summary>
     public string Id => Manifest?.Id ?? Path.GetFileName(Folder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+}
+
+/// <summary>
+/// Owns the load context of an extension that was loaded from a shadow copy (developer mode). Unloading it lets the
+/// runtime free the old version once nothing refers to it any more, so a rebuilt extension can be loaded in its place.
+/// </summary>
+public sealed class ExtensionHandle
+{
+    private AssemblyLoadContext? _context;
+    private readonly string _shadowFolder;
+
+    internal ExtensionHandle(AssemblyLoadContext context, string shadowFolder)
+    {
+        _context = context;
+        _shadowFolder = shadowFolder;
+        WeakContext = new WeakReference(context);
+    }
+
+    /// <summary>A reference that does not keep the load context alive; it is dead once the old version is gone.</summary>
+    public WeakReference WeakContext { get; }
+
+    /// <summary>Starts unloading the extension and, once the runtime lets go of its files, deletes the shadow copy.</summary>
+    public void Unload()
+    {
+        var context = _context;
+        _context = null;
+        context?.Unload();
+
+        // The files stay locked until the runtime has collected the context, which can take a few collections.
+        var folder = _shadowFolder;
+        _ = Task.Run(async () =>
+        {
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                try
+                {
+                    if (Directory.Exists(folder))
+                    {
+                        Directory.Delete(folder, recursive: true);
+                    }
+
+                    return;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    await Task.Delay(500);
+                }
+            }
+        });
+    }
 }
 
 /// <summary>
@@ -79,10 +133,40 @@ public sealed class ExtensionLoader
     }
 
     /// <summary>
+    /// Loads the extension(s) a developer points at: either one extension folder (a build output folder with the
+    /// manifest in it) or a folder that contains several. They are trusted without asking, loaded from a shadow copy
+    /// (so the next build can overwrite the original files) and can be unloaded through <see cref="ExtensionLoadResult.Handle"/>.
+    /// </summary>
+    public IReadOnlyList<ExtensionLoadResult> LoadDevelopment(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            return [];
+        }
+
+        var folders = File.Exists(Path.Combine(folder, ExtensionManifest.FileName))
+            ? [folder]
+            : FindExtensionFolders(folder).ToList();
+
+        var results = new List<ExtensionLoadResult>();
+        foreach (var extensionFolder in folders)
+        {
+            var result = Load(extensionFolder, isTrusted: null, development: true);
+            _logger.LogInformation("Developer extension in {Folder}: {State} {Message}", extensionFolder, result.State, result.Message);
+            results.Add(result);
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Loads the extension in one folder; never throws for a bad extension. The manifest and the host version are checked
     /// first and no extension code runs until <paramref name="isTrusted"/> agrees (null trusts everything).
     /// </summary>
-    public ExtensionLoadResult Load(string folder, Func<ExtensionManifest, bool>? isTrusted = null)
+    /// <param name="folder">The extension folder.</param>
+    /// <param name="isTrusted">Decides whether the user trusts the extension; null trusts everything.</param>
+    /// <param name="development">Load from a shadow copy into a context that can be unloaded.</param>
+    public ExtensionLoadResult Load(string folder, Func<ExtensionManifest, bool>? isTrusted = null, bool development = false)
     {
         ExtensionManifest? manifest = null;
         try
@@ -124,14 +208,15 @@ public sealed class ExtensionLoader
                     "Review and approve this extension to run it. Its code has not been loaded.");
             }
 
-            var connector = CreateConnector(folder, manifest);
+            var (connector, handle) = CreateConnector(folder, manifest, development);
             if (!string.Equals(connector.Descriptor.Id, manifest.Id, StringComparison.OrdinalIgnoreCase))
             {
+                handle?.Unload();
                 return Fail(folder, manifest, ExtensionState.Failed,
                     $"The manifest id '{manifest.Id}' differs from the connector id '{connector.Descriptor.Id}'.");
             }
 
-            return new ExtensionLoadResult(folder, manifest, ExtensionState.Loaded, null, connector);
+            return new ExtensionLoadResult(folder, manifest, ExtensionState.Loaded, null, connector, handle);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -149,7 +234,42 @@ public sealed class ExtensionLoader
     private static ExtensionLoadResult Fail(string folder, ExtensionManifest? manifest, ExtensionState state, string message) =>
         new(folder, manifest, state, message, null);
 
-    private IConnector CreateConnector(string folder, ExtensionManifest manifest)
+    /// <summary>Where developer-mode extensions are copied to before they are loaded.</summary>
+    private static string ShadowRoot => Path.Combine(Path.GetTempPath(), "OctaGrid-extensions-dev");
+
+    /// <summary>
+    /// Deletes the shadow copies that earlier runs left behind (they cannot be deleted while the process that loaded them
+    /// is still running). Only copies that have not been touched for <paramref name="olderThan"/> (an hour by default)
+    /// are removed, so a copy another OctaGrid has just made, and is about to load, is never taken away; copies that are
+    /// still in use are skipped.
+    /// </summary>
+    public static void CleanUpShadowCopies(TimeSpan? olderThan = null)
+    {
+        var cutoff = DateTime.UtcNow - (olderThan ?? TimeSpan.FromHours(1));
+        if (!Directory.Exists(ShadowRoot))
+        {
+            return;
+        }
+
+        foreach (var folder in Directory.EnumerateDirectories(ShadowRoot))
+        {
+            if (Directory.GetLastWriteTimeUtc(folder) > cutoff)
+            {
+                continue;
+            }
+
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Another OctaGrid is running from it.
+            }
+        }
+    }
+
+    private (IConnector Connector, ExtensionHandle? Handle) CreateConnector(string folder, ExtensionManifest manifest, bool development)
     {
         var root = Path.GetFullPath(folder);
         var assemblyPath = Path.GetFullPath(Path.Combine(root, manifest.Assembly!));
@@ -163,7 +283,44 @@ public sealed class ExtensionLoader
             throw new FileNotFoundException($"The assembly '{manifest.Assembly}' was not found in the extension folder.");
         }
 
-        var context = new ExtensionLoadContext(manifest.Id, assemblyPath);
+        if (!development)
+        {
+            var connector = Instantiate(new ExtensionLoadContext(manifest.Id, assemblyPath, collectible: false), assemblyPath, manifest);
+            return (connector, null);
+        }
+
+        // Developer mode: run a copy, so that building the extension again can overwrite the original files while the
+        // old version is still loaded, and use a context the host can unload before it loads the new build.
+        var shadow = Path.Combine(ShadowRoot, Guid.NewGuid().ToString("N"));
+        CopyFolder(root, shadow);
+        var shadowAssembly = Path.Combine(shadow, Path.GetRelativePath(root, assemblyPath));
+
+        var context = new ExtensionLoadContext(manifest.Id, shadowAssembly, collectible: true);
+        var handle = new ExtensionHandle(context, shadow);
+        try
+        {
+            return (Instantiate(context, shadowAssembly, manifest), handle);
+        }
+        catch
+        {
+            handle.Unload();
+            throw;
+        }
+    }
+
+    private static void CopyFolder(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
+    }
+
+    private IConnector Instantiate(AssemblyLoadContext context, string assemblyPath, ExtensionManifest manifest)
+    {
         var assembly = context.LoadFromAssemblyPath(assemblyPath);
 
         var type = assembly.GetType(manifest.EntryType!, throwOnError: false)
@@ -242,8 +399,8 @@ public sealed class ExtensionLoader
         private readonly AssemblyDependencyResolver _resolver;
         private readonly string _directory;
 
-        public ExtensionLoadContext(string extensionId, string mainAssemblyPath)
-            : base($"extension:{extensionId}", isCollectible: false)
+        public ExtensionLoadContext(string extensionId, string mainAssemblyPath, bool collectible)
+            : base($"extension:{extensionId}", isCollectible: collectible)
         {
             _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
             _directory = Path.GetDirectoryName(mainAssemblyPath)!;

@@ -20,4 +20,13 @@ internal sealed class LocalExtensionsClient(AgentWorker agentWorker) : IExtensio
 
     public Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken) =>
         agentWorker.UninstallExtensionAsync(extensionId, cancellationToken);
+
+    public Task<string?> GetDeveloperFolderAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(agentWorker.DeveloperFolder);
+
+    public Task<ExtensionInstallResult> SetDeveloperFolderAsync(string? folder, CancellationToken cancellationToken) =>
+        agentWorker.SetDeveloperFolderAsync(folder, cancellationToken);
+
+    public Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken) =>
+        agentWorker.ReloadDeveloperExtensionsAsync(cancellationToken);
 }

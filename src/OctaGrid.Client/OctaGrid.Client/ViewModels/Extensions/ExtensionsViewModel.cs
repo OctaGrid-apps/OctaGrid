@@ -15,13 +15,16 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
     private readonly IExtensionsClient _client;
     private readonly ILogger<ExtensionsViewModel> _logger;
     private readonly INotificationService? _notifications;
+    private readonly IAppSettingsStore? _settings;
 
     public ExtensionsViewModel(
         IExtensionsClient client,
         INotificationService? notifications = null,
-        ILogger<ExtensionsViewModel>? logger = null)
+        ILogger<ExtensionsViewModel>? logger = null,
+        IAppSettingsStore? settings = null)
     {
         _client = client;
+        _settings = settings;
         _notifications = notifications;
         _logger = logger ?? NullLogger<ExtensionsViewModel>.Instance;
     }
@@ -36,10 +39,51 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
 
     public bool CanEdit => !IsBusy;
 
+    /// <summary>The folder extensions are loaded from in developer mode; null when developer mode is off.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDeveloperMode))]
+    [NotifyPropertyChangedFor(nameof(DeveloperStatus))]
+    public partial string? DeveloperFolder { get; set; }
+
+    public bool IsDeveloperMode => DeveloperFolder is not null;
+
+    public string DeveloperStatus => DeveloperFolder is null
+        ? "Off. Point it at the folder your extension is built into: it loads without asking and reloads after every build."
+        : $"On: {DeveloperFolder}";
+
+    /// <summary>Turns developer mode on for a folder the user picked. The choice is saved for the next start.</summary>
+    public async Task SetDeveloperFolderAsync(string? folder)
+    {
+        await RunAsync("change developer mode for", async () =>
+        {
+            var result = await _client.SetDeveloperFolderAsync(folder, CancellationToken.None);
+            if (result.Success)
+            {
+                _settings?.Update(s => s with { DeveloperExtensionsFolder = string.IsNullOrWhiteSpace(folder) ? null : folder });
+            }
+
+            Report(result, "Developer mode");
+        });
+    }
+
+    [RelayCommand]
+    private Task TurnOffDeveloperMode() => SetDeveloperFolderAsync(null);
+
+    [RelayCommand]
+    private async Task ReloadDeveloper()
+    {
+        await RunAsync("reload", async () =>
+        {
+            var result = await _client.ReloadDeveloperExtensionsAsync(CancellationToken.None);
+            Report(result, "Developer mode");
+        });
+    }
+
     [RelayCommand]
     private async Task Load(CancellationToken cancellationToken)
     {
         var extensions = await _client.GetExtensionsAsync(cancellationToken);
+        DeveloperFolder = await _client.GetDeveloperFolderAsync(cancellationToken);
 
         // Keep existing rows so the list does not flicker when it refreshes after a toggle.
         foreach (var info in extensions)

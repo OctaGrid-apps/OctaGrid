@@ -131,6 +131,21 @@ public sealed class SampleExtensionTests : IDisposable
         Assert.Contains("sample extension", hello.Message);
     }
 
+    [Fact]
+    public void The_sample_loads_in_developer_mode_straight_from_its_build_output()
+    {
+        var manager = NewManager();
+        manager.SetDeveloperFolder(Path.Combine(SampleOutput(), "package", PackageFolderName));
+
+        manager.BeginDeveloperReload();
+        manager.CompleteDeveloperReload();
+
+        var info = Assert.Single(manager.GetExtensions());
+        Assert.Equal(SampleId, info.Id);
+        Assert.True(info.State == ExtensionState.Loaded, info.StateMessage);
+        Assert.Equal(ExtensionSource.Development, info.Source);
+    }
+
     private static async Task WaitFor(FakeTelemetry telemetry, UniversalPrinterState state, int after = 0)
     {
         var deadline = DateTime.UtcNow.AddSeconds(20);

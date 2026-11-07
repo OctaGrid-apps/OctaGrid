@@ -9,6 +9,9 @@ public enum ExtensionSource
     /// <summary>Installed by the user into the extensions folder.</summary>
     UserFolder,
 
+    /// <summary>Loaded from the developer folder (developer mode). Trusted without asking and reloadable; not removable.</summary>
+    Development,
+
     /// <summary>Installed as a separate Microsoft Store package.</summary>
     Store,
 }

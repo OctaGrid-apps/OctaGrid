@@ -9,9 +9,28 @@ namespace OctaGrid.Agent.Core.Tests;
 
 internal sealed class FakeTelemetry : ITelemetrySink
 {
-    public List<PrinterTelemetry> Sent { get; } = [];
+    private readonly object _gate = new();
+    private readonly List<PrinterTelemetry> _sent = [];
 
-    public void Send(PrinterTelemetry telemetry) => Sent.Add(telemetry);
+    /// <summary>What was sent so far. A copy, because sessions send from their own threads.</summary>
+    public List<PrinterTelemetry> Sent
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _sent.ToList();
+            }
+        }
+    }
+
+    public void Send(PrinterTelemetry telemetry)
+    {
+        lock (_gate)
+        {
+            _sent.Add(telemetry);
+        }
+    }
 }
 
 /// <summary>A minimal SDK session with every capability, recording what the host asks of it.</summary>

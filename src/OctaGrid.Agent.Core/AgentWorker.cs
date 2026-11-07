@@ -14,6 +14,8 @@ public class AgentWorker : IAsyncDisposable
     private readonly ILogger<AgentWorker> _logger;
     private readonly DeviceOrchestrator _orchestrator;
     private readonly IPrinterProfileSource _profileSource;
+    private readonly SemaphoreSlim _reloadGate = new(1, 1);
+    private DeveloperExtensionWatcher? _developerWatcher;
 
     /// <param name="extensions">The installed extensions and which of them are enabled.</param>
     public AgentWorker(
@@ -89,6 +91,73 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
+    /// <summary>The folder extensions are loaded from in developer mode, or null when developer mode is off.</summary>
+    public string? DeveloperFolder => _extensions.DeveloperFolder;
+
+    /// <summary>
+    /// Turns developer mode on for a folder (or off with null), loads what is in it and, while it is on, reloads
+    /// whenever a build changes the folder.
+    /// </summary>
+    public async Task<ExtensionInstallResult> SetDeveloperFolderAsync(string? folder, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(folder) && !Directory.Exists(folder))
+        {
+            return ExtensionInstallResult.Fail("That folder does not exist.");
+        }
+
+        if (_extensions.DeveloperFolder is null && !string.IsNullOrWhiteSpace(folder))
+        {
+            ExtensionLoader.CleanUpShadowCopies();
+        }
+
+        _developerWatcher?.Dispose();
+        _developerWatcher = null;
+        _extensions.SetDeveloperFolder(folder);
+
+        if (_extensions.DeveloperFolder is { } watched)
+        {
+            _developerWatcher = new DeveloperExtensionWatcher(watched, () => _ = ReloadOnChangeAsync());
+        }
+
+        await ReloadDeveloperExtensionsAsync(cancellationToken);
+        _logger.LogInformation("Developer folder is now {Folder}", _extensions.DeveloperFolder ?? "(off)");
+        return ExtensionInstallResult.Ok(null, _extensions.DeveloperFolder is null ? "Developer mode is off." : "Developer mode is on.");
+    }
+
+    /// <summary>
+    /// Loads the developer folder again, for example after a build. The printers that use a developer extension
+    /// restart their session with the new version.
+    /// </summary>
+    public async Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken)
+    {
+        await _reloadGate.WaitAsync(cancellationToken);
+        try
+        {
+            _extensions.BeginDeveloperReload();
+            await RefreshProfilesAsync(cancellationToken);    // stops the sessions that use the old version
+            _extensions.CompleteDeveloperReload();
+            await RefreshProfilesAsync(cancellationToken);    // starts them again with the new one
+            return ExtensionInstallResult.Ok(null, "Developer extensions reloaded.");
+        }
+        finally
+        {
+            _reloadGate.Release();
+        }
+    }
+
+    private async Task ReloadOnChangeAsync()
+    {
+        try
+        {
+            _logger.LogInformation("The developer folder changed; reloading developer extensions");
+            await ReloadDeveloperExtensionsAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reload developer extensions");
+        }
+    }
+
     // A printer whose connector the user disabled gets no session; unknown connectors are passed
     // through so the orchestrator can report them.
     private List<PrinterProfile> WithoutDisabledConnectors(IReadOnlyList<PrinterProfile> profiles) =>
@@ -101,6 +170,7 @@ public class AgentWorker : IAsyncDisposable
     {
         _logger.LogInformation("Disposing AgentWorker and stopping all device sessions");
         GC.SuppressFinalize(this);
+        _developerWatcher?.Dispose();
         return _orchestrator.DisposeAsync();
     }
 

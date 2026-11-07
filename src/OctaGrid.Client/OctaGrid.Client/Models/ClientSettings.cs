@@ -18,4 +18,7 @@ public sealed record ClientSettings
     public bool IsSafetyDisclaimerAccepted { get; init; }
     public Guid? DefaultWorkspace { get; init; }
     public Guid? DefaultDashboard { get; init; }
+
+    /// <summary>Folder extensions are loaded from in developer mode; null when developer mode is off.</summary>
+    public string? DeveloperExtensionsFolder { get; init; }
 }

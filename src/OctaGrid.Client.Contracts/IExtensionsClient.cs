@@ -17,4 +17,13 @@ public interface IExtensionsClient
 
     /// <summary>Removes an installed extension.</summary>
     Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken);
+
+    /// <summary>The folder extensions are loaded from in developer mode, or null when developer mode is off.</summary>
+    Task<string?> GetDeveloperFolderAsync(CancellationToken cancellationToken);
+
+    /// <summary>Turns developer mode on for a folder (or off with null). Extensions in it load without asking and reload when it changes.</summary>
+    Task<ExtensionInstallResult> SetDeveloperFolderAsync(string? folder, CancellationToken cancellationToken);
+
+    /// <summary>Loads the developer folder again, for example right after a build.</summary>
+    Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken);
 }

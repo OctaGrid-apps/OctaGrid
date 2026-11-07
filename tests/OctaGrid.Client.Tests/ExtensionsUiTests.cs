@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OctaGrid.Client.Dialogs;
 using OctaGrid.Client.DesignTime;
+using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Protocol.Extensions;
 
@@ -70,6 +71,69 @@ public class ExtensionsUiTests
     }
 
     [Fact]
+    public async Task Choosing_a_developer_folder_turns_developer_mode_on_and_remembers_it()
+    {
+        var settings = new InMemorySettingsStore();
+        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), settings: settings);
+        await viewModel.LoadCommand.ExecuteAsync(null);
+        Assert.False(viewModel.IsDeveloperMode);
+
+        await viewModel.SetDeveloperFolderAsync(@"C:\work\MyConnector\bin");
+
+        Assert.True(viewModel.IsDeveloperMode);
+        Assert.Contains(@"C:\work\MyConnector\bin", viewModel.DeveloperStatus);
+        Assert.Equal(@"C:\work\MyConnector\bin", settings.ClientSettings.DeveloperExtensionsFolder);
+    }
+
+    [Fact]
+    public async Task Turning_developer_mode_off_clears_the_saved_folder()
+    {
+        var settings = new InMemorySettingsStore();
+        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), settings: settings);
+        await viewModel.SetDeveloperFolderAsync(@"C:\work\MyConnector\bin");
+
+        await viewModel.TurnOffDeveloperModeCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsDeveloperMode);
+        Assert.Null(settings.ClientSettings.DeveloperExtensionsFolder);
+    }
+
+    [Fact]
+    public async Task Extensions_from_the_developer_folder_say_where_they_come_from()
+    {
+        var client = new DesignExtensionsClient();
+        await client.ApproveExtensionAsync("acme.prusalink", CancellationToken.None);
+        var info = (await client.GetExtensionsAsync(CancellationToken.None)).Single(e => e.Id == "acme.prusalink") with
+        {
+            Source = ExtensionSource.Development,
+            CanUninstall = false,
+        };
+
+        var item = new ExtensionItemViewModel(info, (_, _) => { }, _ => { }, _ => { });
+
+        Assert.Contains("Developer folder", item.Details);
+        Assert.False(item.CanUninstall);
+    }
+
+    [Theory]
+    [InlineData(new[] { "--extensions-dev", @"C:\dev\ext" }, null, null, @"C:\dev\ext")]
+    [InlineData(new[] { @"--extensions-dev=C:\dev\ext" }, null, null, @"C:\dev\ext")]
+    [InlineData(new[] { "--EXTENSIONS-DEV", @"C:\dev\ext" }, null, null, @"C:\dev\ext")]
+    [InlineData(new[] { "--other" }, null, @"C:\env", @"C:\env")]
+    [InlineData(new[] { "--extensions-dev", @"C:\cli" }, @"C:\saved", @"C:\env", @"C:\cli")]
+    [InlineData(new string[0], @"C:\saved", @"C:\env", @"C:\env")]
+    [InlineData(new string[0], @"C:\saved", null, @"C:\saved")]
+    [InlineData(new string[0], "  ", null, null)]
+    [InlineData(new[] { "--extensions-dev" }, null, null, null)]
+    public void The_developer_folder_comes_from_the_command_line_then_the_environment_then_the_settings(
+        string[] args, string? saved, string? environment, string? expected) =>
+        Assert.Equal(expected, DeveloperMode.ResolveFolder(args, saved, _ => environment));
+
+    [Fact]
+    public void Without_any_arguments_there_is_no_developer_folder() =>
+        Assert.Null(DeveloperMode.ResolveFolder(null, null, _ => null));
+
+    [Fact]
     public async Task The_extension_dialogs_render_with_their_actions()
     {
         var viewModel = await LoadedViewModel();
@@ -85,6 +149,7 @@ public class ExtensionsUiTests
             Assert.Contains("Install from folder…", buttons);
             Assert.Contains("Review…", buttons);
             Assert.Contains("Remove", buttons);
+            Assert.Contains("Choose folder…", buttons);
             window.Close();
 
             var trust = new Window

@@ -100,10 +100,52 @@ Windows, so it is turned off at once and its folder is marked and deleted the ne
 extensions cannot be removed, only turned off. To install a newer version of a running extension, install it and
 restart OctaGrid.
 
+## Developer mode
+
+Developer mode loads an extension straight from the folder you build it into, so you do not install it, restart
+OctaGrid or approve it after every change.
+
+**Turn it on** in one of three ways (the first that is set wins):
+
+1. `OctaGrid --extensions-dev <folder>` (or `--extensions-dev=<folder>`), for a launch profile.
+2. The environment variable `OCTAGRID_EXTENSIONS_DEV=<folder>`.
+3. **Settings > Extensions > Developer mode > Choose folder…**, which is remembered for the next start.
+
+The folder is either one extension (it contains `octagrid-extension.json`) or a folder with several extension folders in
+it. To get the manifest into your build output, add this to the extension project:
+
+```xml
+<ItemGroup>
+  <None Include="octagrid-extension.json" CopyToOutputDirectory="PreserveNewest" />
+  <!-- The host provides the SDK and protocol types; do not ship your own copies. -->
+  <ProjectReference Include="..\OctaGrid.Extensions.Abstractions\OctaGrid.Extensions.Abstractions.csproj" Private="false" />
+</ItemGroup>
+```
+
+What developer mode does:
+
+- **No approval.** You pointed OctaGrid at your own folder, so the extension is trusted. It is listed as *Developer folder*.
+- **Reloads on every build.** OctaGrid watches the folder (`.dll` and `.json` files) and, 0.75 seconds after the last
+  write, stops the printers that use the extension, unloads the old version, loads the new one and starts the printers
+  again. **Reload** in the dialog does the same on demand.
+- **Runs from a copy.** The files are copied to a temporary folder first, so your next build can overwrite the originals
+  while the old version is still loaded. Leftover copies are cleaned up the next time developer mode starts.
+- **Shows build errors.** A manifest that is broken or an extension that cannot be created is listed as *Failed* with the
+  reason, and the next good build fixes it.
+- **Debugging works.** The extension runs in the OctaGrid process: start OctaGrid with `--extensions-dev <folder>` from
+  your IDE, or attach to it, and set breakpoints as usual.
+
+A developer extension cannot have the same id as a built-in or installed extension; remove or rename the other one. It
+cannot be removed with **Remove**: choose **Turn off** under *Developer mode* instead.
+
+To try it with the sample, run OctaGrid with `--extensions-dev samples/OctaGrid.Extensions.Sample/bin/Debug/net10.0/package/octagrid-samples.demo-printer`,
+change `DemoPrinterConnector.cs` (for example the display name) and run `dotnet build samples/OctaGrid.Extensions.Sample`:
+the list in Settings > Extensions shows the new name a moment later.
+
 ## Not available yet
 
 - Installing from a catalog, and updates.
-- Loading without a restart, and a developer mode that watches a build folder.
+- Loading an installed extension without a restart.
 - Out-of-process extensions (Microsoft Store packages).
 
 ## Try it: the sample extension
