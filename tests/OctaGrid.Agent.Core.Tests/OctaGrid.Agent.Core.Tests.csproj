@@ -14,6 +14,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\OctaGrid.Agent.Core\OctaGrid.Agent.Core.csproj" />
+    <!-- Builds the sample extension (and its package) first; the sample tests install that package like a user would. -->
+    <ProjectReference Include="..\..\samples\OctaGrid.Extensions.Sample\OctaGrid.Extensions.Sample.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

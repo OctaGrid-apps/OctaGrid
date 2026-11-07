@@ -157,8 +157,10 @@ public sealed partial class ExtensionVersion : IComparable<ExtensionVersion>, IE
 /// <c>&lt;</c> or <c>=</c> (or nothing) followed by a version; <c>*</c> accepts any version.
 /// </summary>
 /// <remarks>
-/// A pre-release host (<c>1.0.19-pre-alpha.3</c>) satisfies a range only when the range names a pre-release of
-/// the same <c>major.minor.patch</c>, for example <c>&gt;=1.0.19-pre-alpha</c>.
+/// A pre-release host (<c>1.0.20-pre-alpha.1</c>) is only accepted by a range that names a pre-release somewhere, for
+/// example <c>&gt;=1.0.19-pre-alpha &lt;2.0.0</c>: the author says the extension may run on pre-releases. The comparators then
+/// decide as usual, so that range accepts <c>1.0.20-pre-alpha.1</c>. A range such as <c>&gt;=1.0.0 &lt;2.0.0</c> accepts
+/// stable hosts only.
 /// </remarks>
 public sealed class HostVersionRange
 {
@@ -216,10 +218,16 @@ public sealed class HostVersionRange
         return true;
     }
 
+    /// <summary>
+    /// True when the range names at least one pre-release version (for example <c>&gt;=1.0.19-pre-alpha</c>). That is how
+    /// an extension author says the extension may run on a pre-release of OctaGrid.
+    /// </summary>
+    public bool AcceptsPreRelease => _comparators.Any(c => c.Version.IsPreRelease);
+
     /// <summary>True when <paramref name="host"/> is inside the range.</summary>
     public bool Satisfies(ExtensionVersion host)
     {
-        if (host.IsPreRelease && !_comparators.Any(c => c.Version.IsPreRelease && c.Version.SameCore(host)))
+        if (host.IsPreRelease && !AcceptsPreRelease)
         {
             return false;
         }
@@ -232,7 +240,8 @@ public sealed class HostVersionRange
                 ">=" => compare >= 0,
                 ">" => compare > 0,
                 "<=" => compare <= 0,
-                "<" => compare < 0,
+                // "<2.0.0" also keeps out 2.0.0-pre-alpha.1: the next major version has started, even as a pre-release.
+                "<" => compare < 0 && !(host.IsPreRelease && !version.IsPreRelease && host.SameCore(version)),
                 _ => compare == 0,
             };
 

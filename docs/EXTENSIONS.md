@@ -53,8 +53,14 @@ The class needs a public parameterless constructor, or one that takes an `ILogge
 
 ### Host version ranges
 
-A pre-release OctaGrid (for example `1.0.19-pre-alpha.3`) only matches a range that names a pre-release of the same
-`major.minor.patch`, such as `>=1.0.19-pre-alpha`. A range like `>=1.0.0 <2.0.0` does not match it.
+A range is a list of comparators that must all hold: `>=1.1.0 <2.0.0` means "1.1.0 or later, before 2.0.0".
+
+**Pre-releases.** A pre-release OctaGrid (for example `1.0.20-pre-alpha.1`) is only accepted by a range that names a
+pre-release somewhere, such as `>=1.0.19-pre-alpha <2.0.0`. That tells OctaGrid the extension may run on pre-releases, and
+the comparators then decide as usual: this range accepts `1.0.19-pre-alpha.7` and `1.0.20-pre-alpha.1`, and still refuses
+`2.0.0-pre-alpha.1` (the next major version has started) and `1.0.18-pre-alpha.2`. A range such as `>=1.0.0 <2.0.0` accepts
+stable versions of OctaGrid only, so while OctaGrid is in pre-alpha write the lower bound with the pre-release label.
+When an extension is refused for this reason, the message says what to write.
 
 ## States
 
