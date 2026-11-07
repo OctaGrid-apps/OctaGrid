@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 using OctaGrid.Protocol.Workspaces;
 
@@ -24,6 +26,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private readonly ILogger<DashboardsViewModel> _logger;
     private readonly INotificationService? _notifications;
     private readonly IPrintersClient _printersClient;
+    private readonly IAppSettingsStore _settings;
+    private List<PrinterDashboardCardViewModel> _allPrinters = [];
+    private bool _isUpdatingFilters;
 
     public DashboardsViewModel(
         IDashboardsClient dashboardsClient,
@@ -31,9 +36,20 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         ApplicationState appState,
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
+        IAppSettingsStore settings,
         INotificationService? notifications = null,
         ILoggerFactory? loggerFactory = null)
     {
+        _settings = settings;
+        var savedStatus = settings.ClientSettings.DashboardStatusFilter;
+        StatusFilters = Enum.GetValues<UniversalPrinterState>()
+            .Select(state => new PrinterStatusFilterViewModel(state) { IsSelected = state == savedStatus })
+            .ToList();
+        foreach (var filter in StatusFilters)
+        {
+            filter.PropertyChanged += OnStatusFilterChanged;
+        }
+
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _agentCommands = agentCommands;
         _imageCache = imageCache;
@@ -133,11 +149,24 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
             _logger.LogDebug("Loading enabled printers for workspace {WorkspaceId}", workspaceId);
             var printers = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: true), cancellationToken);
-            Printers = new ObservableCollection<PrinterDashboardCardViewModel>(printers.Select(printer => new PrinterDashboardCardViewModel(new PrinterStatusWidget()
+            foreach (var old in _allPrinters)
+            {
+                old.Item.PropertyChanged -= OnPrinterPropertyChanged;
+            }
+
+            _allPrinters = printers.Select(printer => new PrinterDashboardCardViewModel(new PrinterStatusWidget()
             {
                 Id = printer.Id,
-                Name = printer.Name
-            }, _agentCommands, _imageCache, _loggerFactory)));
+                Name = printer.Name,
+                ConnectorId = printer.ConnectorId
+            }, _agentCommands, _imageCache, _loggerFactory)).ToList();
+            foreach (var card in _allPrinters)
+            {
+                card.Item.PropertyChanged += OnPrinterPropertyChanged;
+            }
+
+            BuildConnectorOptions();
+            ApplyFilter();
             _logger.LogInformation("Loaded {Count} printers for workspace {WorkspaceId}", printers.Count, workspaceId);
         }
         catch (OperationCanceledException)
@@ -155,6 +184,118 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     {
         _logger.LogDebug("Selected dashboard changed: {OldDashboard} -> {NewDashboard}", oldValue?.Name ?? "None", newValue?.Name ?? "None");
         RefreshPrintersCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>One selectable badge per printer state, with the number of printers in it.</summary>
+    public IReadOnlyList<PrinterStatusFilterViewModel> StatusFilters { get; }
+
+    /// <summary>The connector choices: all printers, then each connector that has a printer on the dashboard.</summary>
+    [ObservableProperty]
+    public partial ObservableCollection<ConnectorFilterOption> ConnectorOptions { get; set; } = [ConnectorFilterOption.All];
+
+    [ObservableProperty]
+    public partial ConnectorFilterOption SelectedConnector { get; set; } = ConnectorFilterOption.All;
+
+    /// <summary>True when printers exist but the filter hides all of them.</summary>
+    [ObservableProperty]
+    public partial bool IsFilterHidingAll { get; set; }
+
+    partial void OnSelectedConnectorChanged(ConnectorFilterOption value)
+    {
+        // The ComboBox writes null back while its ItemsSource is being replaced.
+        if (_isUpdatingFilters || value is null)
+        {
+            return;
+        }
+
+        ApplyFilter();
+        _settings.Update(s => s with { DashboardConnectorFilter = value.ConnectorId });
+    }
+
+    private void OnStatusFilterChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isUpdatingFilters || e.PropertyName != nameof(PrinterStatusFilterViewModel.IsSelected)
+            || sender is not PrinterStatusFilterViewModel changed)
+        {
+            return;
+        }
+
+        // Only one status can be selected at a time; clicking the selected badge again clears the filter.
+        _isUpdatingFilters = true;
+        try
+        {
+            if (changed.IsSelected)
+            {
+                foreach (var other in StatusFilters.Where(f => f != changed))
+                {
+                    other.IsSelected = false;
+                }
+            }
+        }
+        finally
+        {
+            _isUpdatingFilters = false;
+        }
+
+        ApplyFilter();
+        _settings.Update(s => s with { DashboardStatusFilter = SelectedStatus });
+    }
+
+    private UniversalPrinterState? SelectedStatus => StatusFilters.FirstOrDefault(f => f.IsSelected)?.State;
+
+    private void OnPrinterPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PrinterStatusWidget.State))
+        {
+            ApplyFilter();
+        }
+    }
+
+    private void BuildConnectorOptions()
+    {
+        var names = _agentCommands.Connectors.ToDictionary(c => c.Id, c => c.DisplayName);
+        var options = new List<ConnectorFilterOption> { ConnectorFilterOption.All };
+        options.AddRange(_allPrinters
+            .Select(p => p.Item.ConnectorId)
+            .Distinct()
+            .Select(id => new ConnectorFilterOption(id, names.GetValueOrDefault(id, id)))
+            .OrderBy(o => o.DisplayName, StringComparer.CurrentCultureIgnoreCase));
+
+        // A saved connector that has no printers here is treated as "All" without forgetting the saved choice.
+        var saved = _settings.ClientSettings.DashboardConnectorFilter;
+        _isUpdatingFilters = true;
+        try
+        {
+            ConnectorOptions = new ObservableCollection<ConnectorFilterOption>(options);
+            SelectedConnector = options.FirstOrDefault(o => o.ConnectorId == saved) ?? ConnectorFilterOption.All;
+        }
+        finally
+        {
+            _isUpdatingFilters = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        var byConnector = _allPrinters
+            .Where(p => SelectedConnector?.ConnectorId is null || p.Item.ConnectorId == SelectedConnector.ConnectorId)
+            .ToList();
+
+        foreach (var filter in StatusFilters)
+        {
+            filter.Count = byConnector.Count(p => p.Item.IsStateKnown && p.Item.State == filter.State);
+        }
+
+        // Printers that have not reported yet stay visible, so a restored filter does not blank the page at startup.
+        var status = SelectedStatus;
+        var visible = byConnector.Where(p => status is null || !p.Item.IsStateKnown || p.Item.State == status).ToList();
+        // Replacing the collection re-creates every card view, so only do it when membership changed.
+        if (!visible.SequenceEqual(Printers))
+        {
+            Printers = new ObservableCollection<PrinterDashboardCardViewModel>(visible);
+        }
+
+        IsFilterHidingAll = _allPrinters.Count > 0 && visible.Count == 0;
     }
 
     private bool IsDashboardSelected() => SelectedDashboard is not null;

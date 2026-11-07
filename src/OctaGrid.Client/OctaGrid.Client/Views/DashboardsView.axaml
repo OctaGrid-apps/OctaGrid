@@ -23,8 +23,8 @@
     <Grid
         ColumnDefinitions="Auto,*"
         ColumnSpacing="{DynamicResource Gap.PageSection}"
-        RowDefinitions="Auto,*"
-        RowSpacing="{DynamicResource Gap.PageSection}">
+        RowDefinitions="Auto,Auto,*"
+        RowSpacing="{DynamicResource Gap.CardContent}">
         <ComboBox
             MinWidth="240"
             DisplayMemberBinding="{Binding Name}"
@@ -49,8 +49,95 @@
             </Button>
         </StackPanel>
 
-        <ItemsControl
+        <Grid
             Grid.Row="1"
+            Grid.ColumnSpan="2"
+            ColumnDefinitions="*,Auto"
+            ColumnSpacing="{DynamicResource Gap.PageSection}">
+            <ItemsControl ItemsSource="{Binding StatusFilters}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel
+                            ItemSpacing="{DynamicResource Gap.Hairline}"
+                            LineSpacing="{DynamicResource Gap.Hairline}"
+                            Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PrinterStatusFilterViewModel">
+                        <ToggleButton
+                            MinHeight="0"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            IsChecked="{Binding IsSelected}">
+                            <!--  The Fluent template reads these keys for every state, so a local Background alone does not win.  -->
+                            <ToggleButton.Resources>
+                                <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                            </ToggleButton.Resources>
+                            <ToggleButton.Styles>
+                                <Style Selector="Border.filter">
+                                    <Setter Property="BorderThickness" Value="1.5" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="CornerRadius" Value="{DynamicResource RadiusFull}" />
+                                    <Setter Property="Padding" Value="1" />
+                                    <Setter Property="Opacity" Value="0.8" />
+                                    <Setter Property="Transitions">
+                                        <Transitions>
+                                            <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+                                            <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+                                        </Transitions>
+                                    </Setter>
+                                </Style>
+                                <Style Selector="ToggleButton:pointerover Border.filter">
+                                    <Setter Property="Opacity" Value="1" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+                                </Style>
+                                <Style Selector="ToggleButton:pressed Border.filter">
+                                    <Setter Property="Opacity" Value="0.7" />
+                                </Style>
+                                <Style Selector="ToggleButton:checked Border.filter, ToggleButton:checked:pointerover Border.filter">
+                                    <Setter Property="Opacity" Value="1" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}" />
+                                </Style>
+                            </ToggleButton.Styles>
+                            <Border Classes="filter">
+                                <controls:PrinterStateBadge Count="{Binding Count}" State="{Binding State}" />
+                            </Border>
+                        </ToggleButton>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ComboBox
+                Grid.Column="1"
+                MinWidth="200"
+                VerticalAlignment="Top"
+                AutomationProperties.Name="Filter by connector"
+                DisplayMemberBinding="{Binding DisplayName}"
+                ItemsSource="{Binding ConnectorOptions}"
+                SelectedItem="{Binding SelectedConnector}" />
+        </Grid>
+
+        <TextBlock
+            Grid.Row="2"
+            Grid.ColumnSpan="2"
+            Classes="secondary"
+            IsVisible="{Binding IsFilterHidingAll}"
+            Text="No printers match the selected filter." />
+
+        <ItemsControl
+            Grid.Row="2"
             Grid.ColumnSpan="2"
             ItemsSource="{Binding Printers}">
             <ItemsControl.ItemsPanel>
