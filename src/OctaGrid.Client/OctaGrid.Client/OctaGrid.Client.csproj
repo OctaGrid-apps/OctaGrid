@@ -8,6 +8,11 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!-- The licence key comes from the environment (MSBuild exposes env vars as properties) -->
+  <ItemGroup Condition="'$(AVALONIA_TOOLS_LICENSE_KEY)' != ''">
+    <AvaloniaUILicenseKey Include="$(AVALONIA_TOOLS_LICENSE_KEY)" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="OctaGrid.Client.Tests" />
   </ItemGroup>
