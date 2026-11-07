@@ -47,7 +47,12 @@ public sealed class ExtensionLoader
     }
 
     /// <summary>Loads every extension found under <paramref name="root"/>. A missing folder means there are none.</summary>
-    public IReadOnlyList<ExtensionLoadResult> LoadAll(string root)
+    /// <param name="root">The extensions folder.</param>
+    /// <param name="isTrusted">
+    /// Decides whether the user agreed to run an extension. The code of an extension that is not trusted is never
+    /// loaded; it is reported as <see cref="ExtensionState.NeedsApproval"/>. Null trusts everything.
+    /// </param>
+    public IReadOnlyList<ExtensionLoadResult> LoadAll(string root, Func<ExtensionManifest, bool>? isTrusted = null)
     {
         if (!Directory.Exists(root))
         {
@@ -57,7 +62,7 @@ public sealed class ExtensionLoader
         var results = new List<ExtensionLoadResult>();
         foreach (var folder in FindExtensionFolders(root))
         {
-            var result = Load(folder);
+            var result = Load(folder, isTrusted);
             if (result.State == ExtensionState.Loaded)
             {
                 _logger.LogInformation("Loaded extension '{ExtensionId}' from {Folder}", result.Id, folder);
@@ -73,8 +78,11 @@ public sealed class ExtensionLoader
         return results;
     }
 
-    /// <summary>Loads the extension in one folder; never throws for a bad extension.</summary>
-    public ExtensionLoadResult Load(string folder)
+    /// <summary>
+    /// Loads the extension in one folder; never throws for a bad extension. The manifest and the host version are checked
+    /// first and no extension code runs until <paramref name="isTrusted"/> agrees (null trusts everything).
+    /// </summary>
+    public ExtensionLoadResult Load(string folder, Func<ExtensionManifest, bool>? isTrusted = null)
     {
         ExtensionManifest? manifest = null;
         try
@@ -103,6 +111,12 @@ public sealed class ExtensionLoader
             {
                 return Fail(folder, manifest, ExtensionState.Failed,
                     "Out-of-process extensions are not supported yet; the manifest needs 'assembly' and 'entryType'.");
+            }
+
+            if (isTrusted is not null && !isTrusted(manifest))
+            {
+                return Fail(folder, manifest, ExtensionState.NeedsApproval,
+                    "Review and approve this extension to run it. Its code has not been loaded.");
             }
 
             var connector = CreateConnector(folder, manifest);
@@ -168,19 +182,31 @@ public sealed class ExtensionLoader
         return (IConnector)instance;
     }
 
+    private static bool IsMarkedForRemoval(string folder) => File.Exists(Path.Combine(folder, ExtensionInstaller.RemoveMarker));
+
     private static IEnumerable<string> FindExtensionFolders(string root)
     {
         foreach (var directory in Directory.EnumerateDirectories(root).Order(StringComparer.OrdinalIgnoreCase))
         {
+            // ".staging-*" holds a package that is being installed.
+            if (Path.GetFileName(directory).StartsWith('.'))
+            {
+                continue;
+            }
+
             if (File.Exists(Path.Combine(directory, ExtensionManifest.FileName)))
             {
-                yield return directory;
+                if (!IsMarkedForRemoval(directory))
+                {
+                    yield return directory;
+                }
+
                 continue;
             }
 
             // <id>/<version>/: load the highest version, ignore the rest.
             var latest = Directory.EnumerateDirectories(directory)
-                .Where(d => File.Exists(Path.Combine(d, ExtensionManifest.FileName)))
+                .Where(d => File.Exists(Path.Combine(d, ExtensionManifest.FileName)) && !IsMarkedForRemoval(d))
                 .Select(d => (Folder: d, Version: ExtensionVersion.TryParse(Path.GetFileName(d), out var v) ? v : null))
                 .OrderByDescending(x => x.Version)
                 .ThenByDescending(x => x.Folder, StringComparer.OrdinalIgnoreCase)

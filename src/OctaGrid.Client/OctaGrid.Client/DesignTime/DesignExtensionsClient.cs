@@ -15,6 +15,9 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
             ExtensionSource.Bundled, ExtensionState.Loaded, null, All, CanUninstall: false),
         new("octagrid.moonraker", "Moonraker (Klipper)", "1.0.0", "OctaGrid", "connector",
             ExtensionSource.Bundled, ExtensionState.Loaded, null, All, CanUninstall: false),
+        new("acme.prusalink", "PrusaLink", "1.2.0", "Acme", "connector",
+            ExtensionSource.UserFolder, ExtensionState.NeedsApproval, "Review and approve this extension to run it. Its code has not been loaded.",
+            ConnectorCapabilities.None, CanUninstall: true, Permissions: ["network"]),
     ];
 
     public Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(CancellationToken cancellationToken) =>
@@ -22,15 +25,31 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
 
     public Task SetExtensionEnabledAsync(string extensionId, bool enabled, CancellationToken cancellationToken)
     {
+        Replace(extensionId, e => e with { State = enabled ? ExtensionState.Loaded : ExtensionState.Disabled });
+        return Task.CompletedTask;
+    }
+
+    public Task<ExtensionInstallResult> InstallExtensionAsync(string packagePath, CancellationToken cancellationToken) =>
+        Task.FromResult(ExtensionInstallResult.Fail("Installing is not available in the designer."));
+
+    public Task<ExtensionInstallResult> ApproveExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    {
+        Replace(extensionId, e => e with { State = ExtensionState.Loaded, StateMessage = null, Capabilities = All });
+        return Task.FromResult(ExtensionInstallResult.Ok(extensionId, "Turned on."));
+    }
+
+    public Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    {
+        _extensions.RemoveAll(e => e.Id == extensionId && e.CanUninstall);
+        return Task.FromResult(ExtensionInstallResult.Ok(extensionId, "Removed."));
+    }
+
+    private void Replace(string extensionId, Func<ExtensionInfo, ExtensionInfo> change)
+    {
         var index = _extensions.FindIndex(e => e.Id == extensionId);
         if (index >= 0)
         {
-            _extensions[index] = _extensions[index] with
-            {
-                State = enabled ? ExtensionState.Loaded : ExtensionState.Disabled,
-            };
+            _extensions[index] = change(_extensions[index]);
         }
-
-        return Task.CompletedTask;
     }
 }

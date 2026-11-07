@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.ViewModels;
@@ -7,11 +8,19 @@ namespace OctaGrid.Client.ViewModels;
 public partial class ExtensionItemViewModel : ObservableObject
 {
     private readonly Action<ExtensionItemViewModel, bool> _onToggled;
+    private readonly Action<ExtensionItemViewModel> _onReview;
+    private readonly Action<ExtensionItemViewModel> _onRemove;
     private bool _updating;
 
-    public ExtensionItemViewModel(ExtensionInfo info, Action<ExtensionItemViewModel, bool> onToggled)
+    public ExtensionItemViewModel(
+        ExtensionInfo info,
+        Action<ExtensionItemViewModel, bool> onToggled,
+        Action<ExtensionItemViewModel> onReview,
+        Action<ExtensionItemViewModel> onRemove)
     {
         _onToggled = onToggled;
+        _onReview = onReview;
+        _onRemove = onRemove;
         Info = info;
         Apply(info);
     }
@@ -36,6 +45,7 @@ public partial class ExtensionItemViewModel : ObservableObject
         ExtensionState.Loaded => "Active",
         ExtensionState.Disabled => "Disabled",
         ExtensionState.Incompatible => "Incompatible",
+        ExtensionState.NeedsApproval => "Needs approval",
         _ => "Failed",
     };
 
@@ -55,6 +65,18 @@ public partial class ExtensionItemViewModel : ObservableObject
 
     /// <summary>An extension that is incompatible or failed cannot simply be switched on.</summary>
     public bool CanToggle => Info.State is ExtensionState.Loaded or ExtensionState.Disabled;
+
+    /// <summary>An installed extension that waits for the user to trust it before any of its code runs.</summary>
+    public bool NeedsApproval => Info.State == ExtensionState.NeedsApproval;
+
+    /// <summary>Installed extensions can be removed; built-in ones can only be turned off.</summary>
+    public bool CanUninstall => Info.CanUninstall;
+
+    [RelayCommand]
+    private void Review() => _onReview(this);
+
+    [RelayCommand]
+    private void Remove() => _onRemove(this);
 
     public string CapabilitiesText
     {
@@ -94,7 +116,7 @@ public partial class ExtensionItemViewModel : ObservableObject
         _updating = true;
         try
         {
-            IsEnabled = info.State is not ExtensionState.Disabled;
+            IsEnabled = info.State is ExtensionState.Loaded;
         }
         finally
         {

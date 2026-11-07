@@ -1,0 +1,32 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.ConfirmView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="420"
+    d:DesignWidth="420"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:ConfirmViewModel"
+    mc:Ignorable="d">
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <TextBlock
+            Classes="body"
+            Text="{Binding Message}"
+            TextWrapping="Wrap" />
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button Command="{Binding CancelCommand}" Content="Cancel" />
+            <Button
+                Classes="primary"
+                Command="{Binding ConfirmCommand}"
+                Content="{Binding ConfirmText}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

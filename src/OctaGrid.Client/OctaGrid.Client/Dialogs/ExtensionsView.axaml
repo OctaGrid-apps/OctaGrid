@@ -62,13 +62,29 @@
                                             Text="{Binding StateMessage}"
                                             TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <ToggleSwitch
+                                    <StackPanel
                                         Grid.Column="1"
                                         VerticalAlignment="Center"
-                                        IsChecked="{Binding IsEnabled}"
-                                        IsEnabled="{Binding CanToggle}"
-                                        OffContent=""
-                                        OnContent="" />
+                                        Classes="gap-0_5">
+                                        <ToggleSwitch
+                                            HorizontalAlignment="Right"
+                                            IsChecked="{Binding IsEnabled}"
+                                            IsEnabled="{Binding CanToggle}"
+                                            IsVisible="{Binding CanToggle}"
+                                            OffContent=""
+                                            OnContent="" />
+                                        <Button
+                                            HorizontalAlignment="Right"
+                                            Classes="primary"
+                                            Command="{Binding ReviewCommand}"
+                                            Content="Review…"
+                                            IsVisible="{Binding NeedsApproval}" />
+                                        <Button
+                                            HorizontalAlignment="Right"
+                                            Command="{Binding RemoveCommand}"
+                                            Content="Remove"
+                                            IsVisible="{Binding CanUninstall}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -77,14 +93,16 @@
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel
-            Grid.Row="1"
-            HorizontalAlignment="Right"
-            Classes="inline">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <StackPanel Classes="inline" IsEnabled="{Binding CanEdit}">
+                <Button Click="OnInstallFromFile" Content="Install from file…" />
+                <Button Click="OnInstallFromFolder" Content="Install from folder…" />
+            </StackPanel>
             <Button
+                Grid.Column="1"
                 Classes="primary"
                 Command="{Binding CloseCommand}"
                 Content="Close" />
-        </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

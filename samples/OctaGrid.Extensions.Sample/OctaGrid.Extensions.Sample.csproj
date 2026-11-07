@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A sample OctaGrid extension: a simulated printer. Building it also produces the extension package in
+       bin/<configuration>/net10.0/package/:
+         octagrid-samples.demo-printer/            the package folder (manifest + DLL), for "Install from folder"
+         OctaGrid.Extensions.Sample.octaext         the same, zipped, for "Install from file"
+       In a real extension reference the OctaGrid.Extensions.Abstractions NuGet package instead of the project. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ExtensionVersion>1.0.0</ExtensionVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Private=false: the host provides the SDK and the protocol types, so the extension must not ship its own copy. -->
+    <ProjectReference Include="..\..\src\OctaGrid.Extensions.Abstractions\OctaGrid.Extensions.Abstractions.csproj" Private="false" />
+  </ItemGroup>
+
+  <!-- Writes octagrid-extension.json and builds the package. The host range starts at the version this was built
+       with, so the sample always fits the OctaGrid it was built next to (pre-releases only match a range that names them). -->
+  <Target Name="BuildExtensionPackage" AfterTargets="Build" DependsOnTargets="GetBuildVersion">
+    <PropertyGroup>
+      <PackageRoot>$(OutDir)package</PackageRoot>
+      <PackageFolder>$(PackageRoot)/octagrid-samples.demo-printer</PackageFolder>
+      <PackageFile>$(PackageRoot)/$(MSBuildProjectName).octaext</PackageFile>
+      <HostRange>&gt;=$(BuildVersionSimple)$(PrereleaseVersion) &lt;2.0.0</HostRange>
+      <ManifestJson>{
+  "id": "octagrid-samples.demo-printer",
+  "name": "Demo printer (simulated)",
+  "version": "$(ExtensionVersion)",
+  "publisher": "OctaGrid Samples",
+  "kind": "connector",
+  "host": "$(HostRange)",
+  "assembly": "$(TargetFileName)",
+  "entryType": "OctaGrid.Extensions.Sample.DemoPrinterConnector",
+  "permissions": []
+}</ManifestJson>
+    </PropertyGroup>
+
+    <!-- Older builds put the .octaext next to the DLL. -->
+    <Delete Files="$(OutDir)$(MSBuildProjectName).octaext" />
+    <RemoveDir Directories="$(PackageRoot)" />
+    <MakeDir Directories="$(PackageFolder)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageFolder)" />
+    <WriteLinesToFile File="$(PackageFolder)/octagrid-extension.json" Lines="$(ManifestJson)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ZipDirectory SourceDirectory="$(PackageFolder)" DestinationFile="$(PackageFile)" Overwrite="true" />
+    <Message Importance="high" Text="Extension package: $(PackageRoot)" />
+  </Target>
+</Project>

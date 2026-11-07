@@ -55,6 +55,40 @@ public class AgentWorker : IAsyncDisposable
         await RefreshProfilesAsync(cancellationToken);
     }
 
+    /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
+    public ExtensionInstallResult InstallExtension(string packagePath)
+    {
+        var result = _extensions.Install(packagePath);
+        _logger.LogInformation("Install of extension package {Package}: {Success} {Message}", packagePath, result.Success, result.Message);
+        return result;
+    }
+
+    /// <summary>Trusts an installed extension and loads it. Printers that were waiting for its connector start.</summary>
+    public async Task<ExtensionInstallResult> ApproveExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    {
+        var result = _extensions.Approve(extensionId);
+        _logger.LogInformation("Approval of extension '{ExtensionId}': {Success} {Message}", extensionId, result.Success, result.Message);
+        if (result.Success)
+        {
+            await RefreshProfilesAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>Removes an installed extension. Printers that use it stop their session.</summary>
+    public async Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    {
+        var result = _extensions.Uninstall(extensionId);
+        _logger.LogInformation("Removal of extension '{ExtensionId}': {Success} {Message}", extensionId, result.Success, result.Message);
+        if (result.Success)
+        {
+            await RefreshProfilesAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
     // A printer whose connector the user disabled gets no session; unknown connectors are passed
     // through so the orchestrator can report them.
     private List<PrinterProfile> WithoutDisabledConnectors(IReadOnlyList<PrinterProfile> profiles) =>

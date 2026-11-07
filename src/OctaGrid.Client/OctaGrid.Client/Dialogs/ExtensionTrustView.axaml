@@ -1,0 +1,45 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.ExtensionTrustView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="480"
+    d:DesignWidth="480"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:ExtensionTrustViewModel"
+    mc:Ignorable="d">
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <StackPanel Classes="form">
+            <StackPanel Classes="gap-0_5">
+                <TextBlock Classes="lead" Text="{Binding Name}" />
+                <TextBlock Classes="small secondary" Text="{Binding Publisher, StringFormat='Published by {0}'}" />
+                <TextBlock Classes="caption secondary" Text="{Binding Details}" />
+            </StackPanel>
+
+            <TextBlock
+                Classes="body"
+                Text="An extension runs code inside OctaGrid, with the same access to your computer as OctaGrid has, including your files and network. OctaGrid cannot check what it does. Only turn it on if you trust the publisher."
+                TextWrapping="Wrap" />
+
+            <TextBlock
+                Classes="small"
+                Text="{Binding PermissionsText}"
+                TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button Command="{Binding CancelCommand}" Content="Cancel" />
+            <Button
+                Classes="primary"
+                Command="{Binding AllowCommand}"
+                Content="Trust and turn on" />
+        </StackPanel>
+    </Grid>
+</UserControl>
