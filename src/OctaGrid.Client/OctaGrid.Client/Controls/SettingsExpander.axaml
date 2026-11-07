@@ -21,13 +21,15 @@
                 <StackPanel Spacing="{DynamicResource Space0}">
                     <Border
                         x:Name="PART_HeaderBorder"
+                        Container.Name="settings-header"
+                        Container.Sizing="Width"
                         Padding="{TemplateBinding Padding}"
                         Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
                         CornerRadius="{TemplateBinding CornerRadius}">
                         <Grid RowDefinitions="Auto,Auto,Auto">
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{DynamicResource Gap.Form}">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{DynamicResource Gap.Form}" RowDefinitions="Auto,Auto">
                                 <PathIcon
                                     Grid.Column="0"
                                     Width="20"
@@ -151,6 +153,17 @@
         <Style Selector="^:expanded /template/ PathIcon#PART_ChevronIcon">
             <Setter Property="RenderTransform" Value="rotate(180deg)" />
         </Style>
+
+        <!--  Narrow header: the action (a button) moves under the text instead of squeezing it.  -->
+        <ContainerQuery Name="settings-header" Query="max-width:480">
+            <Style Selector="ContentPresenter#PART_ActionPresenter">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="1" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Margin" Value="0,8,0,0" />
+            </Style>
+        </ContainerQuery>
     </ControlTheme>
 
 </ResourceDictionary>

@@ -117,10 +117,13 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCancelUpdate))]
+    [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
     public partial int UpdateProgress { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    [NotifyPropertyChangedFor(nameof(IsUpdateBusy))]
+    [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
     [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
     public partial bool IsCheckingForUpdates { get; set; }
 
@@ -128,12 +131,31 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
     [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
     [NotifyPropertyChangedFor(nameof(CanCancelUpdate))]
+    [NotifyPropertyChangedFor(nameof(ShowApplyButton))]
+    [NotifyPropertyChangedFor(nameof(ShowCheckButton))]
+    [NotifyPropertyChangedFor(nameof(IsUpdateBusy))]
+    [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
     [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     public partial bool IsUpdating { get; set; }
 
+    /// <summary>Whether the Updates card is open. It opens by itself when an update starts, so its progress is visible.</summary>
+    [ObservableProperty]
+    public partial bool IsUpdatePanelExpanded { get; set; }
+
+    partial void OnIsUpdatingChanged(bool value)
+    {
+        if (value)
+        {
+            IsUpdatePanelExpanded = true;
+        }
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvailableUpdate))]
+    [NotifyPropertyChangedFor(nameof(ShowApplyButton))]
+    [NotifyPropertyChangedFor(nameof(ShowCheckButton))]
+    [NotifyPropertyChangedFor(nameof(ReleaseNotesDescription))]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
     [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     [NotifyPropertyChangedFor(nameof(UpdateActionText))]
@@ -146,6 +168,20 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsUpdating;
 
     public bool CanApplyUpdate => HasAvailableUpdate && !IsUpdating;
+
+    // The collapsed Updates card has room for one button next to its title. Which one depends on what is going on, so
+    // the buttons never crowd each other: Update (an update is waiting), Cancel (it is downloading), Check (nothing yet).
+    public bool ShowApplyButton => HasAvailableUpdate && !IsUpdating;
+
+    public bool ShowCheckButton => !HasAvailableUpdate && !IsUpdating;
+
+    /// <summary>A check or a download is under way, so the card shows a progress bar.</summary>
+    public bool IsUpdateBusy => IsCheckingForUpdates || IsUpdating;
+
+    /// <summary>The progress is not known: while checking, and before the download reports its first percentage.</summary>
+    public bool IsProgressIndeterminate => IsCheckingForUpdates || (IsUpdating && UpdateProgress <= 0);
+
+    public string ReleaseNotesDescription => $"What's new in version {AvailableUpdate?.TargetVersion}";
 
     /// <summary>
     /// The download can be cancelled until it finishes; after that the update is installed and the app restarts.

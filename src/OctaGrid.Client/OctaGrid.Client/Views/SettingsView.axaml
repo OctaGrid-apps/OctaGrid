@@ -21,7 +21,7 @@
     </Design.DataContext>
 
     <ContentPage.Styles>
-        <Style Selector="controls|SettingsCard.highlight">
+        <Style Selector="controls|SettingsCard.highlight, controls|SettingsExpander.highlight">
             <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
             <Setter Property="BorderThickness" Value="1.5" />
         </Style>
@@ -108,83 +108,75 @@
                 <controls:SettingsCard
                     Description="{Binding ExtensionsSummary}"
                     Header="Installed extensions"
-                    Icon="{StaticResource cube-regular}">
+                    Icon="{StaticResource extension-regular}">
                     <Button Command="{Binding ManageExtensionsCommand}" Content="Manage extensions" />
                 </controls:SettingsCard>
             </controls:SettingsGroup>
 
             <!--  Update Section  -->
             <controls:SettingsGroup Header="Updates">
-                <controls:SettingsCard
+                <!--
+                    The card is an expander so that nothing has to share a row. Collapsed it shows the title, the status
+                    (with the percentage while downloading) and one button; the rest has a row of its own below.
+                -->
+                <controls:SettingsExpander
                     Classes.highlight="{Binding HasAvailableUpdate}"
                     Description="{Binding UpdateStatusText}"
-                    Icon="{StaticResource sync-regular}">
-                    <controls:SettingsCard.Header>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Application updates" VerticalAlignment="Center" />
-                            <Border
-                                Background="{DynamicResource SystemAccentColor}"
-                                CornerRadius="10"
-                                Padding="8,2"
-                                VerticalAlignment="Center"
-                                IsVisible="{Binding HasAvailableUpdate}">
-                                <TextBlock
-                                    Text="Update available"
-                                    FontSize="11"
-                                    FontWeight="SemiBold"
-                                    Foreground="White" />
-                            </Border>
-                        </StackPanel>
-                    </controls:SettingsCard.Header>
-                    <StackPanel
-                        HorizontalAlignment="Right"
-                        Spacing="6"
-                        VerticalAlignment="Center">
-                    <StackPanel
-                        HorizontalAlignment="Right"
-                        Orientation="Horizontal"
-                        Spacing="8">
-                        <ProgressBar
-                            Width="120"
-                            Height="6"
-                            VerticalAlignment="Center"
-                            IsIndeterminate="{Binding IsCheckingForUpdates}"
-                            IsVisible="{Binding IsUpdating}"
-                            Maximum="100"
-                            Minimum="0"
-                            Value="{Binding UpdateProgress}" />
-                        <Button
-                            Command="{Binding ShowReleaseNotesCommand}"
-                            Content="Release notes"
-                            IsVisible="{Binding HasReleaseNotes}" />
-                        <Button
-                            Classes="primary"
-                            Command="{Binding ApplyUpdateCommand}"
-                            Content="{Binding UpdateActionText}"
-                            IsVisible="{Binding HasAvailableUpdate}"
-                            ToolTip.Tip="{Binding UpdateRestartNotice}" />
-                        <Button
-                            Command="{Binding ApplyUpdateCancelCommand}"
-                            Content="Cancel"
-                            IsVisible="{Binding CanCancelUpdate}" />
-                        <Button
-                            Command="{Binding CheckForUpdatesCommand}"
-                            Content="Check for updates" />
-                    </StackPanel>
-                    <TextBlock
-                        Classes="small secondary"
-                        HorizontalAlignment="Right"
-                        IsVisible="{Binding HasAvailableUpdate}"
-                        MaxWidth="360"
-                        Text="{Binding UpdateRestartNotice}"
-                        TextAlignment="Right"
-                        TextWrapping="Wrap" />
-                    </StackPanel>
-                </controls:SettingsCard>
-                <controls:SettingsCard
-                    Description="{Binding UpdateChannelName}"
-                    Header="Update channel"
-                    Icon="{StaticResource arrow-clockwise-regular}" />
+                    Header="Application updates"
+                    Icon="{StaticResource sync-regular}"
+                    IsExpanded="{Binding IsUpdatePanelExpanded, Mode=TwoWay}">
+                    <controls:SettingsExpander.Content>
+                        <Panel>
+                            <Button
+                                Classes="primary"
+                                Command="{Binding ApplyUpdateCommand}"
+                                Content="{Binding UpdateActionText}"
+                                IsVisible="{Binding ShowApplyButton}"
+                                ToolTip.Tip="{Binding UpdateRestartNotice}" />
+                            <Button
+                                Command="{Binding ApplyUpdateCancelCommand}"
+                                Content="Cancel"
+                                IsVisible="{Binding CanCancelUpdate}" />
+                            <Button
+                                Command="{Binding CheckForUpdatesCommand}"
+                                Content="Check for updates"
+                                IsVisible="{Binding ShowCheckButton}" />
+                        </Panel>
+                    </controls:SettingsExpander.Content>
+
+                    <!--  Progress: a check or a download is under way  -->
+                    <controls:SettingsCard IsVisible="{Binding IsUpdateBusy}">
+                        <controls:SettingsCard.Header>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
+                                <ProgressBar
+                                    HorizontalAlignment="Stretch"
+                                    IsIndeterminate="{Binding IsProgressIndeterminate}"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    Value="{Binding UpdateProgress}" />
+                            </StackPanel>
+                        </controls:SettingsCard.Header>
+                    </controls:SettingsCard>
+
+                    <controls:SettingsCard
+                        Description="{Binding ReleaseNotesDescription}"
+                        Header="Release notes"
+                        IsVisible="{Binding HasReleaseNotes}">
+                        <Button Command="{Binding ShowReleaseNotesCommand}" Content="View" />
+                    </controls:SettingsCard>
+
+                    <controls:SettingsCard
+                        Description="{Binding UpdateRestartNotice}"
+                        Header="When the update is installed"
+                        IsVisible="{Binding HasAvailableUpdate}" />
+
+                    <controls:SettingsCard Description="Look for a newer version now" Header="Check for updates">
+                        <Button Command="{Binding CheckForUpdatesCommand}" Content="Check now" />
+                    </controls:SettingsCard>
+
+                    <controls:SettingsCard Description="{Binding UpdateChannelName}" Header="Update channel" />
+                </controls:SettingsExpander>
             </controls:SettingsGroup>
 
             <!--  About  -->
