@@ -117,7 +117,10 @@ jobs:
               $commits = git log -n 20 --no-merges --pretty=format:"* %s"
           }
 
-          $commits = $commits | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          # The version bump of a release ("chore(release): 1.2.0 (#18)") says nothing about what changed.
+          $commits = $commits | Where-Object {
+              -not [string]::IsNullOrWhiteSpace($_) -and $_ -notmatch '^\*\s*chore\(release\):'
+          }
 
           # Categorize conventional commits into readable sections
           $features = @()
