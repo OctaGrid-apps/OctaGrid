@@ -15,8 +15,7 @@
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{DynamicResource Gap.Form}">
         <Button
             HorizontalAlignment="Right"
-            Command="{Binding AddCommand}"
-            IsEnabled="{Binding CanEdit}">
+            Command="{Binding AddCommand}">
             <StackPanel Classes="inline">
                 <PathIcon Width="12" Data="{StaticResource add-regular}" />
                 <TextBlock VerticalAlignment="Center" Text="New dashboard" />
@@ -76,6 +75,7 @@
                                         <Button
                                             Classes="icon"
                                             Command="{Binding DeleteCommand}"
+                                            ToolTip.ShowOnDisabled="True"
                                             ToolTip.Tip="{Binding DeleteTip}">
                                             <PathIcon Margin="8,0" Data="{StaticResource delete-regular}" />
                                         </Button>

@@ -65,7 +65,9 @@ public partial class ManageDashboardsViewModel : ViewModelBase, IDialogParticipa
         AddCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanAdd() => !HasNewItem;
+    private bool CanAdd() => !HasNewItem && !IsBusy;
+
+    partial void OnIsBusyChanged(bool value) => AddCommand.NotifyCanExecuteChanged();
 
     [RelayCommand]
     private void Close() => this.ReturnResultFromOverlayDialog(_changed);

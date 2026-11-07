@@ -45,7 +45,7 @@
                 Classes="icon"
                 Command="{Binding ManageDashboardsCommand}"
                 ToolTip.Tip="Manage dashboards">
-                <PathIcon Margin="8,0" Data="{StaticResource edit-regular}" />
+                <PathIcon Margin="8,0" Data="{StaticResource content-settings-regular}" />
             </Button>
         </StackPanel>
 
