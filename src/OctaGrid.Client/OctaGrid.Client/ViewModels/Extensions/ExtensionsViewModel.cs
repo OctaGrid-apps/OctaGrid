@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.ViewModels;
 
@@ -46,7 +47,7 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
             var existing = Items.FirstOrDefault(i => i.Id == info.Id);
             if (existing is null)
             {
-                Items.Add(new ExtensionItemViewModel(info, OnToggled));
+                Items.Add(new ExtensionItemViewModel(info, OnToggled, OnReview, OnRemove));
             }
             else
             {
@@ -64,6 +65,88 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
 
     [RelayCommand]
     private void Close() => this.ReturnResultFromOverlayDialog(true);
+
+    /// <summary>Installs a package the user picked (a folder or a <c>.octaext</c> file). It is not run until approved.</summary>
+    public async Task InstallAsync(string packagePath)
+    {
+        await RunAsync("install", async () =>
+        {
+            var result = await _client.InstallExtensionAsync(packagePath, CancellationToken.None);
+            Report(result, "Extensions");
+        });
+    }
+
+    private async void OnReview(ExtensionItemViewModel item)
+    {
+        var trust = new ExtensionTrustViewModel(item.Info);
+        if (await this.ShowOverlayDialogAsync("Turn on this extension?", trust) != true)
+        {
+            return;
+        }
+
+        await RunAsync("approve", async () =>
+        {
+            var result = await _client.ApproveExtensionAsync(item.Id, CancellationToken.None);
+            Report(result, item.Name);
+        });
+    }
+
+    private async void OnRemove(ExtensionItemViewModel item)
+    {
+        var confirm = new ConfirmViewModel(
+            $"Remove {item.Name}? Printers that use it stop working until you install it again.", "Remove");
+        if (await this.ShowOverlayDialogAsync("Remove extension", confirm) != true)
+        {
+            return;
+        }
+
+        await RunAsync("remove", async () =>
+        {
+            var result = await _client.UninstallExtensionAsync(item.Id, CancellationToken.None);
+            Report(result, item.Name);
+        });
+    }
+
+    private void Report(ExtensionInstallResult result, string title)
+    {
+        if (result.Success)
+        {
+            _notifications?.ShowSuccess(title, result.Message);
+        }
+        else
+        {
+            _logger.LogWarning("Extension action failed: {Message}", result.Message);
+            _notifications?.ShowError(title, result.Message);
+        }
+    }
+
+    // Runs one action while the list is locked, then shows what the agent actually did.
+    private async Task RunAsync(string action, Func<Task> work)
+    {
+        IsBusy = true;
+        try
+        {
+            await work();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to {Action} an extension", action);
+            _notifications?.ShowError("Extensions", $"Could not {action} the extension.");
+        }
+        finally
+        {
+            try
+            {
+                await Load(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to refresh the extension list");
+            }
+
+            IsBusy = false;
+        }
+    }
 
     private async void OnToggled(ExtensionItemViewModel item, bool enabled)
     {

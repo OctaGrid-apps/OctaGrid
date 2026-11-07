@@ -13,6 +13,9 @@
     <Project Path="src/Connectors/OctaGrid.Connectors.BambuLab/OctaGrid.Connectors.BambuLab.csproj" />
     <Project Path="src/Connectors/OctaGrid.Connectors.Moonraker/OctaGrid.Connectors.Moonraker.csproj" />
   </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="samples/OctaGrid.Extensions.Sample/OctaGrid.Extensions.Sample.csproj" />
+  </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/OctaGrid.Agent.Core.Tests/OctaGrid.Agent.Core.Tests.csproj" />
     <Project Path="tests/OctaGrid.Application.Tests/OctaGrid.Application.Tests.csproj" />

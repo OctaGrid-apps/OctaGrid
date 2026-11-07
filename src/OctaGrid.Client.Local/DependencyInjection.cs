@@ -57,8 +57,12 @@ public static class DependencyInjection
         services.AddSingleton(sp =>
         {
             var loggerFactory = sp.GetService<ILoggerFactory>();
-            var manager = new ExtensionManager(BundledConnectors.CreateRegistry(loggerFactory), sp.GetRequiredService<IExtensionStateStore>());
-            manager.AddFolderExtensions(new ExtensionLoader(loggerFactory: loggerFactory).LoadAll(OctaGridDataPaths.ExtensionsFolder));
+            var manager = new ExtensionManager(
+                BundledConnectors.CreateRegistry(loggerFactory),
+                sp.GetRequiredService<IExtensionStateStore>(),
+                new ExtensionLoader(loggerFactory: loggerFactory),
+                OctaGridDataPaths.ExtensionsFolder);
+            manager.LoadInstalledExtensions();
             return manager;
         });
         services.AddSingleton(sp => sp.GetRequiredService<ExtensionManager>().Registry);

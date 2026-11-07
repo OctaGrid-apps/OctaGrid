@@ -115,6 +115,7 @@ internal sealed class FakeConnector(string id, Func<PrinterProfile, IPrinterSess
 internal sealed class InMemoryStateStore : IExtensionStateStore
 {
     private HashSet<string> _disabled = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _trusted = new(StringComparer.OrdinalIgnoreCase);
 
     public int Saves { get; private set; }
 
@@ -125,4 +126,9 @@ internal sealed class InMemoryStateStore : IExtensionStateStore
         Saves++;
         _disabled = new HashSet<string>(disabledIds, StringComparer.OrdinalIgnoreCase);
     }
+
+    public IReadOnlyDictionary<string, string> LoadTrusted() => new Dictionary<string, string>(_trusted, StringComparer.OrdinalIgnoreCase);
+
+    public void SaveTrusted(IReadOnlyDictionary<string, string> trusted) =>
+        _trusted = new Dictionary<string, string>(trusted, StringComparer.OrdinalIgnoreCase);
 }

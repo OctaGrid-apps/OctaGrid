@@ -27,6 +27,10 @@ public static class ExtensionKinds
 /// <param name="Assembly">Extension assembly to load in-process, relative to the package root.</param>
 /// <param name="EntryType">Full name of the <see cref="IConnector"/> implementation inside <paramref name="Assembly"/>.</param>
 /// <param name="Alias">Execution alias of an out-of-process extension (Microsoft Store packages).</param>
+/// <param name="Permissions">
+/// What the extension says it needs, for example <c>network</c> or <c>files</c>. The host shows them when it asks the
+/// user to trust the extension. They are a declaration, not a sandbox: an in-process extension has the host's permissions.
+/// </param>
 public sealed record ExtensionManifest(
     string Id,
     string Name,
@@ -36,7 +40,8 @@ public sealed record ExtensionManifest(
     string Host,
     string? Assembly = null,
     string? EntryType = null,
-    string? Alias = null)
+    string? Alias = null,
+    IReadOnlyList<string>? Permissions = null)
 {
     /// <summary>File name of the manifest inside an extension package.</summary>
     public const string FileName = "octagrid-extension.json";
