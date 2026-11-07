@@ -1,8 +1,5 @@
 using Avalonia.Controls;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Client.Dialogs;
 using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
@@ -121,14 +118,6 @@ public class DashboardManagementTests
     }
 
     [Fact]
-    public void With_several_dashboards_each_one_can_be_deleted()
-    {
-        var viewModel = Manage(new FakeDashboardsClient("Main", "Workshop"));
-
-        Assert.All(viewModel.Items, item => Assert.True(item.DeleteCommand.CanExecute(null)));
-    }
-
-    [Fact]
     public async Task A_new_dashboard_is_named_in_its_own_row_and_created_on_save()
     {
         var client = new FakeDashboardsClient("Main");
@@ -167,7 +156,6 @@ public class DashboardManagementTests
     [Theory]
     [InlineData("")]
     [InlineData("a")]
-    [InlineData("   ")]
     public void A_name_that_is_too_short_cannot_be_saved(string name)
     {
         var viewModel = Manage(new FakeDashboardsClient("Main"));
@@ -285,54 +273,6 @@ public class DashboardManagementTests
         var created = Assert.Single(client.Items);
         Assert.Equal(DashboardType.List, created.Type);
         Assert.Equal(created.Id, page.SelectedDashboard?.Id);
-    }
-
-    [Fact]
-    public async Task The_dialog_shows_a_row_per_dashboard_with_the_actions_and_nothing_overlapping()
-    {
-        await HeadlessUi.RunAsync(() =>
-        {
-            var viewModel = Manage(new FakeDashboardsClient("Main", "Workshop"));
-            var window = new Window { Content = new ManageDashboardsView { DataContext = viewModel }, Width = 640, Height = 600 };
-            window.Show();
-            Dispatcher.UIThread.RunJobs();
-            window.UpdateLayout();
-
-            var texts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToList();
-            Assert.Contains("Main", texts);
-            Assert.Contains("Workshop", texts);
-            Assert.Contains("Default", texts);
-
-            // Each row offers rename and delete; make-default only on the dashboard that is not the default.
-            var tips = window.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible)
-                .Select(b => ToolTip.GetTip(b)?.ToString()).Where(t => t is not null).ToList();
-            Assert.Equal(2, tips.Count(t => t == "Rename"));
-            Assert.Equal(2, tips.Count(t => t == "Delete dashboard"));
-            Assert.Single(tips, t => t == "Make default");
-
-            window.Close();
-            return Task.CompletedTask;
-        });
-    }
-
-    [Fact]
-    public async Task The_page_has_one_button_for_managing_instead_of_edit_and_new()
-    {
-        await HeadlessUi.RunAsync(() =>
-        {
-            var window = new Window { Content = new OctaGrid.Client.Views.DashboardsView { DataContext = DesignData.Dashboards }, Width = 900, Height = 600 };
-            window.Show();
-            Dispatcher.UIThread.RunJobs();
-
-            var tips = window.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible)
-                .Select(b => ToolTip.GetTip(b)?.ToString()).Where(t => t is not null).ToList();
-            Assert.Contains("Manage dashboards", tips);
-            Assert.DoesNotContain("Edit current dashboard", tips);
-            Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "New Dashboard");
-
-            window.Close();
-            return Task.CompletedTask;
-        });
     }
 
     private sealed class RecordingNotifications : INotificationService

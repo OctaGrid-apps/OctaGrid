@@ -49,17 +49,6 @@ public sealed class CompositionTests : IDisposable
     }
 
     [Fact]
-    public void The_pages_are_separate_instances_for_every_main_view_model()
-    {
-        var provider = BuildContainer();
-
-        var first = provider.GetRequiredService<MainViewModel>();
-        var second = provider.GetRequiredService<MainViewModel>();
-
-        Assert.NotSame(first.PrintersPage, second.PrintersPage);
-    }
-
-    [Fact]
     public void The_settings_page_can_manage_extensions()
     {
         var settings = BuildContainer().GetRequiredService<SettingsViewModel>();

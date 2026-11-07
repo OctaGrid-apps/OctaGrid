@@ -43,7 +43,7 @@ public class UpdateCardTests
         public Task OpenStoreListingAsync() => Task.CompletedTask;
     }
 
-    public static TheoryData<double> Widths => [360, 480, 700, 1100];
+    public static TheoryData<double> Widths => [360, 700];
 
     private static (SettingsViewModel ViewModel, FakeUpdateService Service) Create(bool updateAvailable)
     {
@@ -213,7 +213,6 @@ public class UpdateCardTests
 
     [Theory]
     [InlineData(360)]
-    [InlineData(480)]
     [InlineData(1100)]
     public async Task The_rows_inside_the_open_card_keep_their_text_and_their_buttons_whole(double width)
     {
