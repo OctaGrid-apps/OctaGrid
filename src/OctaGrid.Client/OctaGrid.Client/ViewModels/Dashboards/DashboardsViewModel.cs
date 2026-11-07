@@ -13,22 +13,25 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 {
+    /// <summary>The kind of dashboard created when a workspace has none yet.</summary>
+    public const DashboardType DefaultType = DashboardType.List;
+
     private readonly IAgentCommandsService _agentCommands;
-    private readonly IAppSettingsStore _appSettingsStore;
     private readonly ApplicationState _appState;
     private readonly IDashboardsClient _dashboardsClient;
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DashboardsViewModel> _logger;
+    private readonly INotificationService? _notifications;
     private readonly IPrintersClient _printersClient;
 
     public DashboardsViewModel(
         IDashboardsClient dashboardsClient,
         IPrintersClient printersClient,
-        IAppSettingsStore appSettingsStore,
         ApplicationState appState,
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
+        INotificationService? notifications = null,
         ILoggerFactory? loggerFactory = null)
     {
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -37,7 +40,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         var logger = _loggerFactory.CreateLogger<DashboardsViewModel>();
         _dashboardsClient = dashboardsClient;
         _printersClient = printersClient;
-        _appSettingsStore = appSettingsStore;
+        _notifications = notifications;
         _appState = appState;
         _logger = logger;
         _appState.PropertyChanged += async (s, e) =>
@@ -59,72 +62,30 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     [ObservableProperty]
     public partial DashboardResponse? SelectedDashboard { get; set; }
 
+    /// <summary>Opens the dialog that creates, renames and deletes dashboards and picks the default one.</summary>
     [RelayCommand]
-    private async Task CreateDashboard(CancellationToken cancellationToken)
+    private async Task ManageDashboards(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Opening Create Dashboard dialog");
-        var dashboardViewModel = new EditDashboardViewModel(new DashboardViewModel(), _loggerFactory.CreateLogger<EditDashboardViewModel>());
-
-        // Show the dialog and wait for the result.
-        var result = await this.ShowOverlayDialogAsync("Create new dashboard", dashboardViewModel);
-        if (result is null)
+        if (_appState.SelectedWorkspace is null)
         {
-            _logger.LogInformation("Create dashboard flow cancelled (no dashboard created)");
             return;
         }
 
-        const string DashboardType = "List";
+        _logger.LogInformation("Opening the dashboard management dialog");
         var workspaceId = _appState.GetWorkspaceId();
-        _logger.LogInformation("Creating dashboard '{DashboardName}' (type: {DashboardType}) in workspace {WorkspaceId}", result, DashboardType, workspaceId);
+        var viewModel = new ManageDashboardsViewModel(
+            _dashboardsClient,
+            workspaceId,
+            Dashboards,
+            _notifications,
+            _loggerFactory.CreateLogger<ManageDashboardsViewModel>());
 
-        try
+        var changed = await this.ShowOverlayDialogAsync("Manage dashboards", viewModel);
+        if (changed == true)
         {
-            _ = await _dashboardsClient.CreateDashboard(workspaceId, new CreateDashboardRequest(result, DashboardType), cancellationToken);
-            _logger.LogInformation("Dashboard '{DashboardName}' created successfully", result);
             await LoadData(cancellationToken);
         }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Dashboard creation was aborted via cancellation token");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create dashboard '{DashboardName}' in workspace {WorkspaceId}", result, workspaceId);
-            throw;
-        }
     }
-
-    [RelayCommand(CanExecute = nameof(IsDashboardSelected))]
-    private async Task EditSelectedDashboard(CancellationToken cancellationToken)
-    {
-        if (SelectedDashboard is null)
-        {
-            return;
-        }
-
-        var printerViewModel = new EditDashboardViewModel(new DashboardViewModel(SelectedDashboard.Name), _loggerFactory.CreateLogger<EditDashboardViewModel>());
-
-        var result = await this.ShowOverlayDialogAsync("Edit dashboard", printerViewModel);
-        if (result is null)
-        {
-            return;
-        }
-
-        try
-        {
-            _logger.LogInformation("Updating dashboard {DashboardId} '{DashboardNameName}'",
-                SelectedDashboard.Id, SelectedDashboard.Name);
-            var response = await _dashboardsClient.UpdateDashboard(SelectedDashboard.Id, new UpdateDashboardRequest(result), cancellationToken);
-            await LoadData(cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Failed to update dashboard {DashboardId}", SelectedDashboard.Id);
-            throw;
-        }
-    }
-
-    private bool IsDashboardSelected() => SelectedDashboard is not null;
 
     [RelayCommand]
     private async Task LoadData(CancellationToken cancellationToken)
@@ -140,46 +101,35 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
         try
         {
+            // Remember the open dashboard before the list is replaced, which can clear the selection.
+            var openDashboardId = SelectedDashboard?.Id;
+
             var response = await _dashboardsClient.GetDashboardList(workspaceId, cancellationToken);
-            Dashboards = new ObservableCollection<DashboardResponse>(response);
             _logger.LogInformation("Loaded {Count} dashboards for workspace {WorkspaceId}", response.Count, workspaceId);
 
             if (response.Count == 0)
             {
                 _logger.LogInformation("Workspace {WorkspaceId} has no dashboards; provisioning default dashboard", workspaceId);
                 const string DefaultDashboardName = "Default";
-                const string DashboardType = "List";
                 var defaultDashboard = await _dashboardsClient.CreateDashboard(
                     workspaceId,
-                    new CreateDashboardRequest(DefaultDashboardName, DashboardType),
+                    new CreateDashboardRequest(DefaultDashboardName, DefaultType),
                     cancellationToken);
-
-                Dashboards = new ObservableCollection<DashboardResponse>([defaultDashboard]);
-                SelectNewDashboard(defaultDashboard);
                 response = [defaultDashboard];
             }
 
-            if (SelectedDashboard is null)
+            Dashboards = new ObservableCollection<DashboardResponse>(response);
+
+            // Stay on the open dashboard; if it is gone (deleted), fall back to the workspace default.
+            var next = response.FirstOrDefault(d => d.Id == openDashboardId)
+                ?? response.FirstOrDefault(d => d.IsDefault)
+                ?? response[0];
+            if (next.Id != openDashboardId)
             {
-                var defaultDashoardId = _appSettingsStore.ClientSettings.DefaultDashboard;
-                if (defaultDashoardId is not null && response.Any(d => d.Id == defaultDashoardId))
-                {
-                    SelectedDashboard = response.First(d => d.Id == defaultDashoardId);
-                    _logger.LogDebug("Restored default dashboard: {DashboardName} ({DashboardId})", SelectedDashboard.Name, SelectedDashboard.Id);
-                }
-                else
-                {
-                    SelectNewDashboard(response.First());
-                }
+                _logger.LogInformation("Selecting dashboard: {DashboardName} ({DashboardId})", next.Name, next.Id);
             }
-            else
-            {
-                if (!response.Any(d => d.Id == SelectedDashboard.Id))
-                {
-                    _logger.LogInformation("Previously selected dashboard ({DashboardId}) no longer exists; selecting first available", SelectedDashboard.Id);
-                    SelectNewDashboard(response.First());
-                }
-            }
+
+            SelectedDashboard = next;
 
             _logger.LogDebug("Loading enabled printers for workspace {WorkspaceId}", workspaceId);
             var printers = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: true), cancellationToken);
@@ -205,20 +155,14 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     {
         _logger.LogDebug("Selected dashboard changed: {OldDashboard} -> {NewDashboard}", oldValue?.Name ?? "None", newValue?.Name ?? "None");
         RefreshPrintersCommand.NotifyCanExecuteChanged();
-        EditSelectedDashboardCommand.NotifyCanExecuteChanged();
     }
+
+    private bool IsDashboardSelected() => SelectedDashboard is not null;
 
     [RelayCommand(CanExecute = nameof(IsDashboardSelected))]
     private Task RefreshPrinters(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Refreshing printers triggered");
         return LoadData(cancellationToken);
-    }
-
-    private void SelectNewDashboard(DashboardResponse dashboard)
-    {
-        _logger.LogInformation("Selecting dashboard: {DashboardName} ({DashboardId})", dashboard.Name, dashboard.Id);
-        SelectedDashboard = dashboard;
-        _appSettingsStore.Update(s => s with { DefaultDashboard = dashboard.Id });
     }
 }

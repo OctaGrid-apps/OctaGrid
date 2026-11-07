@@ -3,10 +3,10 @@ using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Dialogs;
 
-[ViewFor(typeof(EditDashboardViewModel))]
-public partial class EditDashboardView : UserControl
+[ViewFor(typeof(ManageDashboardsViewModel))]
+public partial class ManageDashboardsView : UserControl
 {
-    public EditDashboardView()
+    public ManageDashboardsView()
     {
         InitializeComponent();
     }

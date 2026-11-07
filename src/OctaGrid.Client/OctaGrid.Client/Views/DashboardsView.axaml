@@ -41,17 +41,11 @@
                 ToolTip.Tip="Refresh dashboard items">
                 <PathIcon Margin="8,0" Data="{StaticResource sync-regular}" />
             </Button>
-            <Button Classes="icon" Command="{Binding EditSelectedDashboardCommand}">
-                <PathIcon
-                    Margin="8,0"
-                    Data="{StaticResource edit-regular}"
-                    ToolTip.Tip="Edit current dashboard" />
-            </Button>
-            <Button Classes="primary" Command="{Binding CreateDashboardCommand}">
-                <StackPanel Classes="inline">
-                    <PathIcon Width="12" Data="{StaticResource add-regular}" />
-                    <TextBlock VerticalAlignment="Center" Text="New Dashboard" />
-                </StackPanel>
+            <Button
+                Classes="icon"
+                Command="{Binding ManageDashboardsCommand}"
+                ToolTip.Tip="Manage dashboards">
+                <PathIcon Margin="8,0" Data="{StaticResource edit-regular}" />
             </Button>
         </StackPanel>
 

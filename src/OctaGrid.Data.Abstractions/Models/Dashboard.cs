@@ -1,3 +1,5 @@
+using OctaGrid.Protocol.Workspaces;
+
 namespace OctaGrid.Data.Abstractions.Models;
 
 public sealed class Dashboard : Entity

@@ -45,7 +45,6 @@ public partial class App : Application
             services.AddTransient<IdentityViewModel>();
             services.AddTransient<DashboardsViewModel>();
             services.AddTransient<SettingsViewModel>();
-            services.AddTransient<EditDashboardViewModel>();
             services.AddTransient<SafetyDisclaimerViewModel>();
 
             var provider = services.BuildServiceProvider();
