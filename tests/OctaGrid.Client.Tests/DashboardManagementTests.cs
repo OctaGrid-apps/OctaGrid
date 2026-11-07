@@ -4,7 +4,7 @@ using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
-using OctaGrid.Protocol.Workspaces;
+using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Client.Tests;
 

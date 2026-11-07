@@ -5,8 +5,8 @@ using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
-using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 

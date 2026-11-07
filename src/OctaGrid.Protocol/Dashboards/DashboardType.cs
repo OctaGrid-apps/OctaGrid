@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace OctaGrid.Protocol.Workspaces;
+namespace OctaGrid.Protocol.Dashboards;
 
 /// <summary>The kind of dashboard, which decides how it is shown. New kinds are added here.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]

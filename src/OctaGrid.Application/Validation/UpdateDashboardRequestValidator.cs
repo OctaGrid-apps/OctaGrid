@@ -1,5 +1,5 @@
 using FluentValidation;
-using OctaGrid.Protocol.Workspaces;
+using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Application.Validation;
 

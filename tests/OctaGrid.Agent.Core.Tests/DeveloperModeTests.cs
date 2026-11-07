@@ -5,7 +5,6 @@ using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core.Tests;
 

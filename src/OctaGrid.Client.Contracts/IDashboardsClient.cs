@@ -1,4 +1,4 @@
-using OctaGrid.Protocol.Workspaces;
+using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Client.Contracts;
 

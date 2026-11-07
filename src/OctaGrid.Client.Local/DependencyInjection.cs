@@ -5,13 +5,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
 using OctaGrid.Agent.Core.Connectors;
-using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Data.Abstractions;
-using OctaGrid.Protocol.Workspaces;
 using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Client.Local;
 

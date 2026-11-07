@@ -18,6 +18,7 @@ namespace OctaGrid.Client;
 public partial class App : Application
 {
     private readonly CancellationTokenSource _cts = new();
+
     /// <summary>
     /// The application container. Set once at startup and used only by the application root to create
     /// the first view model; it is null in the designer and in tests that build their own view models.

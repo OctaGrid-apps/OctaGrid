@@ -1,3 +1,3 @@
-namespace OctaGrid.Protocol.Workspaces;
+namespace OctaGrid.Protocol.Dashboards;
 
 public record UpdateDashboardRequest(string Name);
