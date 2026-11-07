@@ -52,16 +52,29 @@ jobs:
           path: artifacts/nuget/*
 
       # Pushing only happens for a release tag; a manual run just builds and uploads the packages.
-      - name: Get a short-lived NuGet API key
-        if: startsWith(github.ref, 'refs/tags/v')
-        id: login
-        uses: NuGet/login@v1
-        with:
-          user: ${{ vars.NUGET_USER }}
-
-      # Protocol first: Abstractions depends on it. --skip-duplicate makes a re-run harmless.
+      # Trusted publishing: trade the GitHub OIDC token for a short-lived nuget.org API key. This does what the
+      # NuGet/login action does, inline, because the repository only allows a fixed list of third-party actions.
       - name: Push to nuget.org
         if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
         run: |
-          dotnet nuget push "artifacts/nuget/OctaGrid.Protocol.*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          dotnet nuget push "artifacts/nuget/OctaGrid.Extensions.Abstractions.*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          if (-not $env:NUGET_USER) { throw "Set the repository variable NUGET_USER to the nuget.org username that owns the trusted publishing policy." }
+
+          $audience = [uri]::EscapeDataString("https://www.nuget.org")
+          $oidc = Invoke-RestMethod -Uri "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)&audience=$audience" `
+              -Headers @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" }
+          Write-Host "::add-mask::$($oidc.value)"
+
+          $body = @{ username = $env:NUGET_USER; tokenType = "ApiKey" } | ConvertTo-Json
+          $response = Invoke-RestMethod -Method Post -Uri "https://www.nuget.org/api/v2/token" -ContentType "application/json" `
+              -Headers @{ Authorization = "Bearer $($oidc.value)"; "User-Agent" = "octagrid-publish" } -Body $body
+          if (-not $response.apiKey) { throw "nuget.org did not return an API key." }
+          Write-Host "::add-mask::$($response.apiKey)"
+
+          # Protocol first: Abstractions depends on it. --skip-duplicate makes a re-run harmless.
+          foreach ($id in "OctaGrid.Protocol", "OctaGrid.Extensions.Abstractions") {
+              dotnet nuget push "artifacts/nuget/$id.*.nupkg" --api-key $response.apiKey --source https://api.nuget.org/v3/index.json --skip-duplicate
+              if ($LASTEXITCODE -ne 0) { throw "Pushing $id failed." }
+          }
