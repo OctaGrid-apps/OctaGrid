@@ -1,29 +1,22 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Controls.PrinterStateBadge"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:conv="using:OctaGrid.Client.Converters"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     x:Name="root">
 
-    <Border
+    <controls:Badge
         Background="{Binding #root.State, Converter={x:Static conv:StateBrushConverter.Background}}"
-        Classes="badge"
-        TextElement.Foreground="{Binding #root.State, Converter={x:Static conv:StateBrushConverter.Foreground}}">
-        <StackPanel
-            VerticalAlignment="Center"
-            Orientation="Horizontal"
-            Spacing="8">
+        Foreground="{Binding #root.State, Converter={x:Static conv:StateBrushConverter.Foreground}}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
             <Ellipse
                 Width="6"
                 Height="6"
                 VerticalAlignment="Center"
                 Fill="{Binding #label.Foreground}" />
-            <TextBlock
-                x:Name="label"
-                VerticalAlignment="Center"
-                Classes="caption"
-                Text="{Binding #root.State}" />
+            <TextBlock x:Name="label" Text="{Binding #root.State}" />
         </StackPanel>
-    </Border>
+    </controls:Badge>
 </UserControl>
