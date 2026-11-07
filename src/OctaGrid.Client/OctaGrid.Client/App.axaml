@@ -9,6 +9,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://OctaGrid.Client/Controls/Dialogs/OverlayDialog.axaml" />
+                <ResourceInclude Source="avares://OctaGrid.Client/Controls/Badge.axaml" />
                 <ResourceInclude Source="avares://OctaGrid.Client/Controls/SettingsCard.axaml" />
                 <ResourceInclude Source="avares://OctaGrid.Client/Controls/SettingsGroup.axaml" />
                 <ResourceInclude Source="avares://OctaGrid.Client/Controls/SettingsExpander.axaml" />

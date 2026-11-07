@@ -207,12 +207,6 @@ DynamicResource is used on purpose: swapping the token dictionary at runtime
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
     </Style>
 
-    <!--  Status pill  -->
-    <Style Selector="Border.badge">
-        <Setter Property="Padding" Value="{DynamicResource Padding.Badge}" />
-        <Setter Property="CornerRadius" Value="{DynamicResource RadiusFull}" />
-    </Style>
-
     <!--  ═══════════════ CONTROLS ═══════════════  -->
 
     <!--  App-wide default: an icon that doesn't say otherwise is 16x16.  -->

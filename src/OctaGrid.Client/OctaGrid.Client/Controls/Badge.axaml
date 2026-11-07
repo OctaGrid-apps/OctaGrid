@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:OctaGrid.Client.Controls">
+
+    <ControlTheme x:Key="{x:Type controls:Badge}" TargetType="controls:Badge">
+        <Setter Property="Background" Value="{DynamicResource SystemBaseMediumLowColor}" />
+        <Setter Property="Padding" Value="{DynamicResource Padding.Badge}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border
+                    Padding="{TemplateBinding Padding}"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="{DynamicResource RadiusFull}">
+                    <!--
+                        The text of a badge uses the caption size but not the caption line height: a line taller than
+                        the text leaves the extra space under it, so the text would look pushed to the top.
+                    -->
+                    <Border.Styles>
+                        <Style Selector="TextBlock">
+                            <Setter Property="FontSize" Value="{DynamicResource Font.Size.Caption}" />
+                            <Setter Property="LineHeight" Value="NaN" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </Border.Styles>
+                    <ContentPresenter
+                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                        Content="{TemplateBinding Content}"
+                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                        Foreground="{TemplateBinding Foreground}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+</ResourceDictionary>

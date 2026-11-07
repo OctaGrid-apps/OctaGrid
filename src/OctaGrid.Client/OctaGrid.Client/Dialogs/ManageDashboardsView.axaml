@@ -2,6 +2,7 @@
     x:Class="OctaGrid.Client.Dialogs.ManageDashboardsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:services="using:OctaGrid.Client.Services"
@@ -49,12 +50,7 @@
                                                 Classes="lead"
                                                 Text="{Binding Name}"
                                                 TextTrimming="CharacterEllipsis" />
-                                            <Border
-                                                Background="{DynamicResource SystemBaseMediumLowColor}"
-                                                Classes="badge"
-                                                IsVisible="{Binding IsDefault}">
-                                                <TextBlock Classes="caption" Text="Default" />
-                                            </Border>
+                                            <controls:Badge Content="Default" IsVisible="{Binding IsDefault}" />
                                         </StackPanel>
                                         <TextBlock Classes="small secondary" Text="{Binding TypeText}" />
                                     </StackPanel>
