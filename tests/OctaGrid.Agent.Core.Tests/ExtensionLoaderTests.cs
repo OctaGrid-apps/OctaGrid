@@ -130,6 +130,39 @@ public sealed class ExtensionLoaderTests : IDisposable
         Assert.Null(result.Connector);
     }
 
+    [Fact]
+    public void An_extension_built_for_an_earlier_pre_release_runs_on_a_later_one()
+    {
+        Install("sample", Manifest(host: ">=1.0.19-pre-alpha <2.0.0"));
+
+        var result = Assert.Single(new ExtensionLoader(ExtensionVersion.Parse("1.0.20-pre-alpha.1")).LoadAll(_root));
+
+        Assert.Equal(ExtensionState.Loaded, result.State);
+    }
+
+    [Fact]
+    public void A_pre_release_host_refuses_a_range_without_a_pre_release_and_says_what_to_write()
+    {
+        Install("sample", Manifest(host: ">=1.0.0 <2.0.0"));
+
+        var result = Assert.Single(new ExtensionLoader(ExtensionVersion.Parse("1.0.20-pre-alpha.1")).LoadAll(_root));
+
+        Assert.Equal(ExtensionState.Incompatible, result.State);
+        Assert.Contains("this is OctaGrid 1.0.20-pre-alpha.1", result.Message);
+        Assert.Contains("must name a pre-release", result.Message);
+        Assert.Contains(">=1.0.20-pre-alpha", result.Message);
+    }
+
+    [Fact]
+    public void The_pre_release_hint_is_left_out_when_it_would_not_help()
+    {
+        Install("sample", Manifest(host: ">=5.0.0"));
+
+        var result = Assert.Single(Loader().LoadAll(_root));
+
+        Assert.DoesNotContain("pre-release", result.Message);
+    }
+
     [Theory]
     [InlineData("not json")]
     [InlineData("{}")]

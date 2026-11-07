@@ -28,9 +28,15 @@ public class HostVersionRangeTests
     [InlineData(">=1.5.0-pre-alpha <2.0.0", "1.5.0-pre-alpha.3", true)]
     [InlineData(">=1.5.0-pre-alpha <2.0.0", "1.5.0-pre-alpha", true)]
     [InlineData(">=1.5.0-preview.1 <2.0.0", "1.5.0-pre-alpha.3", false)]
-    [InlineData(">=1.5.0-pre-alpha <2.0.0", "1.6.0-pre-alpha.1", false)]
+    [InlineData(">=1.5.0-pre-alpha <2.0.0", "1.6.0-pre-alpha.1", true)]
+    [InlineData(">=1.0.19-pre-alpha <2.0.0", "1.0.20-pre-alpha.1", true)]
+    [InlineData(">=1.0.19-pre-alpha <2.0.0", "1.0.19-pre-alpha.7", true)]
+    [InlineData(">=1.0.19-pre-alpha <2.0.0", "1.0.18-pre-alpha.2", false)]
+    [InlineData(">=1.0.19-pre-alpha <2.0.0", "2.0.0-pre-alpha.1", false)]
+    [InlineData(">=1.0.19-pre-alpha <2.0.0", "1.9.0", true)]
+    [InlineData(">=1.0.19-pre-alpha <2.0.0", "2.0.0", false)]
     [InlineData("*", "1.5.0-pre-alpha.3", false)]
-    public void A_pre_release_host_only_matches_a_range_that_names_its_pre_release_line(string range, string host, bool expected) =>
+    public void A_pre_release_host_only_matches_a_range_that_names_a_pre_release(string range, string host, bool expected) =>
         Assert.Equal(expected, Satisfies(range, host));
 
     [Theory]

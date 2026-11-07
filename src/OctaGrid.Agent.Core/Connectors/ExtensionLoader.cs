@@ -103,8 +103,13 @@ public sealed class ExtensionLoader
 
             if (!range.Satisfies(_host))
             {
+                // A pre-release OctaGrid only runs extensions whose range names a pre-release; say so, because
+                // ">=1.0.0 <2.0.0" looks like it should fit.
+                var hint = _host.IsPreRelease && !range.AcceptsPreRelease
+                    ? $" This is a pre-release, so the range must name a pre-release, for example >={_host.Major}.{_host.Minor}.{_host.Patch}-{_host.PreRelease!.Split('.')[0]}."
+                    : string.Empty;
                 return Fail(folder, manifest, ExtensionState.Incompatible,
-                    $"Requires OctaGrid {range.Text}; this is OctaGrid {_host}.");
+                    $"Requires OctaGrid {range.Text}; this is OctaGrid {_host}.{hint}");
             }
 
             if (string.IsNullOrWhiteSpace(manifest.Assembly))
