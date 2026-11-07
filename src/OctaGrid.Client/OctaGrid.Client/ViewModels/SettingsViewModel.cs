@@ -116,20 +116,26 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public partial string UpdateStatusText { get; set; } = "Check for updates";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelUpdate))]
     public partial int UpdateProgress { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
     public partial bool IsCheckingForUpdates { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
     [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    [NotifyPropertyChangedFor(nameof(CanCancelUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     public partial bool IsUpdating { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvailableUpdate))]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     [NotifyPropertyChangedFor(nameof(UpdateActionText))]
     [NotifyPropertyChangedFor(nameof(HasReleaseNotes))]
     [NotifyCanExecuteChangedFor(nameof(ShowReleaseNotesCommand))]
@@ -140,6 +146,12 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsUpdating;
 
     public bool CanApplyUpdate => HasAvailableUpdate && !IsUpdating;
+
+    /// <summary>
+    /// The download can be cancelled until it finishes; after that the update is installed and the app restarts.
+    /// The Microsoft Store shows its own dialog, which this app cannot cancel.
+    /// </summary>
+    public bool CanCancelUpdate => IsUpdating && UpdateProgress < 100 && _updateService.Channel != UpdateChannel.MicrosoftStore;
 
     public string UpdateChannelName => _updateService.Channel switch
     {
@@ -159,6 +171,33 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     public bool HasReleaseNotes => HasAvailableUpdate && !string.IsNullOrWhiteSpace(AvailableUpdate?.ReleaseNotes);
 
+    /// <summary>
+    /// Wraps the release notes in a page whose text follows the app theme. The page has no background of its own:
+    /// the dialog's <see cref="NativeWebDialog.DefaultBackground"/> paints the window and the web view behind it.
+    /// </summary>
+    internal static string BuildReleaseNotesHtml(string notes, bool dark, string foreground, string link) =>
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+        $"<meta name=\"color-scheme\" content=\"{(dark ? "dark" : "light")}\">" +
+        "<style>" +
+        $"body {{ color: {foreground}; font-family: 'Segoe UI', system-ui, sans-serif; margin: 16px; line-height: 1.5; }}" +
+        $"a {{ color: {link}; }}" +
+        "code, pre { background: color-mix(in srgb, currentColor 12%, transparent); border-radius: 4px; padding: 1px 4px; }" +
+        "hr { border: 0; border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent); }" +
+        "</style></head><body>" + notes + "</body></html>";
+
+    /// <summary>Reads a color from the theme resources for the current theme variant.</summary>
+    private static Avalonia.Media.Color ThemeColor(string resourceKey, Avalonia.Media.Color fallback)
+    {
+        var app = Avalonia.Application.Current;
+        return app is not null
+            && app.TryGetResource(resourceKey, app.ActualThemeVariant, out var value)
+            && value is Avalonia.Media.ISolidColorBrush brush
+                ? brush.Color
+                : fallback;
+    }
+
+    private static string Hex(Avalonia.Media.Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
     [RelayCommand(CanExecute = nameof(HasReleaseNotes))]
     private void ShowReleaseNotes()
     {
@@ -170,15 +209,18 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
         try
         {
-            const string head =
-                "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
-                "<meta name=\"color-scheme\" content=\"light dark\">" +
-                "<style>body { font-family: 'Segoe UI', sans-serif; margin: 16px; line-height: 1.5; }</style>" +
-                "</head><body>";
-            var html = head + notes + "</body></html>";
+            var dark = Avalonia.Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+            var background = ThemeColor("OverlayDialogBackground", dark ? Avalonia.Media.Color.Parse("#171B25") : Avalonia.Media.Colors.White);
+            var foreground = ThemeColor("SystemControlForegroundBaseHighBrush", dark ? Avalonia.Media.Colors.White : Avalonia.Media.Colors.Black);
+            var link = ThemeColor("NavigationRailAccentBrush", foreground);
+            var html = BuildReleaseNotesHtml(notes, dark, Hex(foreground), Hex(link));
 
-            var dialog = new NativeWebDialog { Title = $"What's new in {AvailableUpdate?.TargetVersion}" };
-            dialog.CanUserResize = true;
+            var dialog = new NativeWebDialog
+            {
+                Title = $"What's new in {AvailableUpdate?.TargetVersion}",
+                CanUserResize = true,
+                DefaultBackground = background,
+            };
             dialog.NavigateToString(html);
 
             var owner = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
@@ -383,7 +425,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanApplyUpdate))]
+    [RelayCommand(CanExecute = nameof(CanApplyUpdate), IncludeCancelCommand = true)]
     private async Task ApplyUpdate(CancellationToken cancellationToken)
     {
         if (AvailableUpdate is not { IsUpdateAvailable: true } || IsUpdating)
@@ -409,6 +451,13 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
             }, cancellationToken);
 
             UpdateStatus = UpdateStatus.ReadyToRestart;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Update download cancelled by the user");
+            UpdateProgress = 0;
+            UpdateStatus = UpdateStatus.UpdateAvailable;
+            UpdateStatusText = $"Update cancelled. Version {AvailableUpdate?.TargetVersion} is still available";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

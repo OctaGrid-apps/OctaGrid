@@ -164,6 +164,10 @@
                             IsVisible="{Binding HasAvailableUpdate}"
                             ToolTip.Tip="{Binding UpdateRestartNotice}" />
                         <Button
+                            Command="{Binding ApplyUpdateCancelCommand}"
+                            Content="Cancel"
+                            IsVisible="{Binding CanCancelUpdate}" />
+                        <Button
                             Command="{Binding CheckForUpdatesCommand}"
                             Content="Check for updates" />
                     </StackPanel>
