@@ -1,8 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using OctaGrid.Client.Dialogs;
 using OctaGrid.Client.DesignTime;
+using OctaGrid.Client.Dialogs;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Protocol.Extensions;

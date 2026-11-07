@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using OctaGrid.Client.Views;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Controls;

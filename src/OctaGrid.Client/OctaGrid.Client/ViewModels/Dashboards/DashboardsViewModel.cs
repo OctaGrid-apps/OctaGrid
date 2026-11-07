@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
-using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Client.ViewModels;
 

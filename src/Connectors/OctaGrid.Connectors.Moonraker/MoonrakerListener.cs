@@ -1,7 +1,7 @@
-using OctaGrid.Extensions.Abstractions;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Messaging;
 using StreamJsonRpc;
 

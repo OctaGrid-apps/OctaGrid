@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using OctaGrid.Application.Services;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Exceptions;
-using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Application.Tests;
 

@@ -1,5 +1,5 @@
-using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Client.Contracts;
+using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Local;

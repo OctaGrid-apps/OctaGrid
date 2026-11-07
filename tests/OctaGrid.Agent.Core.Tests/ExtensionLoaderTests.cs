@@ -2,7 +2,6 @@ using System.Runtime.Loader;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core.Tests;
 

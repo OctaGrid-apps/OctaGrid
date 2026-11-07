@@ -1,4 +1,3 @@
-using OctaGrid.Extensions.Abstractions;
 using System.Diagnostics;
 using System.Security.Authentication;
 using System.Text.Json;
@@ -9,6 +8,7 @@ using MQTTnet;
 using MQTTnet.Exceptions;
 using MQTTnet.Formatter;
 using MQTTnet.Protocol;
+using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;

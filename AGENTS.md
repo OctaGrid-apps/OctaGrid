@@ -120,5 +120,4 @@ Not present today; design new contracts so this is a thin layer, not a rewrite.
 
 ## Known quirks
 
-- Dashboard types in `Protocol/Dashboards/` use the namespace `OctaGrid.Protocol.Workspaces`.
 - `OctaGrid.Client.Desktop` targets `net10.0-windows`; everything else targets `net10.0`.

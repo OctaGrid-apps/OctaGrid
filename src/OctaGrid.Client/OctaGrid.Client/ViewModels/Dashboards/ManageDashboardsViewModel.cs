@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Client.ViewModels;

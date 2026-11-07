@@ -1,6 +1,7 @@
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol;
 using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Printers;
 using OctaGrid.Protocol.Users;
 using OctaGrid.Protocol.Workspaces;

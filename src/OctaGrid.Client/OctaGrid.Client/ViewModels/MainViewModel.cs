@@ -2,13 +2,12 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
-using OctaGrid.Protocol.Workspaces;
+using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Client.ViewModels;
 
@@ -16,10 +15,10 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAgentsClient _agentsClient;
     private readonly IAppSettingsStore _appSettings;
-    private readonly INotificationService _notifications;
     private readonly IDashboardsClient _dashboardsClient;
-    private readonly IUpdateService _updateService;
     private readonly ILogger<MainViewModel> _logger;
+    private readonly INotificationService _notifications;
+    private readonly IUpdateService _updateService;
     private readonly IWorkspacesClient _workspacesClient;
     private bool _hasCheckedForUpdates;
 
@@ -63,34 +62,65 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         };
     }
 
-    /// <summary>The page shown under "Dashboard"; given to the navigation item as its data context.</summary>
-    public DashboardsViewModel DashboardsPage { get; }
-
-    /// <summary>The page shown under "Printers".</summary>
-    public PrinterListViewModel PrintersPage { get; }
-
     /// <summary>The page shown under "Agents" (Remote mode).</summary>
     public AgentListViewModel AgentsPage { get; }
 
-    /// <summary>The page shown under "Workspaces" (Remote mode).</summary>
-    public WorkspaceListViewModel WorkspacesPage { get; }
+    [ObservableProperty]
+    public partial ApplicationState AppStateService { get; set; }
+
+    /// <summary>The page shown under "Dashboard"; given to the navigation item as its data context.</summary>
+    public DashboardsViewModel DashboardsPage { get; }
+
+    public bool IsRemoteMode => _appSettings.StartupSettings.Mode == ClientMode.Remote;
+
+    [ObservableProperty]
+    public partial bool IsUpdateAvailable { get; set; }
+
+    /// <summary>The page shown under "Printers".</summary>
+    public PrinterListViewModel PrintersPage { get; }
 
     /// <summary>The page shown under "Settings".</summary>
     public SettingsViewModel SettingsPage { get; }
 
     [ObservableProperty]
-    public partial ApplicationState AppStateService { get; set; }
+    public partial ObservableCollection<Workspace> Workspaces { get; set; } = [];
 
-    [ObservableProperty]
-    public partial bool IsUpdateAvailable { get; set; }
+    /// <summary>The page shown under "Workspaces" (Remote mode).</summary>
+    public WorkspaceListViewModel WorkspacesPage { get; }
 
     /// <summary>Lets notifications appear in the window once the view has one.</summary>
     public void AttachNotifications(Avalonia.Controls.TopLevel topLevel) => _notifications.Attach(topLevel);
 
-    public bool IsRemoteMode => _appSettings.StartupSettings.Mode == ClientMode.Remote;
+    private async Task CheckForUpdatesOnStartupAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Checking for updates on app startup...");
+            var updateInfo = await _updateService.CheckForUpdatesAsync(cancellationToken);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                AppStateService.AvailableUpdate = updateInfo;
+                IsUpdateAvailable = updateInfo.IsUpdateAvailable;
+            });
 
-    [ObservableProperty]
-    public partial ObservableCollection<Workspace> Workspaces { get; set; } = [];
+            if (updateInfo.IsUpdateAvailable)
+            {
+                _logger.LogInformation("Startup update check: new version {TargetVersion} is available", updateInfo.TargetVersion);
+            }
+            else
+            {
+                _logger.LogDebug("Startup update check: application is up to date ({CurrentVersion})", updateInfo.CurrentVersion);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("Startup update check was cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Background startup update check encountered an error");
+        }
+    }
 
     private async Task CreateDefaultEntities(CancellationToken cancellationToken)
     {
@@ -167,37 +197,6 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         {
             _logger.LogError(ex, "Failed to load workspaces in MainViewModel");
             throw;
-        }
-    }
-
-    private async Task CheckForUpdatesOnStartupAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            _logger.LogInformation("Checking for updates on app startup...");
-            var updateInfo = await _updateService.CheckForUpdatesAsync(cancellationToken);
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppStateService.AvailableUpdate = updateInfo;
-                IsUpdateAvailable = updateInfo.IsUpdateAvailable;
-            });
-
-            if (updateInfo.IsUpdateAvailable)
-            {
-                _logger.LogInformation("Startup update check: new version {TargetVersion} is available", updateInfo.TargetVersion);
-            }
-            else
-            {
-                _logger.LogDebug("Startup update check: application is up to date ({CurrentVersion})", updateInfo.CurrentVersion);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogDebug("Startup update check was cancelled");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Background startup update check encountered an error");
         }
     }
 

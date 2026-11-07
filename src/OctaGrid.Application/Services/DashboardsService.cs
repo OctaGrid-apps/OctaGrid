@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data.Abstractions;
 using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Exceptions;
-using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Application.Services;
 

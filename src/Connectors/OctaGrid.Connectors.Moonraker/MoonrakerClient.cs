@@ -1,8 +1,8 @@
-using OctaGrid.Extensions.Abstractions;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;

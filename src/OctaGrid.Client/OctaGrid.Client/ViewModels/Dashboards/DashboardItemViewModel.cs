@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using OctaGrid.Protocol.Workspaces;
+using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Client.ViewModels;
 
