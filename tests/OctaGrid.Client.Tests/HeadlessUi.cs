@@ -19,6 +19,9 @@ internal static class HeadlessUi
     public static Task Run(Action action) => Session.Dispatch(action, CancellationToken.None);
 
     public static Task<T> Run<T>(Func<T> func) => Session.Dispatch(func, CancellationToken.None);
+
+    /// <summary>Runs async code on the UI thread, so awaits continue there and bindings update as they do in the app.</summary>
+    public static Task RunAsync(Func<Task> action) => Session.Dispatch(action, CancellationToken.None);
 }
 
 /// <summary>

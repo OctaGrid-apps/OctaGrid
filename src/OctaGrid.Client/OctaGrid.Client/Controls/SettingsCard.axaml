@@ -16,11 +16,13 @@
                 <Border
                     Padding="{TemplateBinding Padding}"
                     Background="{TemplateBinding Background}"
+                    Container.Name="settings-card"
+                    Container.Sizing="Width"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
                     CornerRadius="{TemplateBinding CornerRadius}">
                     <Grid RowDefinitions="Auto,Auto,Auto">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource Gap.Form}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource Gap.Form}" RowDefinitions="Auto,Auto">
                             <PathIcon
                                 x:Name="PART_Icon"
                                 Grid.Column="0"
@@ -113,6 +115,17 @@
                 </Border>
             </ControlTemplate>
         </Setter>
+
+        <!--  Narrow card: the action (a button, a combo box) moves under the text instead of squeezing it.  -->
+        <ContainerQuery Name="settings-card" Query="max-width:480">
+            <Style Selector="ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="1" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Margin" Value="0,8,0,0" />
+            </Style>
+        </ContainerQuery>
     </ControlTheme>
 
 </ResourceDictionary>
