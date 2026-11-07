@@ -6,7 +6,6 @@
     <PackageId>OctaGrid.Extensions.Abstractions</PackageId>
     <Description>Contracts for building OctaGrid printer connectors and other extensions.</Description>
     <PackageTags>octagrid;3d-printing;extensions;connector</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>

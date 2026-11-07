@@ -1,0 +1,67 @@
+name: Publish NuGet packages
+
+# Registered as the workflow file of the trusted publishing policy on nuget.org;
+# renaming this file means updating that policy.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pack & push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # lets NuGet/login exchange the GitHub OIDC token for a short-lived API key
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check the tag matches version.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $semver = (Get-Content "version.json" -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$semver") {
+              throw "Tag $env:GITHUB_REF_NAME does not match version.json ($semver)."
+          }
+
+      - name: Pack
+        run: |
+          dotnet pack src/OctaGrid.Protocol -c Release -o artifacts/nuget
+          dotnet pack src/OctaGrid.Extensions.Abstractions -c Release -o artifacts/nuget
+          ls artifacts/nuget
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: artifacts/nuget/*
+
+      # Pushing only happens for a release tag; a manual run just builds and uploads the packages.
+      - name: Get a short-lived NuGet API key
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # Protocol first: Abstractions depends on it. --skip-duplicate makes a re-run harmless.
+      - name: Push to nuget.org
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          dotnet nuget push "artifacts/nuget/OctaGrid.Protocol.*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push "artifacts/nuget/OctaGrid.Extensions.Abstractions.*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
