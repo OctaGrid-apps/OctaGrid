@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
@@ -88,7 +89,7 @@ public sealed class DeveloperModeTests : IDisposable
             """);
     }
 
-    private ExtensionManager NewManager(ConnectorRegistry? registry = null) =>
+    private static ExtensionManager NewManager(ConnectorRegistry? registry = null) =>
         new(registry ?? new ConnectorRegistry(), new InMemoryStateStore(), new ExtensionLoader(Host));
 
     private static void Reload(ExtensionManager manager)
@@ -299,7 +300,7 @@ public sealed class DeveloperModeTests : IDisposable
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
-            await Task.Delay(50);
+            await Task.Delay(50, TestContext.Current.CancellationToken);
         }
 
         Assert.False(weak.IsAlive, "The load context of the old version is still in memory.");
@@ -324,7 +325,7 @@ public sealed class DeveloperModeTests : IDisposable
 
     // ---- The worker: sessions and the file watcher ----
 
-    private (AgentWorker Worker, FakeTelemetry Telemetry, PrinterProfile Printer) NewWorker()
+    private static (AgentWorker Worker, FakeTelemetry Telemetry, PrinterProfile Printer) NewWorker()
     {
         var printer = new PrinterProfile(Guid.NewGuid(), DevConnectorA.Id, new Dictionary<string, string>());
         var telemetry = new FakeTelemetry();
@@ -416,7 +417,7 @@ public sealed class DeveloperModeTests : IDisposable
 
         await worker.SetDeveloperFolderAsync(null, CancellationToken.None);
         Build(typeof(DevConnectorB));
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
 
         Assert.Empty(worker.GetExtensions());
         Assert.Null(worker.DeveloperFolder);
@@ -433,17 +434,17 @@ public sealed class DeveloperModeTests : IDisposable
         using var watcher = new DeveloperExtensionWatcher(DevFolder, () => Interlocked.Increment(ref calls), TimeSpan.FromMilliseconds(150));
 
         File.WriteAllText(Path.Combine(DevFolder, "notes.pdb"), "x");
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
         Assert.Equal(0, calls);
 
         for (var i = 0; i < 5; i++)
         {
-            File.WriteAllText(Path.Combine(DevFolder, "Extension.dll"), i.ToString());
-            await Task.Delay(20);
+            File.WriteAllText(Path.Combine(DevFolder, "Extension.dll"), i.ToString(CultureInfo.InvariantCulture));
+            await Task.Delay(20, TestContext.Current.CancellationToken);
         }
 
         await Eventually(() => calls >= 1, "The watcher never reported the change.");
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
         Assert.Equal(1, calls);
     }
 }

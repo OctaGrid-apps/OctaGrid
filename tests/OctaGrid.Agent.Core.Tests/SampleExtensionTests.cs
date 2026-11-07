@@ -142,7 +142,11 @@ public sealed class SampleExtensionTests : IDisposable
 
         var info = Assert.Single(manager.GetExtensions());
         Assert.Equal(SampleId, info.Id);
-        Assert.True(info.State == ExtensionState.Loaded, info.StateMessage);
+        if (info.State != ExtensionState.Loaded)
+        {
+            Assert.Fail($"The sample is {info.State}: {info.StateMessage}");
+        }
+
         Assert.Equal(ExtensionSource.Development, info.Source);
     }
 
