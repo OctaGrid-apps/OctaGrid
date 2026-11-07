@@ -116,20 +116,26 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public partial string UpdateStatusText { get; set; } = "Check for updates";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelUpdate))]
     public partial int UpdateProgress { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
     public partial bool IsCheckingForUpdates { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
     [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    [NotifyPropertyChangedFor(nameof(CanCancelUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     public partial bool IsUpdating { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAvailableUpdate))]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     [NotifyPropertyChangedFor(nameof(UpdateActionText))]
     [NotifyPropertyChangedFor(nameof(HasReleaseNotes))]
     [NotifyCanExecuteChangedFor(nameof(ShowReleaseNotesCommand))]
@@ -140,6 +146,12 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsUpdating;
 
     public bool CanApplyUpdate => HasAvailableUpdate && !IsUpdating;
+
+    /// <summary>
+    /// The download can be cancelled until it finishes; after that the update is installed and the app restarts.
+    /// The Microsoft Store shows its own dialog, which this app cannot cancel.
+    /// </summary>
+    public bool CanCancelUpdate => IsUpdating && UpdateProgress < 100 && _updateService.Channel != UpdateChannel.MicrosoftStore;
 
     public string UpdateChannelName => _updateService.Channel switch
     {
@@ -159,6 +171,28 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     public bool HasReleaseNotes => HasAvailableUpdate && !string.IsNullOrWhiteSpace(AvailableUpdate?.ReleaseNotes);
 
+    /// <summary>
+    /// Wraps the release notes in a page that paints its own opaque background in the app's theme.
+    /// The web view draws nothing behind the page, so without it the dialog is see-through.
+    /// </summary>
+    internal static string BuildReleaseNotesHtml(string notes, bool dark)
+    {
+        var (background, foreground, muted, link, code) = dark
+            ? ("#171B25", "#E8EBF2", "#98A2B3", "#8C9BFF", "#232937")
+            : ("#FFFFFF", "#151A24", "#667085", "#4A5BD9", "#EDF0F5");
+        var scheme = dark ? "dark" : "light";
+
+        return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+            $"<meta name=\"color-scheme\" content=\"{scheme}\">" +
+            "<style>" +
+            $"html, body {{ background: {background}; color: {foreground}; }}" +
+            "body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 16px; line-height: 1.5; }" +
+            $"a {{ color: {link}; }}" +
+            $"code, pre {{ background: {code}; border-radius: 4px; padding: 1px 4px; }}" +
+            $"hr {{ border: 0; border-top: 1px solid {muted}; }}" +
+            "</style></head><body>" + notes + "</body></html>";
+    }
+
     [RelayCommand(CanExecute = nameof(HasReleaseNotes))]
     private void ShowReleaseNotes()
     {
@@ -170,12 +204,8 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
         try
         {
-            const string head =
-                "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
-                "<meta name=\"color-scheme\" content=\"light dark\">" +
-                "<style>body { font-family: 'Segoe UI', sans-serif; margin: 16px; line-height: 1.5; }</style>" +
-                "</head><body>";
-            var html = head + notes + "</body></html>";
+            var dark = Avalonia.Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+            var html = BuildReleaseNotesHtml(notes, dark);
 
             var dialog = new NativeWebDialog { Title = $"What's new in {AvailableUpdate?.TargetVersion}" };
             dialog.CanUserResize = true;
@@ -383,7 +413,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanApplyUpdate))]
+    [RelayCommand(CanExecute = nameof(CanApplyUpdate), IncludeCancelCommand = true)]
     private async Task ApplyUpdate(CancellationToken cancellationToken)
     {
         if (AvailableUpdate is not { IsUpdateAvailable: true } || IsUpdating)
@@ -409,6 +439,13 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
             }, cancellationToken);
 
             UpdateStatus = UpdateStatus.ReadyToRestart;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Update download cancelled by the user");
+            UpdateProgress = 0;
+            UpdateStatus = UpdateStatus.UpdateAvailable;
+            UpdateStatusText = $"Update cancelled. Version {AvailableUpdate?.TargetVersion} is still available";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
