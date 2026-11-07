@@ -159,14 +159,14 @@ public sealed class DashboardsServiceTests : IDisposable
                 WidgetType = WidgetType.PrinterCard,
                 ConfigJson = "{}",
             });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Delete(other.Id);
 
         await using var check = NewContext();
-        Assert.Empty(await check.DashboardWidgets.ToListAsync());
-        Assert.Single(await check.Printers.ToListAsync());
+        Assert.Empty(await check.DashboardWidgets.ToListAsync(TestContext.Current.CancellationToken));
+        Assert.Single(await check.Printers.ToListAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
