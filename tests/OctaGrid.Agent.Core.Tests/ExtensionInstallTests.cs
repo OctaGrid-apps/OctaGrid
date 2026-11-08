@@ -242,6 +242,31 @@ public sealed class ExtensionInstallTests : IDisposable
         Assert.Equal("https://example.com/trust-sample", info.ProjectUrl);
     }
 
+    [Fact]
+    public void A_second_extension_with_the_same_id_does_not_replace_the_project_url_of_the_loaded_one()
+    {
+        var (manager, _) = Create();
+        manager.Install(Package("sample", Manifest(projectUrl: "https://example.com/trust-sample")));
+        manager.Approve(TrustSampleConnector.Id);
+
+        var duplicate = ExtensionManifest.Parse(Manifest());
+        manager.AddFolderExtensions([
+            new ExtensionLoadResult(Path.Combine(Packages, "other"), duplicate, ExtensionState.Loaded, null, new TrustSampleConnector()),
+        ]);
+
+        var loaded = manager.GetExtensions().Single(e => e.State == ExtensionState.Loaded);
+        Assert.Equal("https://example.com/trust-sample", loaded.ProjectUrl);
+    }
+
+    [Fact]
+    public void A_project_url_that_is_not_a_web_address_is_not_shown()
+    {
+        var (manager, _) = Create();
+        manager.Install(Package("sample", Manifest(projectUrl: "javascript:alert(1)")));
+
+        Assert.Null(Assert.Single(manager.GetExtensions()).ProjectUrl);
+    }
+
     // ---- Trust ----
 
     [Fact]

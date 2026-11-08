@@ -180,6 +180,11 @@ public sealed class ExtensionLoader
                 return Fail(folder, manifest, ExtensionState.Failed, "The manifest is not valid: " + string.Join(" ", errors));
             }
 
+            foreach (var warning in manifest.Warnings())
+            {
+                _logger.LogWarning("Extension {ExtensionId} in {Folder}: {Warning}", manifest.Id, folder, warning);
+            }
+
             if (!HostVersionRange.TryParse(manifest.Host, out var range, out var rangeError))
             {
                 return Fail(folder, manifest, ExtensionState.Failed, rangeError);

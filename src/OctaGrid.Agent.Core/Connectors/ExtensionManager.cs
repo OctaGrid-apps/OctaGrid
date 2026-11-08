@@ -89,12 +89,12 @@ public sealed class ExtensionManager
         {
             foreach (var result in results)
             {
-                RememberProjectUrl(result);
                 if (result is { State: ExtensionState.Loaded, Connector: { } connector })
                 {
                     try
                     {
                         _registry.Add(connector, ExtensionSource.UserFolder);
+                        RememberProjectUrl(result);
                         _folders[result.Id] = result.Folder;
                         continue;
                     }
@@ -316,9 +316,9 @@ public sealed class ExtensionManager
                 if (result.State == ExtensionState.Loaded)
                 {
                     _registry.Remove(id);
+                    _projectUrls.Remove(id);
                 }
 
-                _projectUrls.Remove(id);
                 old.Add(result);
             }
 
@@ -339,13 +339,13 @@ public sealed class ExtensionManager
         {
             foreach (var result in loaded)
             {
-                RememberProjectUrl(result);
                 var entry = result;
                 if (result is { State: ExtensionState.Loaded, Connector: { } connector })
                 {
                     try
                     {
                         _registry.Add(connector, ExtensionSource.Development);
+                        RememberProjectUrl(result);
                     }
                     catch (ArgumentException ex)
                     {
@@ -441,7 +441,7 @@ public sealed class ExtensionManager
     /// <summary>Keeps the project link of a loaded extension, because the connector itself does not carry it.</summary>
     private void RememberProjectUrl(ExtensionLoadResult result)
     {
-        if (result.Manifest?.ProjectUrl is { } url)
+        if (result.Manifest?.WebProjectUrl is { } url)
         {
             _projectUrls[result.Id] = url;
         }
@@ -463,7 +463,7 @@ public sealed class ExtensionManager
         ConnectorCapabilities.None,
         CanUninstall: source == ExtensionSource.UserFolder,
         Permissions: result.Manifest?.Permissions,
-        ProjectUrl: result.Manifest?.ProjectUrl);
+        ProjectUrl: result.Manifest?.WebProjectUrl);
 
     private ExtensionInfo ToInfo(IConnector connector)
     {

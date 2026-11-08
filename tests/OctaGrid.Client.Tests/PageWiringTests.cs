@@ -73,4 +73,34 @@ public class PageWiringTests
             second.Close();
         });
     }
+
+    [Fact]
+    public async Task The_printers_page_is_kept_and_raises_Loaded_each_time_it_is_shown()
+    {
+        // The page reloads its data on Loaded. That is how the list notices, when the user comes back from the
+        // Settings page, that a connector extension was turned on or off.
+        await HeadlessUi.Run(() =>
+        {
+            var window = Show(new MainView { DataContext = DesignData.Main });
+            var rail = window.GetVisualDescendants().OfType<NavigationRail>().Single();
+            var items = rail.Items.Concat(rail.FooterItems).ToList();
+            var printers = items.Single(i => i.PageType == typeof(PrinterListView));
+            var settings = items.Single(i => i.PageType == typeof(SettingsView));
+
+            rail.SelectedItem = printers;
+            Dispatcher.UIThread.RunJobs();
+            var page = rail.CurrentPage!;
+            var loaded = 0;
+            page.Loaded += (_, _) => loaded++;
+
+            rail.SelectedItem = settings;
+            Dispatcher.UIThread.RunJobs();
+            rail.SelectedItem = printers;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Same(page, rail.CurrentPage);
+            Assert.Equal(1, loaded);
+            window.Close();
+        });
+    }
 }

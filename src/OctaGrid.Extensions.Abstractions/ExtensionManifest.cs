@@ -61,17 +61,31 @@ public sealed record ExtensionManifest(
         AllowTrailingCommas = true,
     };
 
-    /// <summary>
-    /// Reads a manifest from JSON. Unknown properties are ignored; call <see cref="Validate"/> afterwards.
-    /// A <c>projectUrl</c> that is not a web address is dropped: it is only a link, so it must not stop the extension from loading.
-    /// </summary>
+    /// <summary>The project link when it is a web address; null when there is none or it cannot be used.</summary>
+    public string? WebProjectUrl => ProjectUrl is { } url && IsWebAddress(url) ? url : null;
+
+    /// <summary>Reads a manifest from JSON. Unknown properties are ignored; call <see cref="Validate"/> afterwards.</summary>
     /// <exception cref="JsonException">The text is not valid JSON or not a manifest object.</exception>
     public static ExtensionManifest Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
-        var manifest = JsonSerializer.Deserialize<ExtensionManifest>(json, JsonOptions)
+        return JsonSerializer.Deserialize<ExtensionManifest>(json, JsonOptions)
             ?? throw new JsonException("The manifest is empty.");
-        return manifest.ProjectUrl is { } url && !IsWebAddress(url) ? manifest with { ProjectUrl = null } : manifest;
+    }
+
+    /// <summary>
+    /// Returns one message per problem that does not stop the extension from loading, for example a link that is
+    /// ignored. <see cref="Validate"/> reports the problems that do.
+    /// </summary>
+    public IReadOnlyList<string> Warnings()
+    {
+        var warnings = new List<string>();
+        if (!string.IsNullOrWhiteSpace(ProjectUrl) && WebProjectUrl is null)
+        {
+            warnings.Add($"'projectUrl' is ignored because it is not an absolute http or https address; got '{ProjectUrl}'.");
+        }
+
+        return warnings;
     }
 
     /// <summary>Checks the manifest and returns one message per problem; an empty list means it is valid.</summary>

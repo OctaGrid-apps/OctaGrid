@@ -61,7 +61,20 @@ public class PrinterStatusWidget : INotifyPropertyChanged
     public string ConnectorId { get; set; } = string.Empty;
 
     /// <summary>False when the connector is switched off or removed, so the printer cannot connect.</summary>
-    public bool IsConnectorAvailable { get; set; } = true;
+    public bool IsConnectorAvailable
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged(nameof(IsConnectorAvailable));
+                OnPropertyChanged(nameof(CanStartPause));
+                OnPropertyChanged(nameof(CanStop));
+            }
+        }
+    } = true;
 
     public bool IsPaused => State == UniversalPrinterState.Paused;
 

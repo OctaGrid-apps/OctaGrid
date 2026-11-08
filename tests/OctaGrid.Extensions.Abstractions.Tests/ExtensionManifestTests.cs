@@ -119,12 +119,22 @@ public class ExtensionManifestTests
     [InlineData("javascript:alert(1)")]
     [InlineData("file:///C:/x")]
     [InlineData("acme.com/prusalink")]
-    public void Ignores_a_project_url_that_is_not_a_web_address_instead_of_failing_the_manifest(string url)
+    public void A_project_url_that_is_not_a_web_address_is_unusable_but_does_not_fail_the_manifest(string url)
     {
         var manifest = ExtensionManifest.Parse(ValidJson.Replace("\"kind\"", $"\"projectUrl\": \"{url}\", \"kind\""));
 
-        Assert.Null(manifest.ProjectUrl);
+        Assert.Null(manifest.WebProjectUrl);
         Assert.Empty(manifest.Validate());
+        Assert.Contains("projectUrl", Assert.Single(manifest.Warnings()));
+    }
+
+    [Fact]
+    public void A_web_project_url_has_no_warning()
+    {
+        var manifest = Valid() with { ProjectUrl = "https://github.com/acme/prusalink" };
+
+        Assert.Equal("https://github.com/acme/prusalink", manifest.WebProjectUrl);
+        Assert.Empty(manifest.Warnings());
     }
 
     [Theory]
