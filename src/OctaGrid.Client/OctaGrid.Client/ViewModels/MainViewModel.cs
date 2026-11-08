@@ -186,7 +186,14 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
             if (!_hasCheckedForUpdates)
             {
                 _hasCheckedForUpdates = true;
-                _ = CheckForUpdatesOnStartupAsync(cancellationToken);
+                if (_updateService.CheckOnStartup)
+                {
+                    _ = CheckForUpdatesOnStartupAsync(cancellationToken);
+                }
+                else
+                {
+                    _logger.LogDebug("Skipping the startup update check for this build");
+                }
             }
         }
         catch (OperationCanceledException)

@@ -414,9 +414,24 @@ public sealed class ExtensionLoader
         protected override Assembly? Load(AssemblyName assemblyName)
         {
             var name = assemblyName.Name;
-            if (name is null || SharedPrefixes.Any(p => name.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            if (name is null)
             {
                 return null;
+            }
+
+            if (SharedPrefixes.Any(p => name.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                // Use the host's copy whatever version the extension was built against. Asking by name only avoids
+                // the default context refusing a higher build number (it changes with every commit); real
+                // incompatibility is what the manifest's host range is for.
+                try
+                {
+                    return Default.LoadFromAssemblyName(new AssemblyName(name));
+                }
+                catch (FileNotFoundException)
+                {
+                    return null;
+                }
             }
 
             var path = _resolver.ResolveAssemblyToPath(assemblyName);
