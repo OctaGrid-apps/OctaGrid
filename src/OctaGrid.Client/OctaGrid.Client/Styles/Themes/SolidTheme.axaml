@@ -3,7 +3,7 @@
     Opaque surfaces with a cool slate palette and an indigo accent; it needs no OS backdrop (Mica),
     so it looks the same on Windows, Linux, macOS and WebAssembly.
     MicaTheme.axaml is layered on top of it on Windows and overrides these resources.
-    
+
     Layers (dark): window #0F1218 < content #12161E < card #1C212C < dialog #171B25. Borders #232937 / #2E3544.
     Layers (light): window #F4F6FA < content / card #FFFFFF. Borders #DDE2EA.
 -->
