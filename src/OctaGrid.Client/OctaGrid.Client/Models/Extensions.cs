@@ -19,7 +19,8 @@ internal static class Extensions
             printer.Settings,
             printer.Secrets,
             printer.Enabled,
-            printer.Version);
+            printer.Version,
+            connector is not null);
     }
 }
 

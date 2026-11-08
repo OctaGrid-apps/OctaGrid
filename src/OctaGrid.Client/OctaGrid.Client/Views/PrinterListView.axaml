@@ -81,7 +81,8 @@
                                 Background="{DynamicResource SystemAltMediumLowColor}"
                                 BorderBrush="{DynamicResource SystemBaseMediumColor}"
                                 BorderThickness="1"
-                                Classes="card">
+                                Classes="card"
+                                Classes.unavailable="{Binding !IsConnectorAvailable}">
                                 <StackPanel MinWidth="300" Classes="card-content">
                                     <DockPanel>
                                         <Button
@@ -99,7 +100,9 @@
                                                     <MenuItem
                                                         Command="{Binding $parent[ContentPage].DataContext.EditPrinterCommand}"
                                                         CommandParameter="{Binding}"
-                                                        Header="Edit">
+                                                        Header="Edit"
+                                                        IsEnabled="{Binding IsConnectorAvailable}"
+                                                        ToolTip.Tip="Turn the connector extension on to edit this printer">
                                                         <MenuItem.Icon>
                                                             <PathIcon Data="{StaticResource edit-regular}" />
                                                         </MenuItem.Icon>
@@ -115,7 +118,10 @@
                                                 </MenuFlyout>
                                             </Button.Flyout>
                                         </Button>
-                                        <TextBlock Classes="subtitle" Text="{Binding Name}" />
+                                        <StackPanel>
+                                            <TextBlock Classes="subtitle" Text="{Binding Name}" />
+                                            <controls:ConnectorUnavailableBadge IsVisible="{Binding !IsConnectorAvailable}" />
+                                        </StackPanel>
                                     </DockPanel>
 
                                     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
