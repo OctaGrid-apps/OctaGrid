@@ -147,6 +147,21 @@ public sealed class ExtensionInstallTests : IDisposable
     }
 
     [Fact]
+    public void Installing_over_a_folder_marked_for_removal_replaces_it()
+    {
+        var installer = new ExtensionInstaller(Root);
+        var stale = Path.Combine(Root, TrustSampleConnector.Id, "1.0.0");
+        Directory.CreateDirectory(stale);
+        File.WriteAllText(Path.Combine(stale, ExtensionInstaller.RemoveMarker), string.Empty);
+
+        var result = installer.Install(Package("one"), out var folder);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(stale, folder);
+        Assert.False(File.Exists(Path.Combine(stale, ExtensionInstaller.RemoveMarker)));
+    }
+
+    [Fact]
     public void Installing_the_same_version_twice_fails()
     {
         var (manager, _) = Create();

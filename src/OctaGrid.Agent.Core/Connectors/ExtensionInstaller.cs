@@ -90,6 +90,28 @@ public sealed class ExtensionInstaller
             }
 
             var target = Path.Combine(_root, manifest.Id, manifest.Version);
+            if (Directory.Exists(target) && File.Exists(Path.Combine(target, RemoveMarker)))
+            {
+                // The user removed this version, but the folder is still there because its files were locked,
+                // for example by a second OctaGrid window that still has the extension loaded. It is not installed.
+                // Rename it first: a rename fails as a whole while any file is open, whereas a recursive delete
+                // would remove the unlocked files (the marker too) and leave a broken folder behind.
+                var aside = Path.Combine(_root, ".staging-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    Directory.Move(target, aside);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _logger.LogWarning(ex, "Extension folder {Folder} is marked for removal but is still locked", target);
+                    return ExtensionInstallResult.Fail(
+                        $"{manifest.Name} {manifest.Version} was removed but its files are still in use. Close other OctaGrid windows and try again.", manifest.Id);
+                }
+
+                // The marker moved with it, so a folder that cannot be deleted now is retried at the next start.
+                TryDelete(aside);
+            }
+
             if (Directory.Exists(target))
             {
                 return ExtensionInstallResult.Fail($"{manifest.Name} {manifest.Version} is already installed.", manifest.Id);
