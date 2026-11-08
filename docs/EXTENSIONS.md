@@ -48,7 +48,7 @@ Every extension has an `octagrid-extension.json` at its root:
 | `assembly` | The extension DLL, relative to the manifest. It cannot point outside the folder. |
 | `entryType` | Full name of the class that implements `IConnector`. |
 | `permissions` | Optional list such as `["network", "files"]`. Shown when the user is asked to trust the extension. It is a declaration, not a sandbox. |
-| `projectUrl` | Optional web page of the extension (repository or home page), an absolute `http` or `https` address. Shown as a link in the extension list. |
+| `projectUrl` | Optional web page of the extension (repository or home page), an absolute `http` or `https` address (anything else is ignored). Shown as a link in the extension list. |
 
 The class needs a public parameterless constructor, or one that takes an `ILoggerFactory`.
 

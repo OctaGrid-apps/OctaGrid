@@ -254,6 +254,7 @@ public sealed class ExtensionManager
             {
                 _notLoaded.Remove(id);
                 _folders.Remove(id);
+                _projectUrls.Remove(id);
                 message = "Removed.";
             }
         }
@@ -317,6 +318,7 @@ public sealed class ExtensionManager
                     _registry.Remove(id);
                 }
 
+                _projectUrls.Remove(id);
                 old.Add(result);
             }
 

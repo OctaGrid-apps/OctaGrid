@@ -35,11 +35,11 @@ public class PrinterStatusWidget : INotifyPropertyChanged
     }
 
     // Completed/Cancelled/Failed are last-job results: the printer is ready, so a new print can start.
-    public bool CanStartPause => State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
+    public bool CanStartPause => IsConnectorAvailable && State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
                                    or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed
                                    or UniversalPrinterState.Printing or UniversalPrinterState.Paused;
 
-    public bool CanStop => State is UniversalPrinterState.Preparing or UniversalPrinterState.Printing
+    public bool CanStop => IsConnectorAvailable && State is UniversalPrinterState.Preparing or UniversalPrinterState.Printing
                                   or UniversalPrinterState.Paused;
 
     public int? CurrentLayer

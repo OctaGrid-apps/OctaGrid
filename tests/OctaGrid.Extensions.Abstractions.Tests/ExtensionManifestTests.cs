@@ -119,8 +119,13 @@ public class ExtensionManifestTests
     [InlineData("javascript:alert(1)")]
     [InlineData("file:///C:/x")]
     [InlineData("acme.com/prusalink")]
-    public void Rejects_a_project_url_that_is_not_a_web_address(string url) =>
-        Assert.Contains((Valid() with { ProjectUrl = url }).Validate(), e => e.Contains("'projectUrl'"));
+    public void Ignores_a_project_url_that_is_not_a_web_address_instead_of_failing_the_manifest(string url)
+    {
+        var manifest = ExtensionManifest.Parse(ValidJson.Replace("\"kind\"", $"\"projectUrl\": \"{url}\", \"kind\""));
+
+        Assert.Null(manifest.ProjectUrl);
+        Assert.Empty(manifest.Validate());
+    }
 
     [Theory]
     [InlineData(@"C:\evil\x.dll")]

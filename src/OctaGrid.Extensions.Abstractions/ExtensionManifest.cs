@@ -33,7 +33,7 @@ public static class ExtensionKinds
 /// </param>
 /// <param name="ProjectUrl">
 /// Optional web page of the extension (its repository or home page), shown as a link in the extension list.
-/// It must be an absolute <c>http</c> or <c>https</c> address.
+/// It must be an absolute <c>http</c> or <c>https</c> address; anything else is ignored.
 /// </param>
 public sealed record ExtensionManifest(
     string Id,
@@ -61,13 +61,17 @@ public sealed record ExtensionManifest(
         AllowTrailingCommas = true,
     };
 
-    /// <summary>Reads a manifest from JSON. Unknown properties are ignored; call <see cref="Validate"/> afterwards.</summary>
+    /// <summary>
+    /// Reads a manifest from JSON. Unknown properties are ignored; call <see cref="Validate"/> afterwards.
+    /// A <c>projectUrl</c> that is not a web address is dropped: it is only a link, so it must not stop the extension from loading.
+    /// </summary>
     /// <exception cref="JsonException">The text is not valid JSON or not a manifest object.</exception>
     public static ExtensionManifest Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
-        return JsonSerializer.Deserialize<ExtensionManifest>(json, JsonOptions)
+        var manifest = JsonSerializer.Deserialize<ExtensionManifest>(json, JsonOptions)
             ?? throw new JsonException("The manifest is empty.");
+        return manifest.ProjectUrl is { } url && !IsWebAddress(url) ? manifest with { ProjectUrl = null } : manifest;
     }
 
     /// <summary>Checks the manifest and returns one message per problem; an empty list means it is valid.</summary>
@@ -115,11 +119,6 @@ public sealed record ExtensionManifest(
         if (!string.IsNullOrWhiteSpace(Assembly) && (Path.IsPathRooted(Assembly) || Assembly.Contains("..")))
         {
             errors.Add("'assembly' must be a relative path inside the package.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(ProjectUrl) && !IsWebAddress(ProjectUrl))
-        {
-            errors.Add($"'projectUrl' must be an absolute http or https address; got '{ProjectUrl}'.");
         }
 
         return errors;
