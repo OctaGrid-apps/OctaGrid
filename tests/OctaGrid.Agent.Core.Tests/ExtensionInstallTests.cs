@@ -37,7 +37,7 @@ public sealed class ExtensionInstallTests : IDisposable
         }
     }
 
-    private static string Manifest(string version = "1.0.0", string[]? permissions = null) => $$"""
+    private static string Manifest(string version = "1.0.0", string[]? permissions = null, string? projectUrl = null) => $$"""
         {
           "id": "{{TrustSampleConnector.Id}}",
           "name": "Trust Sample",
@@ -47,7 +47,8 @@ public sealed class ExtensionInstallTests : IDisposable
           "host": ">=1.0.0 <2.0.0",
           "assembly": "{{Path.GetFileName(typeof(ExtensionInstallTests).Assembly.Location)}}",
           "entryType": "{{typeof(TrustSampleConnector).FullName}}",
-          "permissions": [{{string.Join(", ", (permissions ?? []).Select(p => $"\"{p}\""))}}]
+          "permissions": [{{string.Join(", ", (permissions ?? []).Select(p => $"\"{p}\""))}}],
+          "projectUrl": {{(projectUrl is null ? "null" : $"\"{projectUrl}\"")}}
         }
         """;
 
@@ -224,6 +225,21 @@ public sealed class ExtensionInstallTests : IDisposable
         var manager = new ExtensionManager(new ConnectorRegistry(), new InMemoryStateStore());
 
         Assert.False(manager.Install(Package("sample")).Success);
+    }
+
+    [Fact]
+    public void The_project_url_is_shown_before_and_after_the_extension_is_approved()
+    {
+        var (manager, _) = Create();
+        manager.Install(Package("sample", Manifest(projectUrl: "https://example.com/trust-sample")));
+
+        Assert.Equal("https://example.com/trust-sample", Assert.Single(manager.GetExtensions()).ProjectUrl);
+
+        manager.Approve(TrustSampleConnector.Id);
+
+        var info = Assert.Single(manager.GetExtensions());
+        Assert.Equal(ExtensionState.Loaded, info.State);
+        Assert.Equal("https://example.com/trust-sample", info.ProjectUrl);
     }
 
     // ---- Trust ----

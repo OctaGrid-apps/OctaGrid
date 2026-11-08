@@ -19,6 +19,7 @@ public sealed class ExtensionManager
     private readonly Dictionary<string, string> _trusted;
     private readonly Dictionary<string, ExtensionLoadResult> _notLoaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _folders = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _projectUrls = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _removed = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ExtensionLoadResult> _development = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _reloading = new(StringComparer.OrdinalIgnoreCase);
@@ -88,6 +89,7 @@ public sealed class ExtensionManager
         {
             foreach (var result in results)
             {
+                RememberProjectUrl(result);
                 if (result is { State: ExtensionState.Loaded, Connector: { } connector })
                 {
                     try
@@ -190,6 +192,7 @@ public sealed class ExtensionManager
             }
 
             _notLoaded.Remove(id);
+            RememberProjectUrl(loaded);
             _trusted[id] = pending.Manifest.Version;
             _store.SaveTrusted(_trusted);
         }
@@ -334,6 +337,7 @@ public sealed class ExtensionManager
         {
             foreach (var result in loaded)
             {
+                RememberProjectUrl(result);
                 var entry = result;
                 if (result is { State: ExtensionState.Loaded, Connector: { } connector })
                 {
@@ -432,6 +436,19 @@ public sealed class ExtensionManager
 
     private bool IsOff(string id) => _disabled.Contains(id) || _removed.Contains(id) || _reloading.Contains(id);
 
+    /// <summary>Keeps the project link of a loaded extension, because the connector itself does not carry it.</summary>
+    private void RememberProjectUrl(ExtensionLoadResult result)
+    {
+        if (result.Manifest?.ProjectUrl is { } url)
+        {
+            _projectUrls[result.Id] = url;
+        }
+        else
+        {
+            _projectUrls.Remove(result.Id);
+        }
+    }
+
     private static ExtensionInfo ToUnavailableInfo(ExtensionLoadResult result, ExtensionSource source = ExtensionSource.UserFolder) => new(
         result.Id,
         result.Manifest?.Name ?? result.Id,
@@ -443,7 +460,8 @@ public sealed class ExtensionManager
         result.Message,
         ConnectorCapabilities.None,
         CanUninstall: source == ExtensionSource.UserFolder,
-        Permissions: result.Manifest?.Permissions);
+        Permissions: result.Manifest?.Permissions,
+        ProjectUrl: result.Manifest?.ProjectUrl);
 
     private ExtensionInfo ToInfo(IConnector connector)
     {
@@ -460,6 +478,7 @@ public sealed class ExtensionManager
             removed || _disabled.Contains(descriptor.Id) ? ExtensionState.Disabled : ExtensionState.Loaded,
             StateMessage: removed ? "Removed. It is turned off and will be deleted when OctaGrid restarts." : null,
             descriptor.Capabilities,
-            CanUninstall: source == ExtensionSource.UserFolder && !removed);
+            CanUninstall: source == ExtensionSource.UserFolder && !removed,
+            ProjectUrl: _projectUrls.GetValueOrDefault(descriptor.Id));
     }
 }

@@ -116,6 +116,22 @@ public class ExtensionsUiTests
     }
 
     [Theory]
+    [InlineData("https://github.com/acme/prusalink", true)]
+    [InlineData(null, false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("not a url", false)]
+    public async Task The_project_link_is_shown_only_for_a_web_address(string? url, bool shown)
+    {
+        var client = new DesignExtensionsClient();
+        var info = (await client.GetExtensionsAsync(CancellationToken.None)).First() with { ProjectUrl = url };
+
+        var item = new ExtensionItemViewModel(info, (_, _) => { }, _ => { }, _ => { });
+
+        Assert.Equal(shown, item.HasProjectUri);
+        Assert.Equal(shown, item.ProjectUri is not null);
+    }
+
+    [Theory]
     [InlineData(new[] { "--extensions-dev", @"C:\dev\ext" }, null, null, @"C:\dev\ext")]
     [InlineData(new[] { @"--extensions-dev=C:\dev\ext" }, null, null, @"C:\dev\ext")]
     [InlineData(new[] { "--EXTENSIONS-DEV", @"C:\dev\ext" }, null, null, @"C:\dev\ext")]

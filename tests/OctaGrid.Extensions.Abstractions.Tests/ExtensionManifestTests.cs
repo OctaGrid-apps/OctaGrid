@@ -104,6 +104,24 @@ public class ExtensionManifestTests
     public void Rejects_an_unknown_kind() =>
         Assert.Contains((Valid() with { Kind = "theme" }).Validate(), e => e.Contains("'kind'"));
 
+    [Fact]
+    public void The_project_url_is_optional_and_read_from_the_manifest()
+    {
+        Assert.Null(Valid().ProjectUrl);
+
+        var manifest = ExtensionManifest.Parse(ValidJson.Replace("\"kind\"", "\"projectUrl\": \"https://github.com/acme/prusalink\", \"kind\""));
+
+        Assert.Equal("https://github.com/acme/prusalink", manifest.ProjectUrl);
+        Assert.Empty(manifest.Validate());
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("file:///C:/x")]
+    [InlineData("acme.com/prusalink")]
+    public void Rejects_a_project_url_that_is_not_a_web_address(string url) =>
+        Assert.Contains((Valid() with { ProjectUrl = url }).Validate(), e => e.Contains("'projectUrl'"));
+
     [Theory]
     [InlineData(@"C:\evil\x.dll")]
     [InlineData("/etc/x.dll")]

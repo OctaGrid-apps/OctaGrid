@@ -31,6 +31,10 @@ public static class ExtensionKinds
 /// What the extension says it needs, for example <c>network</c> or <c>files</c>. The host shows them when it asks the
 /// user to trust the extension. They are a declaration, not a sandbox: an in-process extension has the host's permissions.
 /// </param>
+/// <param name="ProjectUrl">
+/// Optional web page of the extension (its repository or home page), shown as a link in the extension list.
+/// It must be an absolute <c>http</c> or <c>https</c> address.
+/// </param>
 public sealed record ExtensionManifest(
     string Id,
     string Name,
@@ -41,7 +45,8 @@ public sealed record ExtensionManifest(
     string? Assembly = null,
     string? EntryType = null,
     string? Alias = null,
-    IReadOnlyList<string>? Permissions = null)
+    IReadOnlyList<string>? Permissions = null,
+    string? ProjectUrl = null)
 {
     /// <summary>File name of the manifest inside an extension package.</summary>
     public const string FileName = "octagrid-extension.json";
@@ -112,6 +117,15 @@ public sealed record ExtensionManifest(
             errors.Add("'assembly' must be a relative path inside the package.");
         }
 
+        if (!string.IsNullOrWhiteSpace(ProjectUrl) && !IsWebAddress(ProjectUrl))
+        {
+            errors.Add($"'projectUrl' must be an absolute http or https address; got '{ProjectUrl}'.");
+        }
+
         return errors;
     }
+
+    /// <summary>True when <paramref name="value"/> is an absolute <c>http</c> or <c>https</c> address.</summary>
+    public static bool IsWebAddress(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 }

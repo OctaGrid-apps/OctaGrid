@@ -17,7 +17,7 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
             ExtensionSource.Bundled, ExtensionState.Loaded, null, All, CanUninstall: false),
         new("acme.prusalink", "PrusaLink", "1.2.0", "Acme", "connector",
             ExtensionSource.UserFolder, ExtensionState.NeedsApproval, "Review and approve this extension to run it. Its code has not been loaded.",
-            ConnectorCapabilities.None, CanUninstall: true, Permissions: ["network"]),
+            ConnectorCapabilities.None, CanUninstall: true, Permissions: ["network"], ProjectUrl: "https://github.com/acme/octagrid-prusalink"),
     ];
 
     public Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(CancellationToken cancellationToken) =>
