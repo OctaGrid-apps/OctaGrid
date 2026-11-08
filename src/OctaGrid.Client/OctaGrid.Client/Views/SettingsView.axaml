@@ -28,216 +28,218 @@
     </ContentPage.Styles>
 
     <ScrollViewer>
-        <StackPanel
-            MaxWidth="1024"
-            HorizontalAlignment="Stretch"
-            Classes="page-sections">
+        <Border Classes="page">
+            <StackPanel
+                MaxWidth="1024"
+                HorizontalAlignment="Stretch"
+                Classes="page-sections">
 
-            <TextBlock Classes="title" Text="Settings" />
+                <TextBlock Classes="title" Text="Settings" />
 
-            <!--  Mode Section  -->
-            <controls:SettingsGroup Header="Mode" IsVisible="False">
-                <controls:SettingsExpander
-                    Description="Define how application will work - locally or with a server"
-                    Header="Application mode"
-                    Icon="{StaticResource virtual-network-regular}"
-                    IsExpanded="True"
-                    IsRestartRequired="{Binding IsClientModeApplied}"
-                    RestartCommand="{Binding RestartAppCommand}">
-                    <controls:SettingsExpander.Content>
+                <!--  Mode Section  -->
+                <controls:SettingsGroup Header="Mode" IsVisible="False">
+                    <controls:SettingsExpander
+                        Description="Define how application will work - locally or with a server"
+                        Header="Application mode"
+                        Icon="{StaticResource virtual-network-regular}"
+                        IsExpanded="True"
+                        IsRestartRequired="{Binding IsClientModeApplied}"
+                        RestartCommand="{Binding RestartAppCommand}">
+                        <controls:SettingsExpander.Content>
+                            <ComboBox
+                                DisplayMemberBinding="{Binding DisplayText}"
+                                ItemsSource="{Binding AppClientModes}"
+                                SelectedItem="{Binding SelectedAppClientMode}" />
+                        </controls:SettingsExpander.Content>
+
+                        <controls:SettingsCard
+                            Description="Remote server address"
+                            Header="Server host"
+                            Icon="{StaticResource server-link-regular}"
+                            IsVisible="{Binding IsRemoteMode}">
+                            <TextBox MinWidth="240" PlaceholderText="https://server_address.com" />
+                        </controls:SettingsCard>
+
+                        <controls:SettingsCard Header="Ask on app startup" Icon="{StaticResource task-list-square-regular}">
+                            <ToggleSwitch
+                                IsChecked="{Binding AskClientModeOnAppStart}"
+                                OffContent="Disabled"
+                                OnContent="Enabled" />
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander>
+                </controls:SettingsGroup>
+
+                <!--  Appearance Section  -->
+                <controls:SettingsGroup Header="Appearance">
+                    <controls:SettingsCard
+                        Description="Application appearance"
+                        Header="Theme"
+                        Icon="{StaticResource paint-brush-regular}">
                         <ComboBox
                             DisplayMemberBinding="{Binding DisplayText}"
-                            ItemsSource="{Binding AppClientModes}"
-                            SelectedItem="{Binding SelectedAppClientMode}" />
-                    </controls:SettingsExpander.Content>
-
-                    <controls:SettingsCard
-                        Description="Remote server address"
-                        Header="Server host"
-                        Icon="{StaticResource server-link-regular}"
-                        IsVisible="{Binding IsRemoteMode}">
-                        <TextBox MinWidth="240" PlaceholderText="https://server_address.com" />
-                    </controls:SettingsCard>
-
-                    <controls:SettingsCard Header="Ask on app startup" Icon="{StaticResource task-list-square-regular}">
-                        <ToggleSwitch
-                            IsChecked="{Binding AskClientModeOnAppStart}"
-                            OffContent="Disabled"
-                            OnContent="Enabled" />
-                    </controls:SettingsCard>
-                </controls:SettingsExpander>
-            </controls:SettingsGroup>
-
-            <!--  Appearance Section  -->
-            <controls:SettingsGroup Header="Appearance">
-                <controls:SettingsCard
-                    Description="Application appearance"
-                    Header="Theme"
-                    Icon="{StaticResource paint-brush-regular}">
-                    <ComboBox
-                        DisplayMemberBinding="{Binding DisplayText}"
-                        ItemsSource="{Binding AppElementThemes}"
-                        SelectedItem="{Binding SelectedAppElementTheme}" />
-                </controls:SettingsCard>
-
-                <controls:SettingsCard
-                    Description="Mica shows the Windows 11 backdrop through the window; Solid uses opaque surfaces"
-                    Header="Window style"
-                    Icon="{StaticResource square-hint-sparkles-regular}"
-                    IsVisible="{Binding CanChooseWindowStyle}">
-                    <ComboBox
-                        DisplayMemberBinding="{Binding DisplayText}"
-                        ItemsSource="{Binding WindowTransparencyLevels}"
-                        SelectedItem="{Binding SelectedWindowTransparencyLevel}" />
-                </controls:SettingsCard>
-            </controls:SettingsGroup>
-
-            <!--  Language Section  -->
-            <controls:SettingsGroup Header="Language" IsVisible="False">
-                <controls:SettingsCard Header="App language" Icon="{StaticResource local-language-globe-regular}">
-                    <ComboBox SelectedIndex="0">
-                        <ComboBox.Items>
-                            <ComboBoxItem Content="English" />
-                        </ComboBox.Items>
-                    </ComboBox>
-                </controls:SettingsCard>
-            </controls:SettingsGroup>
-
-            <!--  Extensions Section  -->
-            <controls:SettingsGroup Header="Extensions" IsVisible="{Binding CanManageExtensions}">
-                <controls:SettingsCard
-                    Description="{Binding ExtensionsSummary}"
-                    Header="Installed extensions"
-                    Icon="{StaticResource extension-regular}">
-                    <Button Command="{Binding ManageExtensionsCommand}" Content="Manage extensions" />
-                </controls:SettingsCard>
-            </controls:SettingsGroup>
-
-            <!--  Update Section  -->
-            <controls:SettingsGroup Header="Updates">
-                <!--
-                    The card is an expander so that nothing has to share a row. Collapsed it shows the title, the status
-                    (with the percentage while downloading) and one button; the rest has a row of its own below.
-                -->
-                <controls:SettingsExpander
-                    Classes.highlight="{Binding HasAvailableUpdate}"
-                    Description="{Binding UpdateStatusText}"
-                    Header="Application updates"
-                    Icon="{StaticResource sync-regular}"
-                    IsExpanded="{Binding IsUpdatePanelExpanded, Mode=TwoWay}">
-                    <controls:SettingsExpander.Content>
-                        <Panel>
-                            <Button
-                                Classes="primary"
-                                Command="{Binding ApplyUpdateCommand}"
-                                Content="{Binding UpdateActionText}"
-                                IsVisible="{Binding ShowApplyButton}"
-                                ToolTip.Tip="{Binding UpdateRestartNotice}" />
-                            <Button
-                                Command="{Binding ApplyUpdateCancelCommand}"
-                                Content="Cancel"
-                                IsVisible="{Binding CanCancelUpdate}" />
-                            <Button
-                                Command="{Binding CheckForUpdatesCommand}"
-                                Content="Check for updates"
-                                IsVisible="{Binding ShowCheckButton}" />
-                        </Panel>
-                    </controls:SettingsExpander.Content>
-
-                    <!--  Progress: a check or a download is under way  -->
-                    <controls:SettingsCard IsVisible="{Binding IsUpdateBusy}">
-                        <controls:SettingsCard.Header>
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
-                                <ProgressBar
-                                    HorizontalAlignment="Stretch"
-                                    IsIndeterminate="{Binding IsProgressIndeterminate}"
-                                    Maximum="100"
-                                    Minimum="0"
-                                    Value="{Binding UpdateProgress}" />
-                            </StackPanel>
-                        </controls:SettingsCard.Header>
+                            ItemsSource="{Binding AppElementThemes}"
+                            SelectedItem="{Binding SelectedAppElementTheme}" />
                     </controls:SettingsCard>
 
                     <controls:SettingsCard
-                        Description="{Binding ReleaseNotesDescription}"
-                        Header="Release notes"
-                        IsVisible="{Binding HasReleaseNotes}">
-                        <Button Command="{Binding ShowReleaseNotesCommand}" Content="View" />
+                        Description="Mica shows the Windows 11 backdrop through the window; Solid uses opaque surfaces"
+                        Header="Window style"
+                        Icon="{StaticResource square-hint-sparkles-regular}"
+                        IsVisible="{Binding CanChooseWindowStyle}">
+                        <ComboBox
+                            DisplayMemberBinding="{Binding DisplayText}"
+                            ItemsSource="{Binding WindowTransparencyLevels}"
+                            SelectedItem="{Binding SelectedWindowTransparencyLevel}" />
                     </controls:SettingsCard>
+                </controls:SettingsGroup>
 
+                <!--  Language Section  -->
+                <controls:SettingsGroup Header="Language" IsVisible="False">
+                    <controls:SettingsCard Header="App language" Icon="{StaticResource local-language-globe-regular}">
+                        <ComboBox SelectedIndex="0">
+                            <ComboBox.Items>
+                                <ComboBoxItem Content="English" />
+                            </ComboBox.Items>
+                        </ComboBox>
+                    </controls:SettingsCard>
+                </controls:SettingsGroup>
+
+                <!--  Extensions Section  -->
+                <controls:SettingsGroup Header="Extensions" IsVisible="{Binding CanManageExtensions}">
                     <controls:SettingsCard
-                        Description="{Binding UpdateRestartNotice}"
-                        Header="When the update is installed"
-                        IsVisible="{Binding HasAvailableUpdate}" />
-
-                    <controls:SettingsCard Description="Look for a newer version now" Header="Check for updates">
-                        <Button Command="{Binding CheckForUpdatesCommand}" Content="Check now" />
+                        Description="{Binding ExtensionsSummary}"
+                        Header="Installed extensions"
+                        Icon="{StaticResource extension-regular}">
+                        <Button Command="{Binding ManageExtensionsCommand}" Content="Manage extensions" />
                     </controls:SettingsCard>
+                </controls:SettingsGroup>
 
-                    <controls:SettingsCard Description="{Binding UpdateChannelName}" Header="Update channel" />
-                </controls:SettingsExpander>
-            </controls:SettingsGroup>
+                <!--  Update Section  -->
+                <controls:SettingsGroup Header="Updates">
+                    <!--
+                        The card is an expander so that nothing has to share a row. Collapsed it shows the title, the status
+                        (with the percentage while downloading) and one button; the rest has a row of its own below.
+                    -->
+                    <controls:SettingsExpander
+                        Classes.highlight="{Binding HasAvailableUpdate}"
+                        Description="{Binding UpdateStatusText}"
+                        Header="Application updates"
+                        Icon="{StaticResource sync-regular}"
+                        IsExpanded="{Binding IsUpdatePanelExpanded, Mode=TwoWay}">
+                        <controls:SettingsExpander.Content>
+                            <Panel>
+                                <Button
+                                    Classes="primary"
+                                    Command="{Binding ApplyUpdateCommand}"
+                                    Content="{Binding UpdateActionText}"
+                                    IsVisible="{Binding ShowApplyButton}"
+                                    ToolTip.Tip="{Binding UpdateRestartNotice}" />
+                                <Button
+                                    Command="{Binding ApplyUpdateCancelCommand}"
+                                    Content="Cancel"
+                                    IsVisible="{Binding CanCancelUpdate}" />
+                                <Button
+                                    Command="{Binding CheckForUpdatesCommand}"
+                                    Content="Check for updates"
+                                    IsVisible="{Binding ShowCheckButton}" />
+                            </Panel>
+                        </controls:SettingsExpander.Content>
 
-            <!--  About  -->
-            <controls:SettingsGroup Header="About">
-                <controls:SettingsExpander
-                    Description="{Binding AppVersion}"
-                    Header="OctaGrid"
-                    Icon="{StaticResource virtual-network-regular}"
-                    IsExpanded="False">
-                    <controls:SettingsExpander.Content>
-                        <TextBlock Text="More" />
-                    </controls:SettingsExpander.Content>
-
-                    <controls:SettingsCard>
-                        <controls:SettingsCard.Header>
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                                <StackPanel>
-                                    <TextBlock Text="Version" />
-                                    <TextBlock Text="GitHub" />
+                        <!--  Progress: a check or a download is under way  -->
+                        <controls:SettingsCard IsVisible="{Binding IsUpdateBusy}">
+                            <controls:SettingsCard.Header>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
+                                    <ProgressBar
+                                        HorizontalAlignment="Stretch"
+                                        IsIndeterminate="{Binding IsProgressIndeterminate}"
+                                        Maximum="100"
+                                        Minimum="0"
+                                        Value="{Binding UpdateProgress}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1">
-                                    <SelectableTextBlock Classes="secondary" Text="{Binding InfoVersion}" />
-                                    <HyperlinkButton
-                                        Padding="0"
-                                        Content="https://github.com/OctaGrid-apps/OctaGrid"
-                                        NavigateUri="https://github.com/OctaGrid-apps/OctaGrid" />
-                                </StackPanel>
-                            </Grid>
-                        </controls:SettingsCard.Header>
+                            </controls:SettingsCard.Header>
+                        </controls:SettingsCard>
+
+                        <controls:SettingsCard
+                            Description="{Binding ReleaseNotesDescription}"
+                            Header="Release notes"
+                            IsVisible="{Binding HasReleaseNotes}">
+                            <Button Command="{Binding ShowReleaseNotesCommand}" Content="View" />
+                        </controls:SettingsCard>
+
+                        <controls:SettingsCard
+                            Description="{Binding UpdateRestartNotice}"
+                            Header="When the update is installed"
+                            IsVisible="{Binding HasAvailableUpdate}" />
+
+                        <controls:SettingsCard Description="Look for a newer version now" Header="Check for updates">
+                            <Button Command="{Binding CheckForUpdatesCommand}" Content="Check now" />
+                        </controls:SettingsCard>
+
+                        <controls:SettingsCard Description="{Binding UpdateChannelName}" Header="Update channel" />
+                    </controls:SettingsExpander>
+                </controls:SettingsGroup>
+
+                <!--  About  -->
+                <controls:SettingsGroup Header="About">
+                    <controls:SettingsExpander
+                        Description="{Binding AppVersion}"
+                        Header="OctaGrid"
+                        Icon="{StaticResource virtual-network-regular}"
+                        IsExpanded="False">
+                        <controls:SettingsExpander.Content>
+                            <TextBlock Text="More" />
+                        </controls:SettingsExpander.Content>
+
+                        <controls:SettingsCard>
+                            <controls:SettingsCard.Header>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                    <StackPanel>
+                                        <TextBlock Text="Version" />
+                                        <TextBlock Text="GitHub" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <SelectableTextBlock Classes="secondary" Text="{Binding InfoVersion}" />
+                                        <HyperlinkButton
+                                            Padding="0"
+                                            Content="https://github.com/OctaGrid-apps/OctaGrid"
+                                            NavigateUri="https://github.com/OctaGrid-apps/OctaGrid" />
+                                    </StackPanel>
+                                </Grid>
+                            </controls:SettingsCard.Header>
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander>
+
+                    <controls:SettingsExpander
+                        Description="Important safety warnings regarding high temperatures, moving mechanical parts, and remote 3D printer operation"
+                        Header="Safety &amp; Disclaimer"
+                        Icon="{StaticResource warning-regular}"
+                        IsExpanded="False">
+                        <controls:SettingsExpander.Content>
+                            <Button Command="{Binding ShowSafetyDisclaimerCommand}" Content="View disclaimer" />
+                        </controls:SettingsExpander.Content>
+
+                        <controls:SettingsCard>
+                            <controls:SettingsCard.Header>
+                                <TextBlock
+                                    Classes="small secondary"
+                                    Text="3D printers contain high-temperature heating elements (nozzles and heated beds) and motorized moving axes that can cause severe burns, pinch injuries, or fire. Always verify that the printer's build area is clear of hands, tools, and obstructions before remotely starting or resuming a print job, and never leave operating 3D printers unattended without proper fire-safety and thermal runaway protections."
+                                    TextWrapping="Wrap" />
+                            </controls:SettingsCard.Header>
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander>
+                </controls:SettingsGroup>
+
+                <!--  Diagnostics & feedback  -->
+                <controls:SettingsGroup Header="Diagnostics &amp; feedback">
+                    <controls:SettingsCard
+                        Description="Application logs"
+                        Header="Logs"
+                        Icon="{StaticResource folder-regular}">
+                        <Button Command="{Binding OpenLogsFolderCommand}" Content="Open logs folder" />
                     </controls:SettingsCard>
-                </controls:SettingsExpander>
-
-                <controls:SettingsExpander
-                    Description="Important safety warnings regarding high temperatures, moving mechanical parts, and remote 3D printer operation"
-                    Header="Safety &amp; Disclaimer"
-                    Icon="{StaticResource warning-regular}"
-                    IsExpanded="False">
-                    <controls:SettingsExpander.Content>
-                        <Button Command="{Binding ShowSafetyDisclaimerCommand}" Content="View disclaimer" />
-                    </controls:SettingsExpander.Content>
-
-                    <controls:SettingsCard>
-                        <controls:SettingsCard.Header>
-                            <TextBlock
-                                Classes="small secondary"
-                                Text="3D printers contain high-temperature heating elements (nozzles and heated beds) and motorized moving axes that can cause severe burns, pinch injuries, or fire. Always verify that the printer's build area is clear of hands, tools, and obstructions before remotely starting or resuming a print job, and never leave operating 3D printers unattended without proper fire-safety and thermal runaway protections."
-                                TextWrapping="Wrap" />
-                        </controls:SettingsCard.Header>
-                    </controls:SettingsCard>
-                </controls:SettingsExpander>
-            </controls:SettingsGroup>
-
-            <!--  Diagnostics & feedback  -->
-            <controls:SettingsGroup Header="Diagnostics &amp; feedback">
-                <controls:SettingsCard
-                    Description="Application logs"
-                    Header="Logs"
-                    Icon="{StaticResource folder-regular}">
-                    <Button Command="{Binding OpenLogsFolderCommand}" Content="Open logs folder" />
-                </controls:SettingsCard>
-            </controls:SettingsGroup>
-        </StackPanel>
+                </controls:SettingsGroup>
+            </StackPanel>
+        </Border>
     </ScrollViewer>
 </ContentPage>
