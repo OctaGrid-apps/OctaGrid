@@ -29,6 +29,7 @@
                 RowSpacing="{DynamicResource Gap.CardContent}">
                 <ComboBox
                     MinWidth="240"
+                    AutomationProperties.Name="Dashboard"
                     DisplayMemberBinding="{Binding Name}"
                     ItemsSource="{Binding Dashboards}"
                     PlaceholderText="Dashboard"
@@ -38,12 +39,14 @@
                     HorizontalAlignment="Right"
                     Classes="inline">
                     <Button
+                        AutomationProperties.Name="Refresh printers"
                         Classes="icon"
                         Command="{Binding RefreshPrintersCommand}"
                         ToolTip.Tip="Refresh dashboard items">
                         <PathIcon Margin="8,0" Data="{StaticResource sync-regular}" />
                     </Button>
                     <Button
+                        AutomationProperties.Name="Manage dashboards"
                         Classes="icon"
                         Command="{Binding ManageDashboardsCommand}"
                         ToolTip.Tip="Manage dashboards">
@@ -72,7 +75,8 @@
                                     Padding="0"
                                     Background="Transparent"
                                     BorderThickness="0"
-                                    IsChecked="{Binding IsSelected}">
+                                    IsChecked="{Binding IsSelected}"
+                                    IsVisible="{Binding IsVisible}">
                                     <!--  The Fluent template reads these keys for every state, so a local Background alone does not win.  -->
                                     <ToggleButton.Resources>
                                         <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />

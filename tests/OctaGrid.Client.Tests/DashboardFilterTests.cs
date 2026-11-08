@@ -83,6 +83,23 @@ public class DashboardFilterTests
     }
 
     [Fact]
+    public async Task Badges_for_states_without_printers_are_hidden_unless_selected()
+    {
+        var vm = await Page(new InMemorySettingsStore());
+        var offline = vm.StatusFilters.Single(f => f.State == UniversalPrinterState.Offline);
+        var paused = vm.StatusFilters.Single(f => f.State == UniversalPrinterState.Paused);
+
+        Assert.True(offline.IsVisible);
+        Assert.False(paused.IsVisible);
+
+        paused.IsSelected = true;
+        Assert.True(paused.IsVisible);
+
+        paused.IsSelected = false;
+        Assert.False(paused.IsVisible);
+    }
+
+    [Fact]
     public async Task Selecting_another_badge_replaces_the_filter_and_selecting_it_again_clears_it()
     {
         var vm = await Page(new InMemorySettingsStore());

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
     OctaGrid.Client — Windows Mica Theme.
     Designed for Windows 11 where Window uses TransparencyLevelHint="Mica" and Background="Transparent".
     Uses translucent white overlays (#05FFFFFF - #24FFFFFF) so the OS Mica surface shows through.
@@ -54,6 +54,11 @@
 
                     <!--  7. SettingsExpander Sub-Card Surface Brush  -->
                     <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#80FFFFFF" />
+
+                    <!--  8. Card surfaces: translucent so the Mica backdrop shows through  -->
+                    <SolidColorBrush x:Key="CardBackground" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="CardBorderBrush" Color="#10000000" />
+                    <SolidColorBrush x:Key="TileBackground" Color="#08000000" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <!--  0. The window shows the OS Mica backdrop  -->
@@ -101,6 +106,11 @@
 
                     <!--  7. SettingsExpander Sub-Card Surface Brush  -->
                     <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#02FFFFFF" />
+
+                    <!--  8. Card surfaces: translucent so the Mica backdrop shows through  -->
+                    <SolidColorBrush x:Key="CardBackground" Color="#05FFFFFF" />
+                    <SolidColorBrush x:Key="CardBorderBrush" Color="#10FFFFFF" />
+                    <SolidColorBrush x:Key="TileBackground" Color="#08FFFFFF" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

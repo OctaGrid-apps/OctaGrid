@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Controls.PrinterDashboardCard"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -34,8 +34,8 @@
 
     <Border
         Width="400"
-        Background="{DynamicResource SystemAltMediumLowColor}"
-        BorderBrush="{DynamicResource SystemBaseMediumColor}"
+        Background="{DynamicResource CardBackground}"
+        BorderBrush="{DynamicResource CardBorderBrush}"
         BorderThickness="1"
         Classes="card"
         Classes.unavailable="{Binding !Item.IsConnectorAvailable}">
@@ -70,8 +70,8 @@
                     Width="{Binding $self.Bounds.Height}"
                     Margin="0,0,8,0"
                     Padding="0"
-                    Background="{DynamicResource SystemBaseLowColor}"
-                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                    Background="{DynamicResource TileBackground}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     Classes="tile">
                     <Grid>
@@ -159,7 +159,7 @@
             </Border>
 
             <UniformGrid ColumnSpacing="{DynamicResource Gap.CardContent}" Rows="1">
-                <Border Background="{DynamicResource SystemBaseLowColor}" Classes="tile">
+                <Border Background="{DynamicResource TileBackground}" Classes="tile">
                     <StackPanel Classes="gap-0_5">
                         <TextBlock
                             HorizontalAlignment="Left"
@@ -176,7 +176,7 @@
                             Text="{Binding Item.NozzleTargetTemperature, StringFormat='{}{0:F1}°'}" />
                     </StackPanel>
                 </Border>
-                <Border Background="{DynamicResource SystemBaseLowColor}" Classes="tile">
+                <Border Background="{DynamicResource TileBackground}" Classes="tile">
                     <StackPanel Classes="gap-0_5">
                         <TextBlock
                             HorizontalAlignment="Left"
@@ -195,7 +195,7 @@
                 </Border>
             </UniformGrid>
 
-            <Border BorderBrush="{DynamicResource SystemBaseMediumColor}" Classes="divided">
+            <Border BorderBrush="{DynamicResource CardBorderBrush}" Classes="divided">
                 <StackPanel
                     Grid.Column="1"
                     HorizontalAlignment="Right"
@@ -204,18 +204,22 @@
                     <Button
                         MinWidth="{DynamicResource Space10}"
                         HorizontalContentAlignment="Center"
+                        AutomationProperties.Name="Stop print"
                         Classes="icon"
                         Command="{Binding StopButtonClickedCommand}"
-                        IsEnabled="{Binding Item.CanStop}">
+                        IsEnabled="{Binding Item.CanStop}"
+                        ToolTip.Tip="Stop print">
                         <PathIcon Data="{StaticResource stop-regular}" />
                     </Button>
 
                     <Button
                         MinWidth="{DynamicResource Space10}"
                         HorizontalContentAlignment="Center"
+                        AutomationProperties.Name="{Binding Item.StartPauseLabel}"
                         Classes="icon"
                         Command="{Binding StartPauseButtonClickedCommand}"
-                        IsEnabled="{Binding Item.CanStartPause}">
+                        IsEnabled="{Binding Item.CanStartPause}"
+                        ToolTip.Tip="{Binding Item.StartPauseLabel}">
                         <PathIcon
                             Classes="startPause"
                             Classes.paused="{Binding Item.IsPaused}"
