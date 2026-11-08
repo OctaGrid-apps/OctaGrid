@@ -1,0 +1,22 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Controls.ConnectorUnavailableBadge"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls">
+
+    <!--  Shown on a printer whose connector extension is switched off or removed  -->
+    <controls:Badge
+        HorizontalAlignment="Left"
+        Background="{DynamicResource State.Paused.Background}"
+        Foreground="{DynamicResource State.Paused.Foreground}"
+        ToolTip.Tip="The connector extension is turned off or removed. Turn it on in Settings to connect or edit this printer.">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon
+                Width="12"
+                Height="12"
+                VerticalAlignment="Center"
+                Data="{StaticResource warning-regular}" />
+            <TextBlock Text="Connector unavailable" />
+        </StackPanel>
+    </controls:Badge>
+</UserControl>

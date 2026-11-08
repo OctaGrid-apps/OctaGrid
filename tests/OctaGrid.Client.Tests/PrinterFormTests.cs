@@ -266,6 +266,17 @@ public class PrinterFormTests
 
         Assert.Equal("acme.gone", item.ConnectorName);
         Assert.Equal("10.0.0.1", item.Address);
+        Assert.False(item.IsConnectorAvailable);
+    }
+
+    [Fact]
+    public void The_list_marks_a_printer_as_available_when_its_connector_is_loaded()
+    {
+        var response = new PrinterResponse(
+            Guid.NewGuid(), "P", "octagrid.bambu-mqtt",
+            new Dictionary<string, string>(), new Dictionary<string, string>(), "Connected", true, 1);
+
+        Assert.True(response.ToPrinterListItem([Bambu]).IsConnectorAvailable);
     }
 
     [Fact]

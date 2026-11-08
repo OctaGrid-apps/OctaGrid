@@ -22,142 +22,152 @@
         <x:Static Member="designtime:DesignData.Printers" />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,*" RowSpacing="{DynamicResource Gap.PageSection}">
-        <Grid ColumnDefinitions="*,Auto">
-            <TextBlock
-                VerticalAlignment="Center"
-                Classes="title"
-                Text="Printers" />
-            <StackPanel Grid.Column="1" Classes="inline">
-                <Button Classes="primary" Command="{Binding CreatePrinterCommand}">
-                    <StackPanel Classes="inline">
-                        <PathIcon Width="12" Data="{StaticResource add-regular}" />
-                        <TextBlock VerticalAlignment="Center" Text="New Printer" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-        </Grid>
-
-        <ItemsControl Grid.Row="1" ItemsSource="{Binding Printers}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel
-                        ItemSpacing="{DynamicResource Gap.CardGrid}"
-                        LineSpacing="{DynamicResource Gap.CardGrid}"
-                        Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-
-            <ItemsControl.DataTemplates>
-                <DataTemplate DataType="models:AddPrinterListItem">
-                    <Border>
-                        <Grid
-                            MinWidth="300"
-                            MinHeight="200"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Stretch">
-                            <Rectangle Classes="card-dashed" Fill="Transparent" />
-                            <StackPanel VerticalAlignment="Center" Classes="card-content">
-                                <Button
-                                    Height="{Binding $self.Bounds.Width}"
-                                    HorizontalAlignment="Center"
-                                    Classes="primary"
-                                    Command="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).CreatePrinterCommand}">
-                                    <PathIcon Data="{StaticResource add-regular}" />
-                                </Button>
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    Classes="body secondary"
-                                    Text="Connect a printer" />
+    <ScrollViewer>
+        <Border Classes="page">
+            <Grid RowDefinitions="Auto,*" RowSpacing="{DynamicResource Gap.PageSection}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Classes="title"
+                        Text="Printers" />
+                    <StackPanel Grid.Column="1" Classes="inline">
+                        <Button Classes="primary" Command="{Binding CreatePrinterCommand}">
+                            <StackPanel Classes="inline">
+                                <PathIcon Width="12" Data="{StaticResource add-regular}" />
+                                <TextBlock VerticalAlignment="Center" Text="New Printer" />
                             </StackPanel>
-                        </Grid>
-                    </Border>
-                </DataTemplate>
+                        </Button>
+                    </StackPanel>
+                </Grid>
 
-                <DataTemplate DataType="models:PrinterListItem">
-                    <Border
-                        Background="{DynamicResource SystemAltMediumLowColor}"
-                        BorderBrush="{DynamicResource SystemBaseMediumColor}"
-                        BorderThickness="1"
-                        Classes="card">
-                        <StackPanel MinWidth="300" Classes="card-content">
-                            <DockPanel>
-                                <Button
-                                    VerticalAlignment="Top"
-                                    AutomationProperties.Name="More options"
-                                    BorderBrush="Transparent"
-                                    Classes="icon"
-                                    DockPanel.Dock="Right">
-                                    <PathIcon
-                                        Width="12"
-                                        Height="12"
-                                        Data="{StaticResource more-vertical-regular}" />
-                                    <Button.Flyout>
-                                        <MenuFlyout>
-                                            <MenuItem
-                                                Command="{Binding $parent[ContentPage].DataContext.EditPrinterCommand}"
-                                                CommandParameter="{Binding}"
-                                                Header="Edit">
-                                                <MenuItem.Icon>
-                                                    <PathIcon Data="{StaticResource edit-regular}" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                            <MenuItem
-                                                Command="{Binding $parent[ContentPage].DataContext.DeletePrinterCommand}"
-                                                CommandParameter="{Binding}"
-                                                Header="Delete">
-                                                <MenuItem.Icon>
-                                                    <PathIcon Data="{StaticResource delete-regular}" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                        </MenuFlyout>
-                                    </Button.Flyout>
-                                </Button>
-                                <TextBlock Classes="subtitle" Text="{Binding Name}" />
-                            </DockPanel>
+                <ItemsControl Grid.Row="1" ItemsSource="{Binding Printers}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel
+                                ItemSpacing="{DynamicResource Gap.CardGrid}"
+                                LineSpacing="{DynamicResource Gap.CardGrid}"
+                                Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-                            <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
+                    <ItemsControl.DataTemplates>
+                        <DataTemplate DataType="models:AddPrinterListItem">
+                            <Border>
                                 <Grid
-                                    ColumnDefinitions="Auto,*"
-                                    ColumnSpacing="{DynamicResource Gap.CardContent}"
-                                    RowDefinitions="Auto,Auto"
-                                    RowSpacing="{DynamicResource Gap.KeyValue}">
-                                    <TextBlock Classes="small secondary" Text="Address" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        HorizontalAlignment="Right"
-                                        Classes="small mono"
-                                        Text="{Binding Address}" />
-                                    <TextBlock
-                                        Grid.Row="1"
-                                        Classes="small secondary"
-                                        Text="Connector" />
-                                    <TextBlock
-                                        Grid.Row="1"
-                                        Grid.Column="1"
-                                        HorizontalAlignment="Right"
-                                        Classes="small"
-                                        Text="{Binding ConnectorName}" />
+                                    MinWidth="300"
+                                    MinHeight="200"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch">
+                                    <Rectangle Classes="card-dashed" Fill="Transparent" />
+                                    <StackPanel VerticalAlignment="Center" Classes="card-content">
+                                        <Button
+                                            Height="{Binding $self.Bounds.Width}"
+                                            HorizontalAlignment="Center"
+                                            Classes="primary"
+                                            Command="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).CreatePrinterCommand}">
+                                            <PathIcon Data="{StaticResource add-regular}" />
+                                        </Button>
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            Classes="body secondary"
+                                            Text="Connect a printer" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
+                        </DataTemplate>
 
-                            <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
-                                <ToggleSwitch
-                                    IsChecked="{Binding Enabled}"
-                                    OffContent="Disabled"
-                                    OnContent="Enabled">
-                                    <Interaction.Behaviors>
-                                        <EventTriggerBehavior EventName="Click">
-                                            <InvokeCommandAction Command="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).ChangePrinterEnabledCommand}" CommandParameter="{Binding}" />
-                                        </EventTriggerBehavior>
-                                    </Interaction.Behaviors>
-                                </ToggleSwitch>
+                        <DataTemplate DataType="models:PrinterListItem">
+                            <Border
+                                Background="{DynamicResource SystemAltMediumLowColor}"
+                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                BorderThickness="1"
+                                Classes="card"
+                                Classes.unavailable="{Binding !IsConnectorAvailable}">
+                                <StackPanel MinWidth="300" Classes="card-content">
+                                    <DockPanel>
+                                        <Button
+                                            VerticalAlignment="Top"
+                                            AutomationProperties.Name="More options"
+                                            BorderBrush="Transparent"
+                                            Classes="icon"
+                                            DockPanel.Dock="Right">
+                                            <PathIcon
+                                                Width="12"
+                                                Height="12"
+                                                Data="{StaticResource more-vertical-regular}" />
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuItem
+                                                        Command="{Binding $parent[ContentPage].DataContext.EditPrinterCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        Header="Edit"
+                                                        IsEnabled="{Binding IsConnectorAvailable}"
+                                                        ToolTip.Tip="Turn the connector extension on to edit this printer">
+                                                        <MenuItem.Icon>
+                                                            <PathIcon Data="{StaticResource edit-regular}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem
+                                                        Command="{Binding $parent[ContentPage].DataContext.DeletePrinterCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        Header="Delete">
+                                                        <MenuItem.Icon>
+                                                            <PathIcon Data="{StaticResource delete-regular}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                        <StackPanel>
+                                            <TextBlock Classes="subtitle" Text="{Binding Name}" />
+                                            <controls:ConnectorUnavailableBadge IsVisible="{Binding !IsConnectorAvailable}" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
+                                        <Grid
+                                            ColumnDefinitions="Auto,*"
+                                            ColumnSpacing="{DynamicResource Gap.CardContent}"
+                                            RowDefinitions="Auto,Auto"
+                                            RowSpacing="{DynamicResource Gap.KeyValue}">
+                                            <TextBlock Classes="small secondary" Text="Address" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Right"
+                                                Classes="small mono"
+                                                Text="{Binding Address}" />
+                                            <TextBlock
+                                                Grid.Row="1"
+                                                Classes="small secondary"
+                                                Text="Connector" />
+                                            <TextBlock
+                                                Grid.Row="1"
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Right"
+                                                Classes="small"
+                                                Text="{Binding ConnectorName}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
+                                        <ToggleSwitch
+                                            IsChecked="{Binding Enabled}"
+                                            OffContent="Disabled"
+                                            OnContent="Enabled">
+                                            <Interaction.Behaviors>
+                                                <EventTriggerBehavior EventName="Click">
+                                                    <InvokeCommandAction Command="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).ChangePrinterEnabledCommand}" CommandParameter="{Binding}" />
+                                                </EventTriggerBehavior>
+                                            </Interaction.Behaviors>
+                                        </ToggleSwitch>
+                                    </Border>
+                                </StackPanel>
                             </Border>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
+                        </DataTemplate>
 
-            </ItemsControl.DataTemplates>
-        </ItemsControl>
-    </Grid>
+                    </ItemsControl.DataTemplates>
+                </ItemsControl>
+            </Grid>
+        </Border>
+    </ScrollViewer>
 </ContentPage>

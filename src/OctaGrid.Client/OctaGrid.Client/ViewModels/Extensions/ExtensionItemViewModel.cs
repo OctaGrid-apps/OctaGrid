@@ -50,6 +50,12 @@ public partial class ExtensionItemViewModel : ObservableObject
         _ => "Failed",
     };
 
+    /// <summary>The extension's web page, or null when it has none or the address is not a web address.</summary>
+    public Uri? ProjectUri =>
+        Uri.TryCreate(Info.ProjectUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri : null;
+
+    public bool HasProjectUri => ProjectUri is not null;
+
     /// <summary>Explains an incompatible or failed extension.</summary>
     public string? StateMessage => Info.StateMessage;
 

@@ -10,6 +10,7 @@ namespace OctaGrid.Client.Models;
 /// <param name="Secrets">Secret settings, by key.</param>
 /// <param name="Enabled">Whether the agent connects to the printer.</param>
 /// <param name="Version">Version used to ignore out-of-date change notifications.</param>
+/// <param name="IsConnectorAvailable">False when the connector is switched off or removed: the printer cannot connect and cannot be edited.</param>
 public record PrinterListItem(
     Guid Id,
     string Name,
@@ -20,4 +21,5 @@ public record PrinterListItem(
     IReadOnlyDictionary<string, string> Settings,
     IReadOnlyDictionary<string, string> Secrets,
     bool Enabled,
-    long Version) : IPrinterListItem;
+    long Version,
+    bool IsConnectorAvailable = true) : IPrinterListItem;

@@ -31,6 +31,10 @@ public static class ExtensionKinds
 /// What the extension says it needs, for example <c>network</c> or <c>files</c>. The host shows them when it asks the
 /// user to trust the extension. They are a declaration, not a sandbox: an in-process extension has the host's permissions.
 /// </param>
+/// <param name="ProjectUrl">
+/// Optional web page of the extension (its repository or home page), shown as a link in the extension list.
+/// It must be an absolute <c>http</c> or <c>https</c> address; anything else is ignored.
+/// </param>
 public sealed record ExtensionManifest(
     string Id,
     string Name,
@@ -41,7 +45,8 @@ public sealed record ExtensionManifest(
     string? Assembly = null,
     string? EntryType = null,
     string? Alias = null,
-    IReadOnlyList<string>? Permissions = null)
+    IReadOnlyList<string>? Permissions = null,
+    string? ProjectUrl = null)
 {
     /// <summary>File name of the manifest inside an extension package.</summary>
     public const string FileName = "octagrid-extension.json";
@@ -56,6 +61,9 @@ public sealed record ExtensionManifest(
         AllowTrailingCommas = true,
     };
 
+    /// <summary>The project link when it is a web address; null when there is none or it cannot be used.</summary>
+    public string? WebProjectUrl => ProjectUrl is { } url && IsWebAddress(url) ? url : null;
+
     /// <summary>Reads a manifest from JSON. Unknown properties are ignored; call <see cref="Validate"/> afterwards.</summary>
     /// <exception cref="JsonException">The text is not valid JSON or not a manifest object.</exception>
     public static ExtensionManifest Parse(string json)
@@ -63,6 +71,21 @@ public sealed record ExtensionManifest(
         ArgumentNullException.ThrowIfNull(json);
         return JsonSerializer.Deserialize<ExtensionManifest>(json, JsonOptions)
             ?? throw new JsonException("The manifest is empty.");
+    }
+
+    /// <summary>
+    /// Returns one message per problem that does not stop the extension from loading, for example a link that is
+    /// ignored. <see cref="Validate"/> reports the problems that do.
+    /// </summary>
+    public IReadOnlyList<string> Warnings()
+    {
+        var warnings = new List<string>();
+        if (!string.IsNullOrWhiteSpace(ProjectUrl) && WebProjectUrl is null)
+        {
+            warnings.Add($"'projectUrl' is ignored because it is not an absolute http or https address; got '{ProjectUrl}'.");
+        }
+
+        return warnings;
     }
 
     /// <summary>Checks the manifest and returns one message per problem; an empty list means it is valid.</summary>
@@ -114,4 +137,8 @@ public sealed record ExtensionManifest(
 
         return errors;
     }
+
+    /// <summary>True when <paramref name="value"/> is an absolute <c>http</c> or <c>https</c> address.</summary>
+    public static bool IsWebAddress(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 }

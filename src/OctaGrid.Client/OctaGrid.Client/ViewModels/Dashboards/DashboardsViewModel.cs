@@ -154,11 +154,13 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                 old.Item.PropertyChanged -= OnPrinterPropertyChanged;
             }
 
+            var availableConnectors = _agentCommands.Connectors.Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _allPrinters = printers.Select(printer => new PrinterDashboardCardViewModel(new PrinterStatusWidget()
             {
                 Id = printer.Id,
                 Name = printer.Name,
-                ConnectorId = printer.ConnectorId
+                ConnectorId = printer.ConnectorId,
+                IsConnectorAvailable = availableConnectors.Contains(printer.ConnectorId),
             }, _agentCommands, _imageCache, _loggerFactory)).ToList();
             foreach (var card in _allPrinters)
             {

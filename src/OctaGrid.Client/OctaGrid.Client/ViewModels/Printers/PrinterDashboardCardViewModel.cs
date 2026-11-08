@@ -80,6 +80,12 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     private async Task LoadData(CancellationToken cancellationToken)
     {
+        if (!Item.IsConnectorAvailable)
+        {
+            // No connector is loaded for this printer, so there is nothing to ask for its state.
+            return;
+        }
+
         try
         {
             await _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);

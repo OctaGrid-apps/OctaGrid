@@ -35,11 +35,11 @@ public class PrinterStatusWidget : INotifyPropertyChanged
     }
 
     // Completed/Cancelled/Failed are last-job results: the printer is ready, so a new print can start.
-    public bool CanStartPause => State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
+    public bool CanStartPause => IsConnectorAvailable && State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
                                    or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed
                                    or UniversalPrinterState.Printing or UniversalPrinterState.Paused;
 
-    public bool CanStop => State is UniversalPrinterState.Preparing or UniversalPrinterState.Printing
+    public bool CanStop => IsConnectorAvailable && State is UniversalPrinterState.Preparing or UniversalPrinterState.Printing
                                   or UniversalPrinterState.Paused;
 
     public int? CurrentLayer
@@ -59,6 +59,22 @@ public class PrinterStatusWidget : INotifyPropertyChanged
 
     /// <summary>Id of the connector that talks to the printer; used to filter the dashboard.</summary>
     public string ConnectorId { get; set; } = string.Empty;
+
+    /// <summary>False when the connector is switched off or removed, so the printer cannot connect.</summary>
+    public bool IsConnectorAvailable
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged(nameof(IsConnectorAvailable));
+                OnPropertyChanged(nameof(CanStartPause));
+                OnPropertyChanged(nameof(CanStop));
+            }
+        }
+    } = true;
 
     public bool IsPaused => State == UniversalPrinterState.Paused;
 

@@ -48,6 +48,7 @@ public enum ExtensionState
 /// <param name="CanUninstall">Whether the user can remove it.</param>
 /// <param name="ActivePrinters">How many printers are connected through this extension right now.</param>
 /// <param name="Permissions">What the extension says it needs (for example <c>network</c>), shown when the user is asked to trust it.</param>
+/// <param name="ProjectUrl">Web page of the extension from its manifest (an absolute http or https address), or null when it has none.</param>
 public sealed record ExtensionInfo(
     string Id,
     string Name,
@@ -60,4 +61,5 @@ public sealed record ExtensionInfo(
     ConnectorCapabilities Capabilities,
     bool CanUninstall,
     int ActivePrinters = 0,
-    IReadOnlyList<string>? Permissions = null);
+    IReadOnlyList<string>? Permissions = null,
+    string? ProjectUrl = null);

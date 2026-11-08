@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="OctaGrid.Client.Dialogs.ExtensionsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -49,6 +49,12 @@
                                             <controls:Badge Content="{Binding StateText}" />
                                         </StackPanel>
                                         <TextBlock Classes="small secondary" Text="{Binding Details}" />
+                                        <HyperlinkButton
+                                            Padding="0"
+                                            Classes="small"
+                                            Content="{Binding ProjectUri}"
+                                            IsVisible="{Binding HasProjectUri}"
+                                            NavigateUri="{Binding ProjectUri}" />
                                         <TextBlock Classes="caption secondary" Text="{Binding CapabilitiesText}" />
                                         <TextBlock
                                             Classes="small"
@@ -80,9 +86,13 @@
                                             IsVisible="{Binding NeedsApproval}" />
                                         <Button
                                             HorizontalAlignment="Right"
+                                            AutomationProperties.Name="Remove extension"
+                                            Classes="icon"
                                             Command="{Binding RemoveCommand}"
-                                            Content="Remove"
-                                            IsVisible="{Binding CanUninstall}" />
+                                            IsVisible="{Binding CanUninstall}"
+                                            ToolTip.Tip="Remove extension">
+                                            <PathIcon Margin="8,0" Data="{StaticResource delete-regular}" />
+                                        </Button>
                                     </StackPanel>
                                 </Grid>
                             </Border>

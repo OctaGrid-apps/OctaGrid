@@ -1,4 +1,4 @@
-﻿<Styles
+<Styles
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:OctaGrid.Client.Controls"
@@ -212,7 +212,6 @@
                         Grid.Column="1"
                         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}"
                         BorderBrush="{TemplateBinding BorderBrush}"
-                        Classes="page"
                         ClipToBounds="True"
                         CornerRadius="8,0,0,0">
                         <ContentPresenter x:Name="PART_ContentPresenter" Content="{TemplateBinding CurrentPage}" />
