@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -164,8 +165,10 @@ public class ExtensionsUiTests
             Assert.Contains("Install from file…", buttons);
             Assert.Contains("Install from folder…", buttons);
             Assert.Contains("Review…", buttons);
-            Assert.Contains("Remove", buttons);
             Assert.Contains("Choose folder…", buttons);
+            var remove = window.GetVisualDescendants().OfType<Button>()
+                .First(b => AutomationProperties.GetName(b) == "Remove extension");
+            Assert.IsType<PathIcon>(remove.Content);
             window.Close();
 
             var trust = new Window
