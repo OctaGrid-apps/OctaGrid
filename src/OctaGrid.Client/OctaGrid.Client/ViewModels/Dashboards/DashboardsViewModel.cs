@@ -247,7 +247,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
     private void OnPrinterPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(PrinterStatusWidget.State))
+        if (e.PropertyName is nameof(PrinterStatusWidget.State) or nameof(PrinterStatusWidget.IsConnectorAvailable))
         {
             ApplyFilter();
         }
@@ -283,9 +283,12 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
             .Where(p => SelectedConnector?.ConnectorId is null || p.Item.ConnectorId == SelectedConnector.ConnectorId)
             .ToList();
 
+        // A printer whose connector is unavailable never reports, so it must not keep the empty badges on screen.
+        var statesKnown = _allPrinters.All(p => p.Item.IsStateKnown || !p.Item.IsConnectorAvailable);
         foreach (var filter in StatusFilters)
         {
             filter.Count = byConnector.Count(p => p.Item.IsStateKnown && p.Item.State == filter.State);
+            filter.HideWhenEmpty = statesKnown;
         }
 
         // Printers that have not reported yet stay visible, so a restored filter does not blank the page at startup.

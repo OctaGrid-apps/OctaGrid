@@ -199,6 +199,7 @@ public class PrinterStatusWidget : INotifyPropertyChanged
                 OnPropertyChanged(nameof(IsPaused));
                 OnPropertyChanged(nameof(CanStartPause));
                 OnPropertyChanged(nameof(CanStop));
+                OnPropertyChanged(nameof(StartPauseLabel));
             }
         }
     }

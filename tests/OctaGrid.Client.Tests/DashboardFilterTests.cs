@@ -100,6 +100,41 @@ public class DashboardFilterTests
     }
 
     [Fact]
+    public async Task All_badges_stay_visible_until_every_printer_has_reported_a_state()
+    {
+        var vm = await Page(new InMemorySettingsStore(), reportOffline: false);
+        // The design-time agent has no connectors, so mark them available: only those printers are expected to report.
+        foreach (var card in vm.Printers)
+        {
+            card.Item.IsConnectorAvailable = true;
+        }
+
+        Assert.All(vm.StatusFilters, f => Assert.True(f.IsVisible));
+
+        vm.Printers[0].Item.State = UniversalPrinterState.Idle;
+        vm.Printers[1].Item.State = UniversalPrinterState.Idle;
+        Assert.All(vm.StatusFilters, f => Assert.True(f.IsVisible));
+
+        vm.Printers[2].Item.State = UniversalPrinterState.Idle;
+        Assert.Equal(
+            [UniversalPrinterState.Idle],
+            vm.StatusFilters.Where(f => f.IsVisible).Select(f => f.State));
+    }
+
+    [Fact]
+    public void The_start_pause_label_follows_the_printer_state()
+    {
+        var widget = new PrinterStatusWidget { State = UniversalPrinterState.Idle };
+        var changed = new List<string?>();
+        widget.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        widget.State = UniversalPrinterState.Printing;
+
+        Assert.Contains(nameof(PrinterStatusWidget.StartPauseLabel), changed);
+        Assert.Equal("Pause", widget.StartPauseLabel);
+    }
+
+    [Fact]
     public async Task Selecting_another_badge_replaces_the_filter_and_selecting_it_again_clears_it()
     {
         var vm = await Page(new InMemorySettingsStore());

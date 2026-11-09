@@ -35,6 +35,7 @@ internal sealed class Program
             services.AddDesktopLogging();
             services.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
             services.AddSingleton<IAppSettingsStore, JsonClientSettingsStore>();
+            services.AddSingleton<IBackdropCapabilities, WindowsBackdropCapabilities>();
             services
                 .AddWebRtc();
 

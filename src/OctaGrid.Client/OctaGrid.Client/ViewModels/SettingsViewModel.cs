@@ -15,6 +15,7 @@ namespace OctaGrid.Client.ViewModels;
 public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAppSettingsStore _appSettings;
+    private readonly IBackdropCapabilities _backdropCapabilities;
     private readonly ApplicationState _appState;
     private readonly IExtensionsClient? _extensionsClient;
     private readonly ILogger<SettingsViewModel> _logger;
@@ -29,9 +30,11 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         ILogger<SettingsViewModel>? logger = null,
         IExtensionsClient? extensionsClient = null,
         INotificationService? notifications = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IBackdropCapabilities? backdropCapabilities = null)
     {
         _appSettings = appSettingsStore;
+        _backdropCapabilities = backdropCapabilities ?? new NullBackdropCapabilities();
         _appState = appState;
         _updateService = updateService ?? new NullUpdateService();
         _extensionsClient = extensionsClient;
@@ -58,14 +61,6 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Default), ElementTheme.Default));
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Dark), ElementTheme.Dark));
         AppElementThemes.Add(new Option<ElementTheme>(nameof(ElementTheme.Light), ElementTheme.Light));
-
-        // Mica is a Windows 11 backdrop; the other platforms use the opaque Solid theme.
-        if (OperatingSystem.IsWindows())
-        {
-            WindowTransparencyLevels.Add(new Option<TransparencyLevel>(nameof(TransparencyLevel.Mica), TransparencyLevel.Mica));
-        }
-
-        WindowTransparencyLevels.Add(new Option<TransparencyLevel>("Solid", TransparencyLevel.None));
     }
 
     public ObservableCollection<Option<ClientMode>> AppClientModes { get; set; } = [];
@@ -99,8 +94,8 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsUpdating;
 
-    /// <summary>The window style can only be chosen where the platform offers more than the solid theme.</summary>
-    public bool CanChooseWindowStyle => WindowTransparencyLevels.Count > 1;
+    /// <summary>The transparency toggle is only offered where the platform has a backdrop effect (Mica on Windows 11).</summary>
+    public bool IsTransparencySupported => _backdropCapabilities.IsTransparencySupported;
 
     /// <summary>Whether this client can manage extensions at all.</summary>
     public bool CanManageExtensions => _extensionsClient is not null;
@@ -157,7 +152,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public partial Option<ElementTheme>? SelectedAppElementTheme { get; set; }
 
     [ObservableProperty]
-    public partial Option<TransparencyLevel>? SelectedWindowTransparencyLevel { get; set; }
+    public partial bool TransparencyEffects { get; set; } = true;
 
     // The collapsed Updates card has room for one button next to its title. Which one depends on what is going on, so
     // the buttons never crowd each other: Update (an update is waiting), Cancel (it is downloading), Check (nothing yet).
@@ -191,8 +186,6 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     [ObservableProperty]
     public partial string UpdateStatusText { get; set; } = "Check for updates";
-
-    public ObservableCollection<Option<TransparencyLevel>> WindowTransparencyLevels { get; set; } = [];
 
     /// <summary>
     /// Wraps the release notes in a page whose text follows the app theme. The page has no background of its own:
@@ -351,7 +344,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
         SelectedAppClientMode = AppClientModes.FirstOrDefault(x => x.Value == currentMode) ?? AppClientModes.First();
         SelectedAppElementTheme = AppElementThemes.FirstOrDefault(x => x.Value == _appSettings.ClientSettings.ElementTheme) ?? AppElementThemes.First();
-        SelectedWindowTransparencyLevel = WindowTransparencyLevels.FirstOrDefault(x => x.Value == _appSettings.ClientSettings.TransparencyLevel) ?? WindowTransparencyLevels.First();
+        TransparencyEffects = _appSettings.ClientSettings.TransparencyEffects;
         AskClientModeOnAppStart = _appSettings.ClientSettings.AskToSelectClientMode;
         await RefreshExtensionsSummaryAsync(cancellationToken);
     }
@@ -417,15 +410,15 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         };
     }
 
-    partial void OnSelectedWindowTransparencyLevelChanged(Option<TransparencyLevel>? value)
+    partial void OnTransparencyEffectsChanged(bool value)
     {
-        if (value is null)
+        if (_appSettings.ClientSettings.TransparencyEffects == value)
         {
             return;
         }
 
-        _logger.LogInformation("Setting TransparencyLevel changed to {TransparencyLevel}", value.Value);
-        _appSettings.Update(s => s with { TransparencyLevel = value.Value });
+        _logger.LogInformation("Setting TransparencyEffects changed to {Value}", value);
+        _appSettings.Update(s => s with { TransparencyEffects = value });
     }
 
     private async Task RefreshExtensionsSummaryAsync(CancellationToken cancellationToken)

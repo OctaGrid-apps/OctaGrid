@@ -22,8 +22,8 @@
     </Application.Resources>
 
     <Application.Styles>
-        <!--  The default theme everywhere, including the designer. Windows layers MicaTheme on top (see App.axaml.cs).  -->
-        <StyleInclude Source="avares://OctaGrid.Client/Styles/Themes/SolidTheme.axaml" />
+        <!--  The one theme. SolidBackdrop is layered on top while transparency effects are off or unavailable (see App.axaml.cs).  -->
+        <StyleInclude Source="avares://OctaGrid.Client/Styles/Themes/OctaGridTheme.axaml" />
         <StyleInclude Source="avares://OctaGrid.Client/Styles/Styles.axaml" />
         <StyleInclude Source="avares://OctaGrid.Client/Styles/TypographyStyles.axaml" />
         <StyleInclude Source="avares://OctaGrid.Client/Controls/NavigationView/NavigationRail.axaml" />

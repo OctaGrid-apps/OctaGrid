@@ -18,8 +18,6 @@ public partial class ApplicationState : ObservableObject
 
     public ClientMode ActiveClientMode => _settingsStore.StartupSettings.Mode;
 
-    public TransparencyLevel ActiveTransparencyLevel => _settingsStore.StartupSettings.TransparencyLevel;
-
     [ObservableProperty]
     public partial Workspace? SelectedWorkspace { get; set; }
 

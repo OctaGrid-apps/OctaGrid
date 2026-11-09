@@ -17,12 +17,22 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<PrinterDashboardCardViewModel> _logger;
 
+    // How long a just-started file name is kept while the printer still reports an idle state.
+    private static readonly TimeSpan StartGrace = TimeSpan.FromSeconds(30);
+
+    private readonly TimeProvider _timeProvider;
+    private string? _startedFileName;
+    private string? _previousFileName;
+    private DateTimeOffset _startedAt;
+
     public PrinterDashboardCardViewModel(
         PrinterStatusWidget item,
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        TimeProvider? timeProvider = null)
     {
+        _timeProvider = timeProvider ?? TimeProvider.System;
         Item = item;
         _agentCommands = agentCommands;
         _imageCache = imageCache;
@@ -58,7 +68,10 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             Item.BedTargetTemperature = message.Value.BedTargetTemperature.Value;
         }
 
-        if (message.Value.PrintStatus.FileName is not null)
+        ResolveStartedFileName(message.Value.State);
+
+        // While a just-started file is unconfirmed, an idle printer's file name is the previous job's.
+        if (message.Value.PrintStatus.FileName is not null && _startedFileName is null)
         {
             Item.PrintFileName = message.Value.PrintStatus.FileName;
             _ = TryGetThumbnail();
@@ -76,6 +89,28 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.State = message.Value.State;
 
         Item.StateMessages = new ObservableCollection<string>(message.Value.StateMessages.Select(sm => sm.Message));
+    }
+
+    /// <summary>
+    /// Ends the "just started" window once the printer confirms the job, or drops the optimistic file name
+    /// when the printer still reports an idle state after <see cref="StartGrace" /> (the job was rejected).
+    /// </summary>
+    private void ResolveStartedFileName(UniversalPrinterState state)
+    {
+        if (_startedFileName is null)
+        {
+            return;
+        }
+
+        if (state is UniversalPrinterState.Preparing or UniversalPrinterState.Printing or UniversalPrinterState.Paused)
+        {
+            _startedFileName = null;
+        }
+        else if (_timeProvider.GetUtcNow() - _startedAt > StartGrace)
+        {
+            Item.PrintFileName = _previousFileName;
+            _startedFileName = null;
+        }
     }
 
     private async Task LoadData(CancellationToken cancellationToken)
@@ -141,6 +176,9 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
                 await _agentCommands.StartPrintJobAsync(Item.Id, result.FileName, cancellationToken);
 
                 // Printers report the file name late (often only once printing), so show the chosen one while preparing.
+                _previousFileName = Item.PrintFileName;
+                _startedFileName = result.FileName;
+                _startedAt = _timeProvider.GetUtcNow();
                 Item.PrintFileName = result.FileName;
                 _ = TryGetThumbnail();
             }

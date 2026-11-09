@@ -11,16 +11,11 @@ namespace OctaGrid.Client;
 
 public static class Extensions
 {
-    public static void ApplyTheme(this Window window, ClientSettings settings)
+    public static void ApplyTheme(this Window window, ClientSettings settings, bool transparencySupported)
     {
-        if (settings.TransparencyLevel == TransparencyLevel.None)
-        {
-            window.TransparencyLevelHint = [WindowTransparencyLevel.None];
-        }
-        else
-        {
-            window.TransparencyLevelHint = [WindowTransparencyLevel.Mica, WindowTransparencyLevel.None];
-        }
+        window.TransparencyLevelHint = settings.TransparencyEffects && transparencySupported
+            ? [WindowTransparencyLevel.Mica, WindowTransparencyLevel.None]
+            : [WindowTransparencyLevel.None];
 
         window.RequestedThemeVariant = settings.ElementTheme switch
         {
