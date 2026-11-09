@@ -88,7 +88,8 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.PrintTimeTotal = message.Value.PrintStatus.PrintTimeTotal;
         Item.State = message.Value.State;
 
-        Item.StateMessages = new ObservableCollection<string>(message.Value.StateMessages.Select(sm => sm.Message));
+        Item.ConditionMessages = new ObservableCollection<string>(
+            message.Value.Conditions.OrderByDescending(c => c.Severity).Select(c => c.Message));
     }
 
     /// <summary>
@@ -129,6 +130,14 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         {
             _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
         }
+    }
+
+    [RelayCommand]
+    private async Task ShowHistory()
+    {
+        var history = new PrinterEventsViewModel(
+            Item.Id, Item.Name, _agentCommands, _loggerFactory.CreateLogger<PrinterEventsViewModel>());
+        await this.ShowOverlayDialogAsync($"{Item.Name} history", history);
     }
 
     [RelayCommand]

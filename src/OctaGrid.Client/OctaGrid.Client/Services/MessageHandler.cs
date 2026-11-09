@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Messaging;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Messaging;
@@ -26,6 +27,13 @@ internal sealed class MessageHandler : IClientMessageHandler
             WeakReferenceMessenger.Default.Send(new WorkspaceEntityChanged(entity), entity.EntityId);
             WeakReferenceMessenger.Default.Send(new WorkspaceEntityChanged(entity));
         }
+    }
+
+    public void Handle(PrinterEventRecorded recorded)
+    {
+        // Agents report from their own threads, and the history view changes a collection that is bound to the UI.
+        var message = new PrinterEventData(recorded);
+        Dispatcher.UIThread.Post(() => WeakReferenceMessenger.Default.Send(message, recorded.PrinterId));
     }
 
     public void Handle(PrinterTelemetry telemetryMessage)

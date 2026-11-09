@@ -1,4 +1,5 @@
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Events;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
@@ -110,6 +111,22 @@ public sealed class SampleExtensionTests : IDisposable
 
         cts.Cancel();
         await run;
+
+        // Feed what the sample sent to the host's log, as the agent does, to see the history it produces.
+        var log = new PrinterEventLog();
+        foreach (var snapshot in telemetry.Sent)
+        {
+            log.Observe(snapshot);
+        }
+
+        var history = log.Get(profile.PrinterId, null, 50).Events;
+        var messages = history.Select(e => e.Message).ToList();
+        var warning = history.Single(e => e.Code == "filament.low" && e.Severity == PrinterSeverity.Warning);
+        var resolved = history.Single(e => e.Message == "Resolved: Filament is running low.");
+        Assert.Equal("Filament is running low.", warning.Message);
+        Assert.True(warning.Sequence < resolved.Sequence);
+        Assert.Contains("State changed to Printing.", messages);
+        Assert.Contains("State changed to Completed.", messages);
     }
 
     [Fact]

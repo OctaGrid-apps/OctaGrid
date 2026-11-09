@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="OctaGrid.Agent.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\OctaGrid.Extensions.Abstractions\OctaGrid.Extensions.Abstractions.csproj" />
     <ProjectReference Include="..\OctaGrid.Protocol\OctaGrid.Protocol.csproj" />
   </ItemGroup>

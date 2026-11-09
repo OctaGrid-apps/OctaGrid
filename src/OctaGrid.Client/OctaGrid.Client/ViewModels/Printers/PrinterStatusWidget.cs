@@ -204,9 +204,8 @@ public class PrinterStatusWidget : INotifyPropertyChanged
         }
     }
 
-    public string? StateMessage => StateMessages.FirstOrDefault();
-
-    public ObservableCollection<string> StateMessages
+    /// <summary>What is wrong with the printer right now, most serious first.</summary>
+    public ObservableCollection<string> ConditionMessages
     {
         get;
         set
@@ -214,11 +213,14 @@ public class PrinterStatusWidget : INotifyPropertyChanged
             if (field != value)
             {
                 field = value;
-                OnPropertyChanged(nameof(StateMessages));
-                OnPropertyChanged(nameof(StateMessage));
+                OnPropertyChanged(nameof(ConditionMessages));
+                OnPropertyChanged(nameof(ConditionMessage));
             }
         }
     } = [];
+
+    /// <summary>The most serious condition, or null when nothing is wrong.</summary>
+    public string? ConditionMessage => ConditionMessages.FirstOrDefault();
 
     public byte[] ThumbnailData
     {

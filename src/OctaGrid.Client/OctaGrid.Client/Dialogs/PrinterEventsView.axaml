@@ -1,0 +1,72 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Dialogs.PrinterEventsView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="480"
+    d:DesignWidth="480"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:PrinterEventsViewModel"
+    mc:Ignorable="d">
+
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
+
+        <ScrollViewer Grid.Row="1" MaxHeight="420">
+            <StackPanel Classes="form">
+                <TextBlock
+                    Classes="small secondary"
+                    IsVisible="{Binding IsIncomplete}"
+                    Text="Older events are not shown."
+                    TextWrapping="Wrap" />
+
+                <StackPanel Classes="inline" IsVisible="{Binding HasError}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Classes="body"
+                        Text="{Binding ErrorMessage}"
+                        TextWrapping="Wrap" />
+                    <Button Command="{Binding LoadCommand}" Content="Try again" />
+                </StackPanel>
+
+                <TextBlock
+                    Classes="body secondary"
+                    IsVisible="{Binding IsEmpty}"
+                    Text="Nothing has happened to this printer yet." />
+
+                <ItemsControl ItemsSource="{Binding Events}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Classes="card-content" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PrinterEventItem">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource Gap.IconLabel}">
+                                <controls:Badge VerticalAlignment="Top" Content="{Binding SeverityText}" />
+                                <StackPanel Grid.Column="1" Classes="gap-0_5">
+                                    <TextBlock
+                                        Classes="body"
+                                        Text="{Binding Message}"
+                                        TextWrapping="Wrap" />
+                                    <TextBlock Classes="caption secondary" Text="{Binding TimeText}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Button
+            Grid.Row="2"
+            HorizontalAlignment="Right"
+            Classes="primary"
+            Command="{Binding CloseCommand}"
+            Content="Close" />
+    </Grid>
+</UserControl>

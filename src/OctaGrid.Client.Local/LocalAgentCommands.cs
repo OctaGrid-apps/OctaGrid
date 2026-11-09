@@ -2,6 +2,7 @@ using OctaGrid.Agent.Core;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Local;
@@ -10,6 +11,9 @@ internal sealed class LocalAgentCommands(AgentWorker agentWorker) : IAgentComman
 {
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
         => agentWorker.DeleteFileAsync(deviceId, fileName, cancellationToken);
+
+    public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult(agentWorker.GetPrinterEvents(printerId, afterSequence, limit));
 
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
         agentWorker.GetPrinterFilesAsync(deviceId, cancellationToken);

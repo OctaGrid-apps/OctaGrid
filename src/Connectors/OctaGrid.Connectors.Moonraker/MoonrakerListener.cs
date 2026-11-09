@@ -14,6 +14,7 @@ public class MoonrakerListener
     private readonly PrinterTelemetry _printerTelemetry;
     private readonly ITelemetrySink _telemetry;
     private string? _printState;
+    private string? _webhooksMessage;
     private string? _webhooksState;
 
     public MoonrakerListener(Guid deviceId, ITelemetrySink telemetry, ILogger<MoonrakerListener>? logger = null)
@@ -44,7 +45,7 @@ public class MoonrakerListener
         if (_printerTelemetry.PrintStatus.EstimatedPrintTime != value)
         {
             _printerTelemetry.PrintStatus.EstimatedPrintTime = value;
-            _telemetry.Send(_printerTelemetry);
+            _telemetry.Send(Snapshot());
         }
     }
 
@@ -56,11 +57,8 @@ public class MoonrakerListener
             return;
         }
 
-        if (!AddStateMessage(payload.GetString()))
-        {
-            return;
-        }
-        _telemetry.Send(_printerTelemetry);
+        // The G-code console (every "ok" and temperature echo) is a log, not printer state, so it is
+        // deliberately not forwarded; see the planned console capability.
     }
 
     [JsonRpcMethod("notify_klippy_disconnected")]
@@ -102,9 +100,15 @@ public class MoonrakerListener
         if (status.TryGetProperty("webhooks", out var webhooks))
         {
             stateChanged |= webhooks.Update("state", _webhooksState, v => _webhooksState = v);
-            string? stateMessage = null;
-            changed |= webhooks.Update("state_message", stateMessage, v => stateMessage = v);
-            AddStateMessage(stateMessage);
+            webhooks.Update("state_message", _webhooksMessage, v => _webhooksMessage = v);
+
+            // Update() reports "present", not "different", so compare before announcing a change.
+            var conditions = ToConditions(_webhooksState, _webhooksMessage);
+            if (!conditions.SequenceEqual(t.Conditions))
+            {
+                t.Conditions = conditions;
+                changed = true;
+            }
         }
 
         if (status.TryGetProperty("extruder", out var extruder))
@@ -152,23 +156,26 @@ public class MoonrakerListener
 
         if (changed)
         {
-            _telemetry.Send(t);
+            _telemetry.Send(Snapshot());
         }
     }
 
-    private bool AddStateMessage(string? message)
+    // Klippy reports "Printer is ready" as its message while healthy; only a not-ready state with a
+    // message is something the user has to act on.
+    private static IReadOnlyList<PrinterCondition> ToConditions(string? klippyState, string? message)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        if (string.IsNullOrWhiteSpace(message) || string.Equals(klippyState, "ready", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return [];
         }
 
-        var t = _printerTelemetry;
-        t.StateMessages.Push(new PrinterStateMessage(message));
-        if (t.StateMessages.Count > 10)
-        {
-            t.StateMessages.Pop();
-        }
-        return true;
+        var severity = string.Equals(klippyState, "startup", StringComparison.OrdinalIgnoreCase)
+            ? PrinterSeverity.Warning
+            : PrinterSeverity.Error;
+        return [new PrinterCondition("klippy.state", severity, message.Trim())];
     }
+
+    // Subscribers get a copy: this listener keeps updating its own instance from another thread.
+    private PrinterTelemetry Snapshot() =>
+        _printerTelemetry with { PrintStatus = _printerTelemetry.PrintStatus with { } };
 }

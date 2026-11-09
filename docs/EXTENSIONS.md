@@ -143,6 +143,29 @@ To try it with the sample, run OctaGrid with `--extensions-dev samples/OctaGrid.
 change `DemoPrinterConnector.cs` (for example the display name) and run `dotnet build samples/OctaGrid.Extensions.Sample`:
 the list in Settings > Extensions shows the new name a moment later.
 
+## Reporting state and problems
+
+A connector reports a printer by calling `ITelemetrySink.Send` with a `PrinterTelemetry` snapshot: temperatures, the
+state and the print progress. Send a new snapshot when something changes; do not change one after sending it.
+
+**Problems are conditions, not messages.** `PrinterTelemetry.Conditions` lists everything that is wrong with the printer
+*right now*, each as a `PrinterCondition` with a stable `Code` (such as `connection.failed`), a `Severity` and a short
+`Message`. Every snapshot carries the complete set, so a problem that is over is simply left out; there is nothing to
+clear. Keep the same `Code` while the same problem lasts, and keep the list to a handful of entries. OctaGrid keeps at
+most 10 per snapshot (the most serious), cuts long text, and ignores entries without a code or message.
+
+**You do not write a history.** OctaGrid compares each snapshot with the previous one and records an event when the state
+changes and when a condition appears, changes or goes away. A client that connects later, or is closed and reopened,
+asks for those events (the printer card's *Show history* button). The history is kept in memory, per printer, in a fixed
+size (the oldest events are dropped first), and it starts over when OctaGrid restarts. Repeats of the previous event are
+not recorded again, and a burst of information events is rate-limited; warnings and errors are never dropped by that limit.
+
+While the state is `Offline`, a condition that is missing from a snapshot counts as *unknown*, not *resolved*: a connector
+that cannot reach the printer cannot know that a problem went away. The "resolved" event is recorded once the printer
+reports again without it.
+
+Raw console output (for example G-code responses) is not state and does not belong in a snapshot.
+
 ## Not available yet
 
 - Installing from a catalog, and updates.

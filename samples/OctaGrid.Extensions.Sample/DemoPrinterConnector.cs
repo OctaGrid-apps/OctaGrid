@@ -11,6 +11,12 @@ namespace OctaGrid.Extensions.Sample;
 /// A sample connector for trying the extension system. It needs no printer: every printer you add with it is
 /// simulated. It heats up, "prints" a file, can be paused, resumed and stopped, keeps a few fake files and has one
 /// custom command. It is also a small, complete example of what a connector looks like.
+/// <para>
+/// It shows how a connector reports problems: near the end of a print it publishes a "filament is running low"
+/// condition, and leaves it out of later snapshots once the print is over. A connector never writes events itself.
+/// The host compares snapshots and records an event when the state changes or a condition appears or goes away, so
+/// the printer's history fills up without the connector keeping a log.
+/// </para>
 /// </summary>
 public sealed class DemoPrinterConnector : IConnector
 {
@@ -47,6 +53,12 @@ public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, 
     public const string NormalSpeed = "Normal";
     public const string FastSpeed = "Fast";
     public const string HelloCommand = "hello";
+
+    /// <summary>The code of the condition published near the end of a print. Stays the same while the problem lasts.</summary>
+    public const string FilamentLowCode = "filament.low";
+
+    /// <summary>What the "filament is running low" condition tells the user.</summary>
+    public const string FilamentLowMessage = "Filament is running low.";
 
     private const double Ambient = 24;
     private const double NozzleTarget = 210;
@@ -291,9 +303,17 @@ public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, 
             var elapsed = TimeSpan.FromTicks(_tick.Ticks * _printTicks);
             var total = TimeSpan.FromTicks(_tick.Ticks * _printingTicks);
 
+            // The last quarter of a print runs short of filament. The condition is part of every snapshot while it
+            // is true and simply missing afterwards; nothing has to be "cleared".
+            var filamentLow = _state is UniversalPrinterState.Printing or UniversalPrinterState.Paused
+                && _printTicks * 4 >= _printingTicks * 3;
+
             telemetry = new PrinterTelemetry(_profile.PrinterId)
             {
                 State = _state,
+                Conditions = filamentLow
+                    ? [new PrinterCondition(FilamentLowCode, PrinterSeverity.Warning, FilamentLowMessage)]
+                    : [],
                 NozzleTemperature = Math.Round(_nozzle, 1),
                 NozzleTargetTemperature = heating ? NozzleTarget : 0,
                 BedTemperature = Math.Round(_bed, 1),
