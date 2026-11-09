@@ -3,7 +3,7 @@
     Opaque surfaces with a cool slate palette and an indigo accent; it needs no OS backdrop (Mica),
     so it looks the same on Windows, Linux, macOS and WebAssembly.
     MicaTheme.axaml is layered on top of it on Windows and overrides these resources.
-
+    
     Layers (dark): window #0F1218 < content #12161E < card #1C212C < dialog #171B25. Borders #232937 / #2E3544.
     Layers (light): window #F4F6FA < content / card #FFFFFF. Borders #DDE2EA.
 -->
@@ -26,6 +26,11 @@
                     <SolidColorBrush x:Key="NavigationRailItemSelectedBackground" Color="#E1E6F0" />
                     <SolidColorBrush x:Key="NavigationRailAccentBrush" Color="#4A5BD9" />
 
+                    <!--  Cards and the tiles inside them: opaque layers above the window  -->
+                    <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="CardBorderBrush" Color="#DDE2EA" />
+                    <SolidColorBrush x:Key="TileBackground" Color="#FAFBFD" />
+
                     <!--  Dialogs and settings  -->
                     <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#DDE2EA" />
@@ -45,6 +50,11 @@
                     <SolidColorBrush x:Key="NavigationRailItemPointerOverForeground" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="NavigationRailItemSelectedBackground" Color="#222838" />
                     <SolidColorBrush x:Key="NavigationRailAccentBrush" Color="#8C9BFF" />
+
+                    <!--  Cards and the tiles inside them: opaque layers above the window  -->
+                    <SolidColorBrush x:Key="CardBackground" Color="#1C212C" />
+                    <SolidColorBrush x:Key="CardBorderBrush" Color="#232937" />
+                    <SolidColorBrush x:Key="TileBackground" Color="#141822" />
 
                     <!--  Dialogs and settings  -->
                     <SolidColorBrush x:Key="OverlayDialogBackground" Color="#171B25" />

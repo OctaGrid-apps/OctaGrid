@@ -15,8 +15,13 @@ public partial class PrinterStatusFilterViewModel : ViewModelBase
 
     /// <summary>How many printers are in <see cref="State" /> (within the selected connector).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVisible))]
     public partial int Count { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVisible))]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>States with no printers are hidden, except a selected one so the filter can still be cleared.</summary>
+    public bool IsVisible => Count > 0 || IsSelected;
 }

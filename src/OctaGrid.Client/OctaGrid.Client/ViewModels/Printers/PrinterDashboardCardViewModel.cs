@@ -139,6 +139,10 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
                 _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
                     result.FileName, Item.Id, Item.Name);
                 await _agentCommands.StartPrintJobAsync(Item.Id, result.FileName, cancellationToken);
+
+                // Printers report the file name late (often only once printing), so show the chosen one while preparing.
+                Item.PrintFileName = result.FileName;
+                _ = TryGetThumbnail();
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
