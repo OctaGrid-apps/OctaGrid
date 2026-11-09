@@ -11,8 +11,8 @@ public sealed record ClientSettings
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ElementTheme ElementTheme { get; init; } = ElementTheme.Default;
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public TransparencyLevel TransparencyLevel { get; init; } = TransparencyLevel.Mica;
+    /// <summary>Show the OS transparency effect (Mica) behind the window. Ignored where the platform has none.</summary>
+    public bool TransparencyEffects { get; init; } = true;
 
     public string? ServerUrl { get; init; }
     public bool AskToSelectClientMode { get; init; }

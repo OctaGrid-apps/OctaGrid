@@ -82,14 +82,14 @@
                     </controls:SettingsCard>
 
                     <controls:SettingsCard
-                        Description="Mica shows the Windows 11 backdrop through the window; Solid uses opaque surfaces"
-                        Header="Window style"
+                        Description="Window and surfaces show the system backdrop through them"
+                        Header="Transparency effects"
                         Icon="{StaticResource square-hint-sparkles-regular}"
-                        IsVisible="{Binding CanChooseWindowStyle}">
-                        <ComboBox
-                            DisplayMemberBinding="{Binding DisplayText}"
-                            ItemsSource="{Binding WindowTransparencyLevels}"
-                            SelectedItem="{Binding SelectedWindowTransparencyLevel}" />
+                        IsVisible="{Binding IsTransparencySupported}">
+                        <ToggleSwitch
+                            IsChecked="{Binding TransparencyEffects}"
+                            OffContent="Off"
+                            OnContent="On" />
                     </controls:SettingsCard>
                 </controls:SettingsGroup>
 

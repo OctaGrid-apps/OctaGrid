@@ -72,32 +72,64 @@ public partial class App : Application
 #endif
     }
 
-    private Avalonia.Markup.Xaml.Styling.StyleInclude? _micaTheme;
+    private IBackdropCapabilities _backdropCapabilities = new NullBackdropCapabilities();
+    private ClientSettings? _appliedSettings;
+    private Avalonia.Markup.Xaml.Styling.StyleInclude? _solidBackdrop;
 
     /// <summary>
-    /// SolidTheme is always loaded. On Windows the Mica theme is layered on top of it while the Mica backdrop
-    /// is selected; it makes the window transparent, so it must not stay loaded when the backdrop is turned off.
+    /// Applies the theme variant and backdrop to the window. Settings change for many unrelated reasons (filters, the
+    /// selected workspace), so nothing happens unless the theme or the transparency preference actually changed.
     /// </summary>
-    private void ApplyBackdropTheme(ClientSettings settings)
+    private void ApplyAppearance(Window window, ClientSettings settings)
     {
-        var wanted = !Design.IsDesignMode && OperatingSystem.IsWindows() && settings.TransparencyLevel == TransparencyLevel.Mica;
-        if (wanted == (_micaTheme is not null))
+        if (_appliedSettings is { } applied
+            && applied.ElementTheme == settings.ElementTheme
+            && applied.TransparencyEffects == settings.TransparencyEffects)
         {
             return;
         }
 
-        if (wanted)
+        _appliedSettings = settings;
+        window.ApplyTheme(settings, _backdropCapabilities.IsTransparencySupported);
+        UpdateSolidBackdrop(window);
+    }
+
+    /// <summary>
+    /// The theme is translucent so the OS backdrop (Mica) shows through. SolidBackdrop replaces the window and surface
+    /// brushes with opaque ones unless the window really got Mica: the OS can refuse it even on Windows 11 (transparency
+    /// switched off in Windows, power saver, remote desktop), and a transparent window without a backdrop is unreadable.
+    /// </summary>
+    private void UpdateSolidBackdrop(Window window)
+    {
+        var mica = _appliedSettings is { TransparencyEffects: true }
+            && _backdropCapabilities.IsTransparencySupported
+            && window.ActualTransparencyLevel == WindowTransparencyLevel.Mica;
+        SetSolidBackdrop(!mica);
+    }
+
+    /// <summary>
+    /// The overlay is appended on purpose: it has to come after every other style so its brushes win. Keep it
+    /// the last thing added to <see cref="Application.Styles"/> if more styles are ever added at runtime.
+    /// </summary>
+    private void SetSolidBackdrop(bool solid)
+    {
+        if (solid == (_solidBackdrop is not null))
         {
-            _micaTheme = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://OctaGrid.Client/"))
+            return;
+        }
+
+        if (solid)
+        {
+            _solidBackdrop = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://OctaGrid.Client/"))
             {
-                Source = new Uri("avares://OctaGrid.Client/Styles/Themes/MicaTheme.axaml")
+                Source = new Uri("avares://OctaGrid.Client/Styles/Themes/SolidBackdrop.axaml")
             };
-            Styles.Add(_micaTheme);
+            Styles.Add(_solidBackdrop);
         }
         else
         {
-            Styles.Remove(_micaTheme!);
-            _micaTheme = null;
+            Styles.Remove(_solidBackdrop!);
+            _solidBackdrop = null;
         }
     }
 
@@ -112,6 +144,7 @@ public partial class App : Application
         // The designer and tests have no container; they create the view models they need directly.
         if (Services is not { } services)
         {
+            SetSolidBackdrop(solid: true);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -132,7 +165,7 @@ public partial class App : Application
 
             var settings = settingsStore.ClientSettings;
             logger.LogInformation("Client settings loaded: Mode={Mode}, AskToSelectClientMode={AskToSelectClientMode}", settings.Mode, settings.AskToSelectClientMode);
-            ApplyBackdropTheme(settings);
+            _backdropCapabilities = services.GetService<IBackdropCapabilities>() ?? _backdropCapabilities;
 
             if (settings.Mode == ClientMode.Undefined)
             {
@@ -171,14 +204,21 @@ public partial class App : Application
                 };
                 settingsStore.SettingsChanged += (_, changed) =>
                 {
-                    ApplyBackdropTheme(changed);
-                    mainWindow.ApplyTheme(changed);
+                    ApplyAppearance(mainWindow, changed);
                 };
                 desktop.MainWindow = mainWindow;
             }
 
             logger.LogInformation("Applying theme {ElementTheme} to main window", settings.ElementTheme);
-            desktop.MainWindow.ApplyTheme(settings);
+            var window = desktop.MainWindow;
+            window.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == TopLevel.ActualTransparencyLevelProperty)
+                {
+                    UpdateSolidBackdrop(window);
+                }
+            };
+            ApplyAppearance(window, settings);
         }
         else if (ApplicationLifetime is IActivityApplicationLifetime singleViewFactoryApplicationLifetime)
         {

@@ -1,0 +1,23 @@
+<!--
+    OctaGrid.Client — Solid backdrop.
+    Layered over OctaGridTheme.axaml while transparency effects are off or unavailable. It only replaces the
+    window and surface brushes with opaque ones; everything else comes from the theme.
+    Window background: #F3F3F3 (light), #191919 (dark).
+-->
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppWindowBackground" Color="#F3F3F3" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppWindowBackground" Color="#191919" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+</Styles>
