@@ -154,6 +154,10 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     [ObservableProperty]
     public partial bool TransparencyEffects { get; set; } = true;
 
+    /// <summary>Whether Expert mode is on. Turning it on asks first; see <see cref="OnIsExpertModeChanged" />.</summary>
+    [ObservableProperty]
+    public partial bool IsExpertMode { get; set; }
+
     // The collapsed Updates card has room for one button next to its title. Which one depends on what is going on, so
     // the buttons never crowd each other: Update (an update is waiting), Cancel (it is downloading), Check (nothing yet).
     public bool ShowApplyButton => HasAvailableUpdate && !IsUpdating;
@@ -345,6 +349,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         SelectedAppClientMode = AppClientModes.FirstOrDefault(x => x.Value == currentMode) ?? AppClientModes.First();
         SelectedAppElementTheme = AppElementThemes.FirstOrDefault(x => x.Value == _appSettings.ClientSettings.ElementTheme) ?? AppElementThemes.First();
         TransparencyEffects = _appSettings.ClientSettings.TransparencyEffects;
+        IsExpertMode = _appSettings.ClientSettings.IsExpertMode;
         AskClientModeOnAppStart = _appSettings.ClientSettings.AskToSelectClientMode;
         await RefreshExtensionsSummaryAsync(cancellationToken);
     }
@@ -408,6 +413,52 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
             ElementTheme.Light => ThemeVariant.Light,
             _ => ThemeVariant.Default
         };
+    }
+
+    // Turning it off needs no question. Turning it on shows what it does first, and the switch goes back if the user declines:
+    // the setting is only written once they agreed, so a declined switch never shows controls for even a moment.
+    partial void OnIsExpertModeChanged(bool value)
+    {
+        if (_appSettings.ClientSettings.IsExpertMode == value)
+        {
+            return;
+        }
+
+        if (!value)
+        {
+            _logger.LogInformation("Expert mode turned off");
+            _appSettings.Update(s => s with { IsExpertMode = false });
+            return;
+        }
+
+        _ = ConfirmExpertModeAsync();
+    }
+
+    private async Task ConfirmExpertModeAsync()
+    {
+        var agreed = false;
+        try
+        {
+            var confirm = new ConfirmViewModel(
+                "Expert mode shows controls that can interrupt a print or change how the printer behaves, such as sending " +
+                "G-code commands to it. Use them only if you know what they do. Turn Expert mode on?",
+                "Turn on");
+            agreed = await this.ShowOverlayDialogAsync("Expert mode", confirm) == true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not ask whether to turn Expert mode on");
+        }
+
+        if (agreed)
+        {
+            _logger.LogInformation("Expert mode turned on");
+            _appSettings.Update(s => s with { IsExpertMode = true });
+        }
+        else
+        {
+            IsExpertMode = false;
+        }
     }
 
     partial void OnTransparencyEffectsChanged(bool value)

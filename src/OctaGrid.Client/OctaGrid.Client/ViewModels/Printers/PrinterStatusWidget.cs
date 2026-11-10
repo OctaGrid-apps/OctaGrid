@@ -39,6 +39,10 @@ public class PrinterStatusWidget : INotifyPropertyChanged
                                    or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed
                                    or UniversalPrinterState.Printing or UniversalPrinterState.Paused;
 
+    /// <summary>True when a new print can be started: the printer is ready, not busy with a job.</summary>
+    public bool CanStartNewPrint => IsConnectorAvailable && State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
+                                        or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed;
+
     public bool CanStop => IsConnectorAvailable && State is UniversalPrinterState.Preparing or UniversalPrinterState.Printing
                                   or UniversalPrinterState.Paused;
 
@@ -70,6 +74,7 @@ public class PrinterStatusWidget : INotifyPropertyChanged
             {
                 field = value;
                 OnPropertyChanged(nameof(IsConnectorAvailable));
+                OnPropertyChanged(nameof(CanStartNewPrint));
                 OnPropertyChanged(nameof(CanStartPause));
                 OnPropertyChanged(nameof(CanStop));
             }
@@ -197,6 +202,7 @@ public class PrinterStatusWidget : INotifyPropertyChanged
                 OnPropertyChanged(nameof(State));
                 OnPropertyChanged(nameof(IsPrinting));
                 OnPropertyChanged(nameof(IsPaused));
+                OnPropertyChanged(nameof(CanStartNewPrint));
                 OnPropertyChanged(nameof(CanStartPause));
                 OnPropertyChanged(nameof(CanStop));
                 OnPropertyChanged(nameof(StartPauseLabel));

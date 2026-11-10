@@ -33,6 +33,7 @@ public partial class App : Application
             services.AddSingleton<IClientMessageHandler, MessageHandler>();
             services.AddSingleton<INotificationService, NotificationService>();
             services.AddSingleton<IByteArrayImageCache, ByteArrayImageCache>();
+            services.AddSingleton<ITemperatureHistoryStore, TemperatureHistoryStore>();
             services.AddSingleton<ApplicationState>();
 
             // ViewModels: registered here so Views resolve them from the container instead of

@@ -10,4 +10,7 @@ public interface IClientMessageHandler
 
     /// <summary>A new event was recorded for a printer. May be called from any thread.</summary>
     void Handle(PrinterEventRecorded recorded);
+
+    /// <summary>A printer wrote a new line to its console. May be called from any thread.</summary>
+    void Handle(PrinterConsoleLineRecorded recorded);
 }

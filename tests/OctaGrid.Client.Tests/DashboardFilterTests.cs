@@ -11,7 +11,7 @@ namespace OctaGrid.Client.Tests;
 [Collection(UiCollection.Name)]
 public class DashboardFilterTests
 {
-    private sealed class FakePrintersClient : IPrintersClient
+    internal sealed class FakePrintersClient : IPrintersClient
     {
         private readonly List<PrinterResponse> _printers;
 

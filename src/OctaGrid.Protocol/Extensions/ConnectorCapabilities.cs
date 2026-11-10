@@ -24,4 +24,17 @@ public enum ConnectorCapabilities
 
     /// <summary>Find printers on the network.</summary>
     Discovery = 16,
+
+    /// <summary>
+    /// Report what the printer writes to its console (G-code responses, messages) so the user can read it. Read-only:
+    /// sending commands to the printer is a separate capability, because it can do harm.
+    /// </summary>
+    Console = 32,
+
+    /// <summary>
+    /// Send a command (such as G-code) typed by the user to the printer and show what it answers in the console. This can
+    /// change or stop what the printer is doing, so clients offer it only in Expert mode. A connector that declares it
+    /// should also declare <see cref="Console"/>, so the user sees the answer.
+    /// </summary>
+    ConsoleCommands = 64,
 }

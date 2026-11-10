@@ -12,6 +12,7 @@ namespace OctaGrid.Agent.Core;
 
 public class AgentWorker : IAsyncDisposable
 {
+    private readonly PrinterConsoleLog _console;
     private readonly PrinterEventLog _events;
     private readonly ExtensionManager _extensions;
     private readonly ILogger<AgentWorker> _logger;
@@ -34,8 +35,27 @@ public class AgentWorker : IAsyncDisposable
         _profileSource = profileSource;
         _extensions = extensions;
         _events = new PrinterEventLog(timeProvider, logger: factory.CreateLogger<PrinterEventLog>());
-        _orchestrator = new DeviceOrchestrator(extensions.Registry, new EventRecordingTelemetrySink(telemetry, _events, factory.CreateLogger<EventRecordingTelemetrySink>()), factory);
+        _console = new PrinterConsoleLog(timeProvider, logger: factory.CreateLogger<PrinterConsoleLog>());
+        _orchestrator = new DeviceOrchestrator(
+            extensions.Registry,
+            new EventRecordingTelemetrySink(telemetry, _events, factory.CreateLogger<EventRecordingTelemetrySink>()),
+            factory,
+            console: _console);
     }
+
+    /// <summary>Raised when a printer writes a console line, so clients can show it live. See <see cref="PrinterConsoleLog.Recorded"/>.</summary>
+    public event Action<PrinterConsoleLineRecorded>? ConsoleLineRecorded
+    {
+        add => _console.Recorded += value;
+        remove => _console.Recorded -= value;
+    }
+
+    /// <summary>
+    /// What a printer wrote to its console, oldest first, for a client that needs to catch up. See
+    /// <see cref="PrinterConsoleLog.Get"/> for the cursor rules.
+    /// </summary>
+    public ConsolePage GetPrinterConsole(Guid deviceId, long? afterSequence, int limit) =>
+        _console.Get(deviceId, afterSequence, limit);
 
     /// <summary>Raised when an event is recorded for a printer, so clients can show it live. See <see cref="PrinterEventLog.Recorded"/>.</summary>
     public event Action<PrinterEventRecorded>? EventRecorded
@@ -227,7 +247,9 @@ public class AgentWorker : IAsyncDisposable
             await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
 
             // A printer that was deleted takes its history with it; one whose connector is only turned off keeps it.
-            _events.Retain(profiles.Select(p => p.PrinterId).ToList());
+            var printerIds = profiles.Select(p => p.PrinterId).ToList();
+            _events.Retain(printerIds);
+            _console.Retain(printerIds);
         }
         finally
         {
@@ -237,6 +259,10 @@ public class AgentWorker : IAsyncDisposable
 
     public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
         _orchestrator.ResumePrintJobAsync(deviceId, cancellationToken);
+
+    /// <summary>Sends a command the user typed to a printer. See <see cref="DeviceOrchestrator.SendConsoleCommandAsync"/> for the checks and errors.</summary>
+    public Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken) =>
+        _orchestrator.SendConsoleCommandAsync(deviceId, command, cancellationToken);
 
     public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         _orchestrator.StartPrintJobAsync(deviceId, fileName, cancellationToken);

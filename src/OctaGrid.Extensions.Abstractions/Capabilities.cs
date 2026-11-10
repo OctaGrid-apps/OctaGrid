@@ -40,6 +40,50 @@ public interface IThumbnails
 }
 
 /// <summary>
+/// Optional capability: report what the printer writes to its console, such as G-code responses and messages. Declare
+/// <see cref="ConnectorCapabilities.Console"/>. The host gives the session a <see cref="IConsoleSink"/> before
+/// <see cref="IPrinterSession.RunAsync"/> starts; write each line the printer reports to it. Read-only: this does not
+/// let the user send anything to the printer.
+/// </summary>
+public interface IConsoleOutput
+{
+    /// <summary>Called once, before the session runs. Lines written to the sink are shown in the printer's console.</summary>
+    void SetConsoleSink(IConsoleSink sink);
+}
+
+/// <summary>
+/// Optional capability: send a command typed by the user to the printer, for example a line of G-code. Declare
+/// <see cref="ConnectorCapabilities.ConsoleCommands"/>, and <see cref="ConnectorCapabilities.Console"/> as well so the user
+/// sees what the printer answers. The host only calls it for a single line of plain text of reasonable length (see
+/// <c>ConsoleCommandRules</c>), after the user turned on Expert mode, and shows the command in the console before it is
+/// sent.
+/// <para>
+/// Commands can overlap: the host does not wait for one command to finish before it passes on the next, so that an
+/// emergency stop can reach the printer while it is still busy with a long command (homing, heating up). Your
+/// implementation has to cope with a call while an earlier one is still running.
+/// </para>
+/// </summary>
+public interface IConsoleInput
+{
+    /// <summary>
+    /// Sends one command to the printer. Return when the printer has accepted it; what it answers goes to the console
+    /// through <see cref="IConsoleSink"/>. When the printer rejects the command, or cannot be reached, throw an exception
+    /// whose message tells the user what went wrong.
+    /// </summary>
+    Task SendCommandAsync(string command, CancellationToken cancellationToken);
+}
+
+/// <summary>Where a connector writes the lines the printer reports to its console. Safe to call from any thread.</summary>
+public interface IConsoleSink
+{
+    /// <summary>
+    /// Adds text to the console. Text with several lines is split into separate lines, empty lines are skipped, and very
+    /// long lines are shortened, so a connector can pass on whatever the printer sent.
+    /// </summary>
+    void WriteLine(string text);
+}
+
+/// <summary>
 /// Optional capability: custom commands for Expert mode. Declare
 /// <see cref="ConnectorCapabilities.CustomCommands"/> and list the commands in
 /// <see cref="ConnectorDescriptor.CustomCommands"/>. The host only runs declared commands.

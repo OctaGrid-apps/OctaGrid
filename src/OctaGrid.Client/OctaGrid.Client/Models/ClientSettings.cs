@@ -26,6 +26,12 @@ public sealed record ClientSettings
     /// <summary>Id of the connector the list dashboard is filtered by; null shows printers of every connector.</summary>
     public string? DashboardConnectorFilter { get; init; }
 
+    /// <summary>
+    /// Shows controls that can interrupt a print or change how a printer behaves, such as sending G-code commands. Off
+    /// until the user turns it on in Settings, and it stays on across restarts.
+    /// </summary>
+    public bool IsExpertMode { get; init; }
+
     /// <summary>Folder extensions are loaded from in developer mode; null when developer mode is off.</summary>
     public string? DeveloperExtensionsFolder { get; init; }
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.ViewModels;
@@ -29,9 +30,21 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial ObservableCollection<PrintMetadataListItem> Files { get; set; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError))]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
+    public partial string? ErrorMessage { get; set; }
+
+    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
+    /// <summary>The printer answered and has no files; never true while loading or after a failure.</summary>
+    public bool IsEmpty => !IsFilesLoading && !HasError && Files.Count == 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial bool IsFilesLoading { get; set; }
 
     [ObservableProperty]
@@ -56,17 +69,21 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     }
 
     [RelayCommand]
-    private async Task DeleteFile(CancellationToken cancellationToken)
-    {
-        if (SelectedItem is null)
-        {
-            return;
-        }
+    private Task DeleteFile(CancellationToken cancellationToken) =>
+        SelectedItem is { } selected ? DeleteItemAsync(selected, cancellationToken) : Task.CompletedTask;
 
-        var fileName = SelectedItem.Metadata.FileName;
+    /// <summary>Deletes one file from the printer after asking, then shows the files that are left.</summary>
+    internal async Task DeleteItemAsync(PrintMetadataListItem item, CancellationToken cancellationToken)
+    {
+        var fileName = item.Metadata.FileName;
         try
         {
-            //ToDo: show confirmation dialog
+            var confirm = new ConfirmViewModel($"Delete \"{fileName}\" from the printer? This cannot be undone.", "Delete");
+            if (await this.ShowOverlayDialogAsync("Delete file", confirm) != true)
+            {
+                return;
+            }
+
             _logger.LogInformation("Deleting file '{FileName}' on device {DeviceId}", fileName, _deviceId);
             await _agentCommandsService.DeleteFileAsync(_deviceId, fileName, cancellationToken);
             await LoadData(cancellationToken);
@@ -84,6 +101,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         try
         {
             IsFilesLoading = true;
+            ErrorMessage = null;
             _logger.LogDebug("Loading printer files for device {DeviceId}", _deviceId);
             var files = await _agentCommandsService.GetPrinterFilesAsync(_deviceId, cancellationToken);
             Files = new ObservableCollection<PrintMetadataListItem>(files.Select(x => new PrintMetadataListItem(x, [])));
@@ -101,6 +119,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load printer files for device {DeviceId}", _deviceId);
+            ErrorMessage = ex is AppException ? ex.Message : "The files could not be loaded.";
             throw;
         }
         finally

@@ -38,6 +38,27 @@ internal static class DesignData
         Client, Client, Client, Updates, Settings, State, Notifications,
         Dashboards, Printers, Agents, Workspaces, SettingsPage);
 
+    public static PrinterPageViewModel PrinterPage => new(
+        new PrinterDashboardCardViewModel(
+            new PrinterStatusWidget
+            {
+                Id = Guid.NewGuid(),
+                Name = "Voron 2.4",
+                NozzleTemperature = 215.3,
+                NozzleTargetTemperature = 215,
+                BedTemperature = 59.8,
+                BedTargetTemperature = 60,
+                PrintFileName = "benchy.gcode",
+                Progress = 0.42,
+                CurrentLayer = 84,
+                TotalLayerCount = 200,
+                State = OctaGrid.Protocol.Messaging.UniversalPrinterState.Printing,
+            },
+            AgentCommands, Images),
+        () => { },
+        Settings,
+        Notifications);
+
     public static PrinterListViewModel Printers => new(Client, Notifications, State, AgentCommands);
 
     public static SettingsViewModel SettingsPage => new(Settings, State, Updates, extensionsClient: Extensions, notifications: Notifications);

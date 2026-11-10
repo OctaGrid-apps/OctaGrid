@@ -27,6 +27,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private readonly INotificationService? _notifications;
     private readonly IPrintersClient _printersClient;
     private readonly IAppSettingsStore _settings;
+    private readonly ITemperatureHistoryStore? _temperatureHistories;
     private List<PrinterDashboardCardViewModel> _allPrinters = [];
     private bool _isUpdatingFilters;
 
@@ -38,9 +39,11 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         IByteArrayImageCache imageCache,
         IAppSettingsStore settings,
         INotificationService? notifications = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        ITemperatureHistoryStore? temperatureHistories = null)
     {
         _settings = settings;
+        _temperatureHistories = temperatureHistories;
         var savedStatus = settings.ClientSettings.DashboardStatusFilter;
         StatusFilters = Enum.GetValues<UniversalPrinterState>()
             .Select(state => new PrinterStatusFilterViewModel(state) { IsSelected = state == savedStatus })
@@ -161,7 +164,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                 Name = printer.Name,
                 ConnectorId = printer.ConnectorId,
                 IsConnectorAvailable = availableConnectors.Contains(printer.ConnectorId),
-            }, _agentCommands, _imageCache, _loggerFactory)).ToList();
+            }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id))).ToList();
             foreach (var card in _allPrinters)
             {
                 card.Item.PropertyChanged += OnPrinterPropertyChanged;

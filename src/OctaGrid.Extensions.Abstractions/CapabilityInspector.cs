@@ -18,6 +18,8 @@ public static class CapabilityInspector
         if (session is IFileStorage) found |= ConnectorCapabilities.Files;
         if (session is IThumbnails) found |= ConnectorCapabilities.Thumbnails;
         if (session is ICustomCommands) found |= ConnectorCapabilities.CustomCommands;
+        if (session is IConsoleOutput) found |= ConnectorCapabilities.Console;
+        if (session is IConsoleInput) found |= ConnectorCapabilities.ConsoleCommands;
         return found;
     }
 

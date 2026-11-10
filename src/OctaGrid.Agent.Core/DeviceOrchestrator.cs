@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Events;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
@@ -22,6 +24,7 @@ public class DeviceOrchestrator : IAsyncDisposable
         Task ExecutionTask
     );
 
+    private readonly PrinterConsoleLog? _console;
     private readonly string _dataRoot;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DeviceOrchestrator> _logger;
@@ -31,13 +34,16 @@ public class DeviceOrchestrator : IAsyncDisposable
     private readonly ITelemetrySink _telemetry;
 
     /// <param name="stopTimeout">How long to wait for a session to end after it is told to stop. Defaults to ten seconds.</param>
+    /// <param name="console">Where the console output of sessions that report it is kept. Without it, that output is dropped.</param>
     public DeviceOrchestrator(
         ConnectorRegistry registry,
         ITelemetrySink telemetry,
         ILoggerFactory? loggerFactory = null,
         string? dataRoot = null,
-        TimeSpan? stopTimeout = null)
+        TimeSpan? stopTimeout = null,
+        PrinterConsoleLog? console = null)
     {
+        _console = console;
         _stopTimeout = stopTimeout ?? TimeSpan.FromSeconds(10);
         _registry = registry;
         _telemetry = telemetry;
@@ -135,6 +141,37 @@ public class DeviceOrchestrator : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Sends a command the user typed to the printer. The command is checked here again, whatever the client did, because
+    /// it is the one thing that reaches a printer unchanged. It is written to the console first, so what the printer
+    /// answers reads as a reply.
+    /// </summary>
+    /// <exception cref="ValidationException">The command is not one line of plain text, or the printer cannot take commands.</exception>
+    /// <exception cref="NotFoundException">The printer has no running session.</exception>
+    public async Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken)
+    {
+        if (!ConsoleCommandRules.TryNormalize(command, out var normalized, out var error))
+        {
+            throw new ValidationException("command", error!);
+        }
+
+        if (!_sessions.TryGetValue(deviceId, out var session))
+        {
+            throw new NotFoundException("The printer is not connected.");
+        }
+
+        if (session.Session is not IConsoleInput input)
+        {
+            throw new ValidationException("command", "This printer's connector cannot send commands.");
+        }
+
+        // Only the name of the command is logged: its arguments can hold a secret (a Wi-Fi password in M587, for example).
+        var commandName = normalized.Split(' ', 2)[0];
+        _logger.LogInformation("Sending console command {CommandName} to device {DeviceId}", commandName, deviceId);
+        _console?.Echo(deviceId, $"> {normalized}");
+        await input.SendCommandAsync(normalized, cancellationToken);
+    }
+
     public async Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
     {
         if (TryGetCapability<IPrintControl>(deviceId, $"start print job '{fileName}'", out var control))
@@ -226,6 +263,13 @@ public class DeviceOrchestrator : IAsyncDisposable
             Path.Combine(_dataRoot, connector.Descriptor.Id, profile.PrinterId.ToString("N")));
 
         var session = connector.CreateSession(profile, context);
+
+        // Before the session runs, so its first lines are not lost.
+        if (_console is not null && session is IConsoleOutput consoleOutput)
+        {
+            consoleOutput.SetConsoleSink(_console.CreateSink(profile.PrinterId));
+        }
+
         var cts = new CancellationTokenSource();
 
         var task = Task.Run(async () =>

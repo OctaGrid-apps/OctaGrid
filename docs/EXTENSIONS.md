@@ -156,7 +156,7 @@ most 10 per snapshot (the most serious), cuts long text, and ignores entries wit
 
 **You do not write a history.** OctaGrid compares each snapshot with the previous one and records an event when the state
 changes and when a condition appears, changes or goes away. A client that connects later, or is closed and reopened,
-asks for those events (the printer card's *Show history* button). The history is kept in memory, per printer, in a fixed
+asks for those events (the printer card's *Show events* button). The history is kept in memory, per printer, in a fixed
 size (the oldest events are dropped first), and it starts over when OctaGrid restarts. Repeats of the previous event are
 not recorded again, and a burst of information events is rate-limited; warnings and errors are never dropped by that limit.
 
@@ -164,7 +164,43 @@ While the state is `Offline`, a condition that is missing from a snapshot counts
 that cannot reach the printer cannot know that a problem went away. The "resolved" event is recorded once the printer
 reports again without it.
 
-Raw console output (for example G-code responses) is not state and does not belong in a snapshot.
+## Reporting the console
+
+Raw console output (for example G-code responses such as `ok` or a temperature report) is not state and does not belong in
+a snapshot. A connector that can read it implements `IConsoleOutput` and declares `ConnectorCapabilities.Console`. Before
+the session runs, OctaGrid calls `SetConsoleSink` with an `IConsoleSink`; write each line the printer reports to its
+`WriteLine`, from any thread. Printers of that connector then get a **Console** tab on their page, and printers of other
+connectors do not.
+
+You can pass on whatever the printer sends. OctaGrid splits text into lines, skips empty ones, replaces control
+characters, cuts very long lines and rate limits a printer that floods the console (it then records how many lines were
+skipped). It keeps the last 500 lines per printer in memory, and they are gone when OctaGrid restarts.
+
+`IConsoleOutput` is read-only: it does not let anyone send a command to the printer.
+
+### Taking commands
+
+A connector that can also run what the user types (a line of G-code, a Klipper macro) implements `IConsoleInput` and
+declares `ConnectorCapabilities.ConsoleCommands`, together with `Console` so the user sees the answer. The host calls
+`SendCommandAsync` with one command; return when the printer accepted it, and write what the printer answers to the
+console sink. When the printer rejects the command or cannot be reached, throw an exception whose message tells the
+user what went wrong (an `AppException` such as `ValidationException` for a rejected command).
+
+Sending a command can change or stop what the printer is doing, so OctaGrid is careful with it:
+
+- The command box appears only when the user turned on **Expert mode** in Settings (it asks first), and only for
+  connectors that declare `ConsoleCommands`.
+- A command is one line of plain text of at most 256 characters (`ConsoleCommandRules`). OctaGrid checks this where the
+  user types it and again before it reaches your connector, so you never get several lines, control characters or
+  Unicode line separators.
+- Expert mode is the user's confirmation that they know what they send, so commands are not confirmed one by one.
+- Commands can overlap. The box is emptied as soon as a command is on its way and OctaGrid does not wait for it to
+  finish before passing on the next, so an emergency stop (`M112`) can reach a printer that is still busy with a long
+  command. Your connector has to cope with a call while an earlier one is still running.
+- The command is shown in the console as `> command` before it is sent. Only its name (the first word) is written to the
+  application log, because the arguments can hold a secret such as a Wi-Fi password.
+
+## Not available yet
 
 ## Not available yet
 
@@ -176,7 +212,7 @@ Raw console output (for example G-code responses) is not state and does not belo
 
 `samples/OctaGrid.Extensions.Sample` is a connector for a simulated printer. It needs no hardware, so it is the quickest
 way to try installing, trusting and removing an extension. It also shows what a small connector looks like (settings,
-print control, files and a custom command).
+print control, files, a custom command and a console that takes commands).
 
 1. Build it:
    ```bash
@@ -189,7 +225,10 @@ print control, files and a custom command).
 3. Choose **Review…**, read the prompt and **Trust and turn on**. *Demo printer (simulated)* is now active.
 4. Add a printer (Printers > add) and pick *Demo printer (simulated)* as its connector. Set *Simulation speed* to **Fast**
    to see a whole print in seconds. Start a file such as `benchy.gcode`, then pause, resume or stop it. The *Say hello*
-   custom command answers with a message.
+   custom command answers with a message. Open the printer's page (the open icon on its card) and choose the **Console**
+   tab to see the lines the simulated printer writes. To send it commands, turn on **Expert mode** in Settings
+   (Settings > Advanced) and try `M105`, `M115` or `G28`; anything else is rejected, which shows how a refused command
+   looks.
 5. Choose **Remove** to take it out again. It is turned off at once and its folder is deleted at the next start.
 
 To see the other states, edit the installed copy of `octagrid-extension.json` (in `extensions/octagrid-samples.demo-printer/1.0.0/`)

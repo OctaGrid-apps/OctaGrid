@@ -105,10 +105,13 @@ Merge into App.axaml:
     <Thickness x:Key="Padding.Input">12,8</Thickness>
     <!--  Space3 / Space2  -->
     <Thickness x:Key="Padding.Chip">12,6</Thickness>
+    <Thickness x:Key="Padding.Tab">12,0</Thickness>
     <!--  Space3 / Space1_5  -->
     <Thickness x:Key="Padding.IconButton">4</Thickness>
     <!--  Space1  -->
     <Thickness x:Key="Padding.DividedSection">0,12,0,0</Thickness>
+    <!--  Space above a card that sits below another one (the same as Gap.CardGrid, which separates cards side by side)  -->
+    <Thickness x:Key="Margin.CardStack">0,20,0,0</Thickness>
     <!--  top padding under a divider  -->
     <Thickness x:Key="Padding.Tile">12</Thickness>
     <!--  Space3 · stat tiles inside a card  -->

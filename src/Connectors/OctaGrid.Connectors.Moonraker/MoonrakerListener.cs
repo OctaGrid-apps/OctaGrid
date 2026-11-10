@@ -9,6 +9,7 @@ namespace OctaGrid.Connectors.Moonraker;
 
 public class MoonrakerListener
 {
+    private readonly IConsoleSink? _console;
     private readonly Guid _deviceId;
     private readonly ILogger<MoonrakerListener> _logger;
     private readonly PrinterTelemetry _printerTelemetry;
@@ -18,10 +19,11 @@ public class MoonrakerListener
     private string? _webhooksMessage;
     private string? _webhooksState;
 
-    public MoonrakerListener(Guid deviceId, ITelemetrySink telemetry, ILogger<MoonrakerListener>? logger = null)
+    public MoonrakerListener(Guid deviceId, ITelemetrySink telemetry, ILogger<MoonrakerListener>? logger = null, IConsoleSink? console = null)
     {
         _deviceId = deviceId;
         _telemetry = telemetry;
+        _console = console;
         _logger = logger ?? NullLogger<MoonrakerListener>.Instance;
         _printerTelemetry = new PrinterTelemetry(_deviceId);
     }
@@ -58,8 +60,12 @@ public class MoonrakerListener
             return;
         }
 
-        // The G-code console (every "ok" and temperature echo) is a log, not printer state, so it is
-        // deliberately not forwarded; see the planned console capability.
+        // The G-code console (every "ok" and temperature echo) is a log, not printer state, so it goes to the console
+        // and never into telemetry. The host cleans it up and rate limits it.
+        if (payload.GetString() is { } text)
+        {
+            _console?.WriteLine(text);
+        }
     }
 
     [JsonRpcMethod("notify_klippy_disconnected")]

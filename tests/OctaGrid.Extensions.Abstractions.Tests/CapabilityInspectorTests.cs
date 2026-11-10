@@ -20,6 +20,11 @@ public class CapabilityInspectorTests
         Assert.Equal(ConnectorCapabilities.Files, CapabilityInspector.Detect(new FilesSession()));
         Assert.Equal(ConnectorCapabilities.Thumbnails, CapabilityInspector.Detect(new ThumbnailSession()));
         Assert.Equal(ConnectorCapabilities.CustomCommands, CapabilityInspector.Detect(new CommandSession()));
+        Assert.Equal(ConnectorCapabilities.Console, CapabilityInspector.Detect(new ConsoleSession()));
+        Assert.Equal(ConnectorCapabilities.ConsoleCommands, CapabilityInspector.Detect(new ConsoleInputSession()));
+        Assert.Equal(
+            ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands,
+            CapabilityInspector.Detect(new ConsoleAndInputSession()));
     }
 
     [Fact]
@@ -118,6 +123,25 @@ public class CapabilityInspectorTests
     {
         public Task<PrintThumbnail?> GetThumbnailAsync(string fileName, CancellationToken cancellationToken) =>
             Task.FromResult<PrintThumbnail?>(null);
+    }
+
+    private sealed class ConsoleSession : BareSession, IConsoleOutput
+    {
+        public void SetConsoleSink(IConsoleSink sink)
+        {
+        }
+    }
+
+    private class ConsoleInputSession : BareSession, IConsoleInput
+    {
+        public Task SendCommandAsync(string command, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class ConsoleAndInputSession : ConsoleInputSession, IConsoleOutput
+    {
+        public void SetConsoleSink(IConsoleSink sink)
+        {
+        }
     }
 
     private sealed class CommandSession : BareSession, ICustomCommands

@@ -73,7 +73,8 @@ public sealed class SampleExtensionTests : IDisposable
         Assert.Equal(ExtensionState.Loaded, running.State);
         Assert.Equal(ExtensionSource.UserFolder, running.Source);
         Assert.Equal(
-            ConnectorCapabilities.PrintControl | ConnectorCapabilities.Files | ConnectorCapabilities.CustomCommands,
+            ConnectorCapabilities.PrintControl | ConnectorCapabilities.Files | ConnectorCapabilities.CustomCommands
+                | ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands,
             running.Capabilities);
     }
 

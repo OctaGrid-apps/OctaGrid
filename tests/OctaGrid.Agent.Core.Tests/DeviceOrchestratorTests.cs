@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
@@ -56,6 +57,272 @@ public class DeviceOrchestratorTests
         public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>A session that reports a console and writes one line as soon as it runs.</summary>
+    private sealed class ConsoleSession : IPrinterSession, IConsoleOutput
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private IConsoleSink? _sink;
+
+        public bool SinkWasSetBeforeRun { get; private set; }
+
+        public Task Started => _started.Task;
+
+        public void SetConsoleSink(IConsoleSink sink) => _sink = sink;
+
+        public async Task RunAsync(ITelemetrySink telemetry, CancellationToken cancellationToken)
+        {
+            SinkWasSetBeforeRun = _sink is not null;
+            _sink?.WriteLine("hello from the printer");
+            _started.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+
+        public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ConnectionTestResult.Ok());
+
+        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task A_session_that_reports_a_console_gets_its_sink_before_it_runs_and_its_lines_are_kept()
+    {
+        var session = new ConsoleSession();
+        var log = new Events.PrinterConsoleLog();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
+        var profile = Profile();
+
+        await orchestrator.ApplyProfilesAsync([profile]);
+        await session.Started;
+
+        Assert.True(session.SinkWasSetBeforeRun);
+        Assert.Equal(["hello from the printer"], log.Get(profile.PrinterId, null, 10).Lines.Select(l => l.Text));
+        await orchestrator.DisposeAsync();
+    }
+
+    /// <summary>A session that takes commands and writes an answer to its console for each one.</summary>
+    private sealed class CommandSession : IPrinterSession, IConsoleOutput, IConsoleInput
+    {
+        private IConsoleSink? _sink;
+
+        public List<string> Received { get; } = [];
+
+        public Exception? Failure { get; set; }
+
+        public void SetConsoleSink(IConsoleSink sink) => _sink = sink;
+
+        public Task SendCommandAsync(string command, CancellationToken cancellationToken)
+        {
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
+            Received.Add(command);
+            _sink?.WriteLine("ok");
+            return Task.CompletedTask;
+        }
+
+        public Task RunAsync(ITelemetrySink telemetry, CancellationToken cancellationToken) =>
+            Task.Delay(Timeout.Infinite, cancellationToken);
+
+        public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ConnectionTestResult.Ok());
+
+        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private static async Task<(DeviceOrchestrator Orchestrator, CommandSession Session, Events.PrinterConsoleLog Log, Guid PrinterId)>
+        StartCommandSession()
+    {
+        var session = new CommandSession();
+        var log = new Events.PrinterConsoleLog();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+        return (orchestrator, session, log, profile.PrinterId);
+    }
+
+    [Fact]
+    public async Task A_command_is_shown_in_the_console_before_it_is_sent_and_the_answer_follows()
+    {
+        var (orchestrator, session, log, printerId) = await StartCommandSession();
+
+        await orchestrator.SendConsoleCommandAsync(printerId, "  M105  ", CancellationToken.None);
+
+        Assert.Equal(["M105"], session.Received);
+        Assert.Equal(["> M105", "ok"], log.Get(printerId, null, 10).Lines.Select(l => l.Text));
+        await orchestrator.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("M105\nM104 S0")]
+    [InlineData("M105\u0000")]
+    public async Task A_command_that_is_not_one_line_of_plain_text_never_reaches_the_printer(string command)
+    {
+        var (orchestrator, session, log, printerId) = await StartCommandSession();
+
+        await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(
+            () => orchestrator.SendConsoleCommandAsync(printerId, command, CancellationToken.None));
+
+        Assert.Empty(session.Received);
+        Assert.Empty(log.Get(printerId, null, 10).Lines);
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_command_that_is_too_long_never_reaches_the_printer()
+    {
+        var (orchestrator, session, _, printerId) = await StartCommandSession();
+
+        await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(() => orchestrator.SendConsoleCommandAsync(
+            printerId, new string('x', Protocol.Printers.ConsoleCommandRules.MaxLength + 1), CancellationToken.None));
+
+        Assert.Empty(session.Received);
+        await orchestrator.DisposeAsync();
+    }
+
+    /// <summary>Keeps everything that is logged, with its arguments, so a test can look for what must not be in it.</summary>
+    private sealed class CapturingLoggerFactory : ILoggerFactory
+    {
+        public List<string> Messages { get; } = [];
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(Messages);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CapturingLogger : ILogger
+        {
+            private readonly List<string> _messages;
+
+            public CapturingLogger(List<string> messages)
+            {
+                _messages = messages;
+            }
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+                _messages.Add(formatter(state, exception));
+        }
+    }
+
+    [Fact]
+    public async Task The_log_names_a_command_but_never_shows_its_arguments_which_can_hold_a_secret()
+    {
+        var session = new CommandSession();
+        var loggerFactory = new CapturingLoggerFactory();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(), loggerFactory,
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: new Events.PrinterConsoleLog());
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+
+        await orchestrator.SendConsoleCommandAsync(profile.PrinterId, "M587 S\"home\" P\"hunter2\"", CancellationToken.None);
+
+        Assert.Equal(["M587 S\"home\" P\"hunter2\""], session.Received);
+        Assert.Contains(loggerFactory.Messages, m => m.Contains("M587", StringComparison.Ordinal));
+        Assert.DoesNotContain(loggerFactory.Messages, m => m.Contains("hunter2", StringComparison.Ordinal));
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task The_echo_of_a_command_is_shown_even_while_the_printer_floods_the_console()
+    {
+        var session = new CommandSession();
+        var log = new Events.PrinterConsoleLog(options: new Events.PrinterConsoleLogOptions(Burst: 2, LinesPerSecond: 1));
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+        var sink = log.CreateSink(profile.PrinterId);
+        for (var i = 0; i < 10; i++)
+        {
+            sink.WriteLine($"spam {i}");
+        }
+
+        await orchestrator.SendConsoleCommandAsync(profile.PrinterId, "M112", CancellationToken.None);
+
+        Assert.Contains(log.Get(profile.PrinterId, null, 50).Lines, l => l.Text == "> M112");
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_printer_without_a_running_session_cannot_take_a_command()
+    {
+        var (orchestrator, _, _, _) = await StartCommandSession();
+
+        await Assert.ThrowsAsync<Protocol.Exceptions.NotFoundException>(
+            () => orchestrator.SendConsoleCommandAsync(Guid.NewGuid(), "M105", CancellationToken.None));
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_connector_that_cannot_take_commands_refuses_with_a_reason_the_user_can_read()
+    {
+        var session = new ConsoleSession();
+        var log = new Events.PrinterConsoleLog();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+
+        var error = await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(
+            () => orchestrator.SendConsoleCommandAsync(profile.PrinterId, "M105", CancellationToken.None));
+
+        Assert.Equal("This printer's connector cannot send commands.", error.Message);
+        Assert.DoesNotContain(log.Get(profile.PrinterId, null, 10).Lines, l => l.Text.StartsWith('>'));
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_printer_that_rejects_a_command_passes_the_reason_on()
+    {
+        var (orchestrator, session, _, printerId) = await StartCommandSession();
+        session.Failure = new Protocol.Exceptions.ValidationException("command", "Unknown command \"FOO\".");
+
+        var error = await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(
+            () => orchestrator.SendConsoleCommandAsync(printerId, "FOO", CancellationToken.None));
+
+        Assert.Equal("Unknown command \"FOO\".", error.Message);
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Console_output_is_dropped_when_the_host_keeps_no_console()
+    {
+        var session = new ConsoleSession();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
+
+        await orchestrator.ApplyProfilesAsync([Profile()]);
+        await session.Started;
+
+        Assert.False(session.SinkWasSetBeforeRun);
+        await orchestrator.DisposeAsync();
     }
 
     [Fact]
