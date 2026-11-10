@@ -59,6 +59,7 @@ Naming: step × 4 = px (`Space5` = 20). This keeps names stable even if a future
 | `Padding.ButtonSm` | 12,6 | "Open", inline actions |
 | `Padding.Input` | 12,8 | search and text inputs |
 | `Padding.Chip` | 12,6 | filter chips |
+| `Padding.Tab` | 12,0 | tab headers; their height is `MinHeight` = `Space10` (40), not vertical padding, which would push the text onto the selection pipe |
 | `Padding.IconButton` | 4 | "⋮" more-options button |
 | `Padding.DividedSection` | 0,12,0,0 | a section under a top hairline |
 | `Padding.Tile` | 12 | stat tiles inside a card (temperatures) |

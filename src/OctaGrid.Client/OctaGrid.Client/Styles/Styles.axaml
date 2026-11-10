@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 OctaGrid.Client — spacing style classes.
 Requires Spacing.axaml merged into Application.Resources.
 
@@ -271,6 +271,29 @@ DynamicResource is used on purpose: swapping the token dictionary at runtime
 
     <Style Selector="TextBlock.section-label">
         <Setter Property="Margin" Value="{DynamicResource Padding.SectionLabel}" />
+    </Style>
+
+    <!--
+        Tabs. The control theme gives every tab a 48px minimum height with the header centred, which leaves a wide gap
+        above the selection pipe at the bottom, so the minimum is lowered. The height has to come from MinHeight and not
+        from vertical padding: the template places the pipe at the bottom of the padded area, so padding would push the
+        text onto it. A hairline under each tab joins into one baseline, so the strip reads as navigation and not as
+        loose text, and the content sits one section gap below it.
+    -->
+    <Style Selector="TabControl">
+        <Setter Property="Padding" Value="{DynamicResource Padding.DividedSection}" />
+    </Style>
+
+    <Style Selector="TabItem">
+        <Setter Property="MinHeight" Value="{DynamicResource Space10}" />
+        <Setter Property="Padding" Value="{DynamicResource Padding.Tab}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusSm}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
+    <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource TileBackground}" />
     </Style>
 
 </Styles>

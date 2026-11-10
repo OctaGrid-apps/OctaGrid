@@ -43,6 +43,8 @@ Colour: `Brush.TextSecondary` (defined for both Light and Dark themes).
 | `overline` | 12 / 16 | SemiBold, +0.5 tracking, secondary colour | tiny label above a value (HOTEND, BED). Write it in capitals |
 | `metric` | 16 / 24 | SemiBold, tabular figures | a live number (temperatures) |
 
+`TabItem` headers are styled app-wide with the `lead` size and weight (they are not `TextBlock`s, so they take no class). Don't set a font size on a `TabItem` in a view.
+
 `display` and `metric` use tabular figures (`tnum`), so digits have equal width and a value that updates every second doesn't shift its neighbours.
 
 ### Modifiers

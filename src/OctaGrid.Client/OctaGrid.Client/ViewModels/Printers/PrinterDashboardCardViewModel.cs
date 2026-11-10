@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
+using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Protocol.Messaging;
 
@@ -32,6 +33,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         TimeProvider? timeProvider = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
+        TemperatureHistory = new TemperatureHistory(_timeProvider);
         Item = item;
         _agentCommands = agentCommands;
         _imageCache = imageCache;
@@ -44,6 +46,9 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     [ObservableProperty]
     public partial PrinterStatusWidget Item { get; private set; }
+
+    /// <summary>The recent temperatures, collected while the dashboard is open so the printer page opens with a history.</summary>
+    public TemperatureHistory TemperatureHistory { get; }
 
     private void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
     {
@@ -65,6 +70,12 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         if (message.Value.BedTargetTemperature.HasValue)
         {
             Item.BedTargetTemperature = message.Value.BedTargetTemperature.Value;
+        }
+
+        if (message.Value.NozzleTemperature.HasValue || message.Value.BedTemperature.HasValue)
+        {
+            TemperatureHistory.Add(
+                Item.NozzleTemperature, Item.NozzleTargetTemperature, Item.BedTemperature, Item.BedTargetTemperature);
         }
 
         ResolveStartedFileName(message.Value.State);
@@ -131,17 +142,24 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     }
 
     [RelayCommand]
-    private async Task ShowHistory()
+    private void OpenPage() => WeakReferenceMessenger.Default.Send(new OpenPrinterPageRequested(this));
+
+    /// <summary>The connector's display name, or its id while no connector with that id is loaded.</summary>
+    internal string ConnectorName =>
+        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))?.DisplayName
+        ?? Item.ConnectorId;
+
+    [RelayCommand]
+    private async Task ShowEvents()
     {
-        var history = new PrinterEventsViewModel(
-            Item.Id, Item.Name, _agentCommands, _loggerFactory.CreateLogger<PrinterEventsViewModel>());
-        await this.ShowOverlayDialogAsync($"{Item.Name} history", history);
+        var events = CreateEventsViewModel();
+        await this.ShowOverlayDialogAsync($"{Item.Name} events", events);
     }
 
     [RelayCommand]
     private async Task ShowPrinterFiles(CancellationToken cancellationToken)
     {
-        var dashboardViewModel = new FilePickerViewModel(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
+        var dashboardViewModel = CreateFilesViewModel();
         _ = dashboardViewModel.LoadDataCommand.ExecuteAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         var result = await this.ShowOverlayDialogAsync(null, dashboardViewModel);
@@ -169,7 +187,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             else if (Item.State is UniversalPrinterState.Idle or UniversalPrinterState.Completed
                      or UniversalPrinterState.Cancelled or UniversalPrinterState.Failed)
             {
-                var dashboardViewModel = new FilePickerViewModel(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
+                var dashboardViewModel = CreateFilesViewModel();
                 _ = dashboardViewModel.LoadDataCommand.ExecuteAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
                 var result = await this.ShowOverlayDialogAsync(null, dashboardViewModel);
@@ -178,16 +196,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
                     return;
                 }
 
-                _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
-                    result.FileName, Item.Id, Item.Name);
-                await _agentCommands.StartPrintJobAsync(Item.Id, result.FileName, cancellationToken);
-
-                // Printers report the file name late (often only once printing), so show the chosen one while preparing.
-                _previousFileName = Item.PrintFileName;
-                _startedFileName = result.FileName;
-                _startedAt = _timeProvider.GetUtcNow();
-                Item.PrintFileName = result.FileName;
-                _ = TryGetThumbnail();
+                await StartFileCoreAsync(result.FileName, cancellationToken);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -196,6 +205,43 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             throw;
         }
     }
+
+    /// <summary>Starts printing a file that is already on the printer. Used by the printer page's file list.</summary>
+    [RelayCommand]
+    private async Task StartFile(string fileName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await StartFileCoreAsync(fileName, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to start file '{FileName}' on printer {PrinterId} ('{PrinterName}')", fileName, Item.Id, Item.Name);
+            throw;
+        }
+    }
+
+    private async Task StartFileCoreAsync(string fileName, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
+            fileName, Item.Id, Item.Name);
+        await _agentCommands.StartPrintJobAsync(Item.Id, fileName, cancellationToken);
+
+        // Printers report the file name late (often only once printing), so show the chosen one while preparing.
+        _previousFileName = Item.PrintFileName;
+        _startedFileName = fileName;
+        _startedAt = _timeProvider.GetUtcNow();
+        Item.PrintFileName = fileName;
+        _ = TryGetThumbnail();
+    }
+
+    /// <summary>The history of this printer, for the dialog and for the printer page. Loads nothing until asked.</summary>
+    internal PrinterEventsViewModel CreateEventsViewModel() =>
+        new(Item.Id, Item.Name, _agentCommands, _loggerFactory.CreateLogger<PrinterEventsViewModel>());
+
+    /// <summary>The files on this printer, for the file dialog and for the printer page. Loads nothing until asked.</summary>
+    internal FilePickerViewModel CreateFilesViewModel() =>
+        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
 
     [RelayCommand]
     private async Task StopButtonClicked(CancellationToken cancellationToken)

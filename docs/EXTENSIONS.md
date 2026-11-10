@@ -156,7 +156,7 @@ most 10 per snapshot (the most serious), cuts long text, and ignores entries wit
 
 **You do not write a history.** OctaGrid compares each snapshot with the previous one and records an event when the state
 changes and when a condition appears, changes or goes away. A client that connects later, or is closed and reopened,
-asks for those events (the printer card's *Show history* button). The history is kept in memory, per printer, in a fixed
+asks for those events (the printer card's *Show events* button). The history is kept in memory, per printer, in a fixed
 size (the oldest events are dropped first), and it starts over when OctaGrid restarts. Repeats of the previous event are
 not recorded again, and a burst of information events is rate-limited; warnings and errors are never dropped by that limit.
 

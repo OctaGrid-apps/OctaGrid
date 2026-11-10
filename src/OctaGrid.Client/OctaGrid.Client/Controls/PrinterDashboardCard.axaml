@@ -204,10 +204,20 @@
                     <Button
                         MinWidth="{DynamicResource Space10}"
                         HorizontalContentAlignment="Center"
-                        AutomationProperties.Name="Show history"
+                        AutomationProperties.Name="Open printer page"
                         Classes="icon"
-                        Command="{Binding ShowHistoryCommand}"
-                        ToolTip.Tip="Show history">
+                        Command="{Binding OpenPageCommand}"
+                        ToolTip.Tip="Open printer page">
+                        <PathIcon Data="{StaticResource open-regular}" />
+                    </Button>
+
+                    <Button
+                        MinWidth="{DynamicResource Space10}"
+                        HorizontalContentAlignment="Center"
+                        AutomationProperties.Name="Show events"
+                        Classes="icon"
+                        Command="{Binding ShowEventsCommand}"
+                        ToolTip.Tip="Show events">
                         <PathIcon Data="{StaticResource text-bullet-list-square-clock-regular}" />
                     </Button>
 

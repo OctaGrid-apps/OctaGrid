@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 OctaGrid.Client — typography style classes (TextBlock).
 Requires Typography.axaml merged into Application.Resources.
 
@@ -99,6 +99,15 @@ Use ONE role class per TextBlock, then optional modifiers (secondary, mono):
         <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Lead}" />
         <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
         <Setter Property="FontFeatures" Value="tnum" />
+    </Style>
+
+    <!--
+        Tab headers are not TextBlocks, so the control theme's size (a heading-sized 28) is replaced here by the
+        "lead" role instead of in each view.
+    -->
+    <Style Selector="TabItem">
+        <Setter Property="FontSize" Value="{DynamicResource Font.Size.Lead}" />
+        <Setter Property="FontWeight" Value="{DynamicResource Font.Weight.SemiBold}" />
     </Style>
 
     <!--  ═══════════════ MODIFIERS ═══════════════  -->

@@ -5,6 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
+using Avalonia.VisualTree;
 using Avalonia.Media;
 using Avalonia.Metadata;
 
@@ -19,6 +21,16 @@ public class NavigationRail : TemplatedControl
 
     public static readonly StyledProperty<Control?> CurrentPageProperty =
             AvaloniaProperty.Register<NavigationRail, Control?>(nameof(CurrentPage));
+
+    /// <summary>
+    /// A page opened on top of <see cref="CurrentPage" />, for example a printer's page. The current page stays
+    /// alive underneath, so closing the detail brings back the page exactly as the user left it. It is cleared when an
+    /// item of the rail is chosen, including the one that is already selected.
+    /// </summary>
+    public static readonly StyledProperty<object?> DetailContentProperty =
+            AvaloniaProperty.Register<NavigationRail, object?>(
+                nameof(DetailContent),
+                defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
     public static readonly DirectProperty<NavigationRail, AvaloniaList<NavigationRailItem>> FooterItemsProperty =
             AvaloniaProperty.RegisterDirect<NavigationRail, AvaloniaList<NavigationRailItem>>(
@@ -89,6 +101,12 @@ public class NavigationRail : TemplatedControl
         private set => SetValue(CurrentPageProperty, value);
     }
 
+    public object? DetailContent
+    {
+        get => GetValue(DetailContentProperty);
+        set => SetValue(DetailContentProperty, value);
+    }
+
     public AvaloniaList<NavigationRailItem> FooterItems => _footerItems;
 
     /// <summary>
@@ -147,12 +165,16 @@ public class NavigationRail : TemplatedControl
 
         _topListBox?.SelectionChanged -= OnTopListSelectionChanged;
         _footerListBox?.SelectionChanged -= OnFooterListSelectionChanged;
+        _topListBox?.RemoveHandler(TappedEvent, OnItemTapped);
+        _footerListBox?.RemoveHandler(TappedEvent, OnItemTapped);
 
         _topListBox = e.NameScope.Find<ListBox>("PART_TopListBox");
         _footerListBox = e.NameScope.Find<ListBox>("PART_FooterListBox");
 
         _topListBox?.SelectionChanged += OnTopListSelectionChanged;
         _footerListBox?.SelectionChanged += OnFooterListSelectionChanged;
+        _topListBox?.AddHandler(TappedEvent, OnItemTapped);
+        _footerListBox?.AddHandler(TappedEvent, OnItemTapped);
 
         if (SelectedItem is null || (!Items.Contains(SelectedItem) && !FooterItems.Contains(SelectedItem)))
         {
@@ -177,8 +199,18 @@ public class NavigationRail : TemplatedControl
             var newItem = change.GetNewValue<NavigationRailItem?>();
             newItem?.PropertyChanged += OnSelectedItemPropertyChanged;
 
+            DetailContent = null;
             CurrentPage = newItem?.EnsurePage();
             SyncListBoxesWithSelectedItem(newItem);
+        }
+    }
+
+    // Choosing the item that is already selected raises no selection change, yet it must still leave the detail page.
+    private void OnItemTapped(object? sender, TappedEventArgs e)
+    {
+        if (DetailContent is not null && (e.Source as Visual)?.FindAncestorOfType<ListBoxItem>() is not null)
+        {
+            DetailContent = null;
         }
     }
 

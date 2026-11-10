@@ -52,6 +52,8 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         _logger = logger ?? NullLogger<MainViewModel>.Instance;
 
         WeakReferenceMessenger.Default.Register<WorkspaceEntityChanged>(this, HandleWorkspaceChanged);
+        WeakReferenceMessenger.Default.Register<OpenPrinterPageRequested>(this, (_, message) =>
+            PrinterPage = new PrinterPageViewModel(message.Card, () => PrinterPage = null));
 
         AppStateService.PropertyChanged += (s, e) =>
         {
@@ -75,6 +77,16 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 
     [ObservableProperty]
     public partial bool IsUpdateAvailable { get; set; }
+
+    /// <summary>
+    /// The printer page opened on top of the current navigation page, or null. Choosing an item in the rail
+    /// clears it, and the page's back button does too, so the page the user came from is shown again unchanged.
+    /// </summary>
+    [ObservableProperty]
+    public partial PrinterPageViewModel? PrinterPage { get; set; }
+
+    // The page closes by its back button or by choosing something in the rail; either way it must stop listening.
+    partial void OnPrinterPageChanged(PrinterPageViewModel? oldValue, PrinterPageViewModel? newValue) => oldValue?.Stop();
 
     /// <summary>The page shown under "Printers".</summary>
     public PrinterListViewModel PrintersPage { get; }

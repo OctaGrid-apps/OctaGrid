@@ -11,15 +11,15 @@
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     d:DesignHeight="450"
     d:DesignWidth="800"
-    Background="{DynamicResource AppWindowBackground}"
     services:DialogManager.Register="{Binding}"
     x:DataType="vm:MainViewModel"
+    Background="{DynamicResource AppWindowBackground}"
     mc:Ignorable="d">
     <Design.DataContext>
         <x:Static Member="designtime:DesignData.Main" />
     </Design.DataContext>
 
-    <controls:NavigationRail HideHeaderWhenSelected="True">
+    <controls:NavigationRail DetailContent="{Binding PrinterPage, Mode=TwoWay}" HideHeaderWhenSelected="True">
 
         <controls:NavigationRailItem
             Header="Dashboard"

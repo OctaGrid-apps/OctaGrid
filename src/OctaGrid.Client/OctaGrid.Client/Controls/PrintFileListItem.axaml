@@ -1,0 +1,54 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Controls.PrintFileListItem"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:OctaGrid.Client.Converters"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    x:DataType="vm:PrintMetadataListItem">
+    <Grid
+        Height="50"
+        ColumnDefinitions="Auto,*"
+        RowDefinitions="*,Auto">
+        <Border
+            Grid.RowSpan="2"
+            Width="{Binding $self.Bounds.Height}"
+            Margin="0,0,8,0"
+            Padding="0"
+            Background="{DynamicResource SystemAltMediumColor}"
+            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+            BorderThickness="1"
+            Classes="tile">
+
+            <Grid>
+                <PathIcon
+                    Width="24"
+                    Height="24"
+                    VerticalAlignment="Center"
+                    Data="{StaticResource cube-regular}"
+                    IsVisible="{Binding ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}" />
+
+                <Image
+                    IsVisible="{Binding !ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
+                    Source="{Binding ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}"
+                    Stretch="UniformToFill">
+                    <ToolTip.Tip>
+                        <Image Source="{Binding ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}" />
+                    </ToolTip.Tip>
+                </Image>
+            </Grid>
+        </Border>
+        <TextBlock
+            Grid.Column="1"
+            Classes="lead mono"
+            Text="{Binding Metadata.FileName}"
+            ToolTip.Tip="{Binding Metadata.FileName}" />
+        <TextBlock
+            Grid.Row="1"
+            Grid.Column="1"
+            Classes="small secondary">
+            <Run Text="{Binding Metadata.MaterialType}" />
+            •<Run Text="{Binding Metadata.NozzleDiameter}" />
+            •<Run Text="{Binding Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay}" />
+        </TextBlock>
+    </Grid>
+</UserControl>

@@ -1,4 +1,8 @@
 ﻿<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--  Chart series: readable on both the light and the dark theme.  -->
+    <SolidColorBrush x:Key="Chart.Hotend" Color="#F2784B" />
+    <SolidColorBrush x:Key="Chart.Bed" Color="#4C9AFF" />
+
     <SolidColorBrush x:Key="State.Default.Background" Color="#0B0D16" />
     <SolidColorBrush x:Key="State.Default.Foreground" Color="#b4bcc5" />
 
