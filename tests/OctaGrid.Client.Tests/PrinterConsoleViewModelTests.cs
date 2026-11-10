@@ -44,15 +44,21 @@ public class PrinterConsoleViewModelTests
 
         public Exception? SendFailure { get; set; }
 
-        public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken)
+        /// <summary>A command in here is accepted but does not finish until its gate is opened: a printer busy with it.</summary>
+        public Dictionary<string, TaskCompletionSource> Busy { get; } = [];
+
+        public async Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken)
         {
             if (SendFailure is not null)
             {
-                return Task.FromException(SendFailure);
+                throw SendFailure;
             }
 
             Sent.Add(command);
-            return Task.CompletedTask;
+            if (Busy.TryGetValue(command, out var gate))
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
         }
 
         public IReadOnlyList<ConnectorDescriptor> Connectors => [];
@@ -333,7 +339,6 @@ public class PrinterConsoleViewModelTests
         Assert.Equal(["M105"], commands.Sent);
         Assert.Equal(string.Empty, viewModel.CommandText);
         Assert.False(viewModel.HasSendError);
-        Assert.False(viewModel.IsSending);
     }
 
     [Fact]
@@ -373,7 +378,6 @@ public class PrinterConsoleViewModelTests
 
         Assert.Equal("Unknown command \"FOO\".", viewModel.SendError);
         Assert.Equal("FOO", viewModel.CommandText);
-        Assert.False(viewModel.IsSending);
     }
 
     [Fact]
@@ -406,27 +410,77 @@ public class PrinterConsoleViewModelTests
     }
 
     [Theory]
-    [InlineData("FIRMWARE_RESTART", "FIRMWARE_RESTART")]
-    [InlineData("restart", "RESTART")]
-    [InlineData("SAVE_CONFIG", "SAVE_CONFIG")]
-    [InlineData("M502", "M502")]
-    [InlineData("m997 now", "M997")]
-    public void Commands_that_can_interrupt_a_print_or_reset_the_printer_are_risky(string command, string name)
+    [InlineData("FIRMWARE_RESTART")]
+    [InlineData("RESTART")]
+    [InlineData("SAVE_CONFIG")]
+    [InlineData("M502")]
+    [InlineData("M112")]
+    public async Task Expert_mode_is_the_confirmation_so_no_command_is_held_back_for_a_question(string command)
     {
-        Assert.True(PrinterConsoleViewModel.IsRisky(command, out var found));
-        Assert.Equal(name, found);
+        var (viewModel, commands) = CreateWithCommandBox();
+        viewModel.CommandText = command;
+
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.Equal([command], commands.Sent);
     }
 
-    [Theory]
-    [InlineData("M105")]
-    [InlineData("G28")]
-    [InlineData("M112")]
-    [InlineData("EMERGENCY_STOP")]
-    [InlineData("RESTART_SOMETHING")]
-    [InlineData("M5020")]
-    public void Ordinary_commands_and_emergency_stops_are_not_held_back_for_a_question(string command)
+    [Fact]
+    public async Task An_emergency_stop_can_be_sent_while_a_long_command_is_still_running()
     {
-        Assert.False(PrinterConsoleViewModel.IsRisky(command, out _));
+        var (viewModel, commands) = CreateWithCommandBox();
+        var homing = new TaskCompletionSource();
+        commands.Busy["G28"] = homing;
+        viewModel.CommandText = "G28";
+
+        var first = viewModel.SendCommand.ExecuteAsync(null);
+
+        // The first command is still on its way, yet the box is free and the next command can go.
+        Assert.False(first.IsCompleted);
+        Assert.Equal(string.Empty, viewModel.CommandText);
+        viewModel.CommandText = "M112";
+        Assert.True(viewModel.SendCommand.CanExecute(null));
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.Equal(["G28", "M112"], commands.Sent);
+        Assert.False(first.IsCompleted);
+
+        homing.SetResult();
+        await first;
+    }
+
+    [Fact]
+    public async Task A_refused_command_is_given_back_only_when_the_user_has_not_started_something_else()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        var gate = new TaskCompletionSource();
+        commands.Busy["G28"] = gate;
+        viewModel.CommandText = "G28";
+        var pending = viewModel.SendCommand.ExecuteAsync(null);
+        viewModel.CommandText = "M105";
+
+        // The printer refuses G28 later, while M105 is already typed: it must not be overwritten.
+        gate.SetException(new Protocol.Exceptions.ValidationException("command", "refused"));
+        await pending;
+
+        Assert.Equal("refused", viewModel.SendError);
+        Assert.Equal("M105", viewModel.CommandText);
+    }
+
+    [Fact]
+    public async Task A_command_the_printer_refused_is_not_remembered_for_recall()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        viewModel.CommandText = "M105";
+        await viewModel.SendCommand.ExecuteAsync(null);
+        commands.SendFailure = new Protocol.Exceptions.ValidationException("command", "refused");
+        viewModel.CommandText = "M587 P\"secret\"";
+        await viewModel.SendCommand.ExecuteAsync(null);
+        viewModel.CommandText = string.Empty;
+
+        viewModel.RecallPreviousCommand.Execute(null);
+
+        Assert.Equal("M105", viewModel.CommandText);
     }
 
     [Fact]

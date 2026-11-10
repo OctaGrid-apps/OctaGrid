@@ -34,6 +34,9 @@ public class ConsoleCommandRulesTests
     [InlineData("M105\u0000")]
     [InlineData("M105\u001b[2J")]
     [InlineData("M105\tS1")]
+    [InlineData("M105\u2028M104 S0")]
+    [InlineData("M105\u2029M104 S0")]
+    [InlineData("M105\u0085M104 S0")]
     public void Several_lines_and_control_characters_are_refused(string input)
     {
         Assert.False(ConsoleCommandRules.TryNormalize(input, out var command, out var error));

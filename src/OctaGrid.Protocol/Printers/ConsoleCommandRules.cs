@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace OctaGrid.Protocol.Printers;
 
 /// <summary>
@@ -36,7 +38,7 @@ public static class ConsoleCommandRules
 
         foreach (var c in trimmed)
         {
-            if (char.IsControl(c))
+            if (IsLineBreakOrControl(c))
             {
                 error = "A command must be a single line of plain text.";
                 return false;
@@ -47,4 +49,12 @@ public static class ConsoleCommandRules
         error = null;
         return true;
     }
+
+    /// <summary>
+    /// True for a control character, and for the Unicode line and paragraph separators (U+2028, U+2029), which are not
+    /// control characters but still end a line for some software.
+    /// </summary>
+    public static bool IsLineBreakOrControl(char c) =>
+        char.IsControl(c)
+        || CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 }

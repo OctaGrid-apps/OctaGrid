@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
@@ -189,6 +190,81 @@ public class DeviceOrchestratorTests
             printerId, new string('x', Protocol.Printers.ConsoleCommandRules.MaxLength + 1), CancellationToken.None));
 
         Assert.Empty(session.Received);
+        await orchestrator.DisposeAsync();
+    }
+
+    /// <summary>Keeps everything that is logged, with its arguments, so a test can look for what must not be in it.</summary>
+    private sealed class CapturingLoggerFactory : ILoggerFactory
+    {
+        public List<string> Messages { get; } = [];
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(Messages);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CapturingLogger : ILogger
+        {
+            private readonly List<string> _messages;
+
+            public CapturingLogger(List<string> messages)
+            {
+                _messages = messages;
+            }
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+                _messages.Add(formatter(state, exception));
+        }
+    }
+
+    [Fact]
+    public async Task The_log_names_a_command_but_never_shows_its_arguments_which_can_hold_a_secret()
+    {
+        var session = new CommandSession();
+        var loggerFactory = new CapturingLoggerFactory();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(), loggerFactory,
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: new Events.PrinterConsoleLog());
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+
+        await orchestrator.SendConsoleCommandAsync(profile.PrinterId, "M587 S\"home\" P\"hunter2\"", CancellationToken.None);
+
+        Assert.Equal(["M587 S\"home\" P\"hunter2\""], session.Received);
+        Assert.Contains(loggerFactory.Messages, m => m.Contains("M587", StringComparison.Ordinal));
+        Assert.DoesNotContain(loggerFactory.Messages, m => m.Contains("hunter2", StringComparison.Ordinal));
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task The_echo_of_a_command_is_shown_even_while_the_printer_floods_the_console()
+    {
+        var session = new CommandSession();
+        var log = new Events.PrinterConsoleLog(options: new Events.PrinterConsoleLogOptions(Burst: 2, LinesPerSecond: 1));
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
+        var profile = Profile();
+        await orchestrator.ApplyProfilesAsync([profile]);
+        var sink = log.CreateSink(profile.PrinterId);
+        for (var i = 0; i < 10; i++)
+        {
+            sink.WriteLine($"spam {i}");
+        }
+
+        await orchestrator.SendConsoleCommandAsync(profile.PrinterId, "M112", CancellationToken.None);
+
+        Assert.Contains(log.Get(profile.PrinterId, null, 50).Lines, l => l.Text == "> M112");
         await orchestrator.DisposeAsync();
     }
 

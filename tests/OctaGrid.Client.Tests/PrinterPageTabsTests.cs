@@ -15,7 +15,7 @@ namespace OctaGrid.Client.Tests;
 public class PrinterPageTabsTests
 {
     /// <summary>Answers instantly and records what was asked, so a test can act without waiting.</summary>
-    private sealed class FakeCommands : IAgentCommandsService
+    internal sealed class FakeCommands : IAgentCommandsService
     {
         public List<PrintMetadata> Files { get; } = [];
 
@@ -55,8 +55,15 @@ public class PrinterPageTabsTests
             return Task.FromResult(new PrinterEventPage([], 0, false, Guid.NewGuid()));
         }
 
+        public Exception? StartFailure { get; set; }
+
         public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
         {
+            if (StartFailure is not null)
+            {
+                return Task.FromException(StartFailure);
+            }
+
             Started.Add(fileName);
             return Task.CompletedTask;
         }
@@ -84,14 +91,80 @@ public class PrinterPageTabsTests
 
     private const string ConnectorId = "acme.printer";
 
-    private static (PrinterPageViewModel Page, FakeCommands Commands, PrinterStatusWidget Item) Create(
-        ConnectorCapabilities capabilities = ConnectorCapabilities.None)
+    /// <summary>Keeps the errors that were shown to the user.</summary>
+    internal sealed class RecordingNotifications : INotificationService
+    {
+        public List<(string Title, string Message)> Errors { get; } = [];
+
+        public void Attach(Avalonia.Controls.TopLevel topLevel)
+        {
+        }
+
+        public void ShowError(string title, string message) => Errors.Add((title, message));
+
+        public void ShowInfo(string title, string message)
+        {
+        }
+
+        public void ShowSuccess(string title, string message)
+        {
+        }
+
+        public void ShowWarning(string title, string message)
+        {
+        }
+    }
+
+    internal static (PrinterPageViewModel Page, FakeCommands Commands, PrinterStatusWidget Item) Create(
+        ConnectorCapabilities capabilities = ConnectorCapabilities.None, INotificationService? notifications = null)
     {
         var commands = new FakeCommands();
         commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", capabilities, [], []));
         var item = new PrinterStatusWidget { Id = Guid.NewGuid(), Name = "Voron", State = UniversalPrinterState.Idle, ConnectorId = ConnectorId };
         var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache());
-        return (new PrinterPageViewModel(card, () => { }, new InMemorySettingsStore()), commands, item);
+        return (new PrinterPageViewModel(card, () => { }, new InMemorySettingsStore(), notifications), commands, item);
+    }
+
+    [Fact]
+    public async Task A_print_the_printer_refuses_is_reported_to_the_user_and_does_not_escape_from_the_button()
+    {
+        var notifications = new RecordingNotifications();
+        var (page, commands, _) = Create(notifications: notifications);
+        commands.Files.Add(File("benchy.gcode"));
+        commands.StartFailure = new ValidationException("print", "The printer is busy.");
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
+
+        Assert.Equal([("The print could not be started", "The printer is busy.")], notifications.Errors);
+        Assert.Equal((int)PrinterPageTab.Files, page.SelectedTabIndex);
+    }
+
+    [Fact]
+    public async Task A_print_that_fails_unexpectedly_shows_a_general_message_and_not_the_internal_one()
+    {
+        var notifications = new RecordingNotifications();
+        var (page, commands, _) = Create(notifications: notifications);
+        commands.Files.Add(File("benchy.gcode"));
+        commands.StartFailure = new InvalidOperationException("secret internal detail");
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
+
+        var error = Assert.Single(notifications.Errors);
+        Assert.Equal("The print could not be started", error.Title);
+        Assert.DoesNotContain("secret", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_print_that_fails_without_anyone_listening_still_does_not_escape()
+    {
+        var (page, commands, _) = Create();
+        commands.Files.Add(File("benchy.gcode"));
+        commands.StartFailure = new InvalidOperationException("boom");
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
     }
 
     private static PrintMetadata File(string name) => new(name, 1024, "PLA", 0.4, 600);

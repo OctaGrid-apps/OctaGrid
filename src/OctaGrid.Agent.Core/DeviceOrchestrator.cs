@@ -165,8 +165,10 @@ public class DeviceOrchestrator : IAsyncDisposable
             throw new ValidationException("command", "This printer's connector cannot send commands.");
         }
 
-        _logger.LogInformation("Sending console command to device {DeviceId}: {Command}", deviceId, normalized);
-        _console?.Write(deviceId, $"> {normalized}");
+        // Only the name of the command is logged: its arguments can hold a secret (a Wi-Fi password in M587, for example).
+        var commandName = normalized.Split(' ', 2)[0];
+        _logger.LogInformation("Sending console command {CommandName} to device {DeviceId}", commandName, deviceId);
+        _console?.Echo(deviceId, $"> {normalized}");
         await input.SendCommandAsync(normalized, cancellationToken);
     }
 

@@ -1,7 +1,8 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Controls.PrintFileListItem"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:conv="using:OctaGrid.Client.Converters"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     x:DataType="vm:PrintMetadataListItem">
@@ -9,34 +10,11 @@
         Height="50"
         ColumnDefinitions="Auto,*"
         RowDefinitions="*,Auto">
-        <Border
+        <controls:FileThumbnail
             Grid.RowSpan="2"
             Width="{Binding $self.Bounds.Height}"
             Margin="0,0,8,0"
-            Padding="0"
-            Background="{DynamicResource SystemAltMediumColor}"
-            BorderBrush="{DynamicResource SystemBaseMediumColor}"
-            BorderThickness="1"
-            Classes="tile">
-
-            <Grid>
-                <PathIcon
-                    Width="24"
-                    Height="24"
-                    VerticalAlignment="Center"
-                    Data="{StaticResource cube-regular}"
-                    IsVisible="{Binding ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}" />
-
-                <Image
-                    IsVisible="{Binding !ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
-                    Source="{Binding ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}"
-                    Stretch="UniformToFill">
-                    <ToolTip.Tip>
-                        <Image Source="{Binding ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}" />
-                    </ToolTip.Tip>
-                </Image>
-            </Grid>
-        </Border>
+            Data="{Binding ThumbnailData}" />
         <TextBlock
             Grid.Column="1"
             Classes="lead mono"

@@ -57,6 +57,11 @@ public interface IConsoleOutput
 /// sees what the printer answers. The host only calls it for a single line of plain text of reasonable length (see
 /// <c>ConsoleCommandRules</c>), after the user turned on Expert mode, and shows the command in the console before it is
 /// sent.
+/// <para>
+/// Commands can overlap: the host does not wait for one command to finish before it passes on the next, so that an
+/// emergency stop can reach the printer while it is still busy with a long command (homing, heating up). Your
+/// implementation has to cope with a call while an earlier one is still running.
+/// </para>
 /// </summary>
 public interface IConsoleInput
 {

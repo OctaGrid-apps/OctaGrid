@@ -2,6 +2,7 @@
     x:Class="OctaGrid.Client.Controls.PrinterFileRow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
     xmlns:conv="using:OctaGrid.Client.Converters"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     x:DataType="vm:PrinterFileRowViewModel">
@@ -14,27 +15,10 @@
         CornerRadius="{DynamicResource RadiusMd}">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource Gap.CardGrid}">
 
-            <Border
+            <controls:FileThumbnail
                 Width="{DynamicResource Space12}"
                 Height="{DynamicResource Space12}"
-                Padding="0"
-                Background="{DynamicResource TileBackground}"
-                BorderBrush="{DynamicResource CardBorderBrush}"
-                BorderThickness="1"
-                Classes="tile"
-                ClipToBounds="True">
-                <Grid>
-                    <PathIcon
-                        Width="24"
-                        Height="24"
-                        Data="{StaticResource cube-regular}"
-                        IsVisible="{Binding File.ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}" />
-                    <Image
-                        IsVisible="{Binding !File.ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
-                        Source="{Binding File.ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}"
-                        Stretch="UniformToFill" />
-                </Grid>
-            </Border>
+                Data="{Binding File.ThumbnailData}" />
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock

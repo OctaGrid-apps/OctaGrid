@@ -7,20 +7,23 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
 using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.ViewModels;
 
 /// <summary>
-/// The console of one printer: what it wrote, newest first, kept up to date while the page is open. Nothing is requested
-/// until <see cref="LoadCommand"/> runs, so a printer page costs nothing until its Console tab is shown.
+/// The console of one printer: what it wrote, newest first, kept up to date while the page is open. Loading, paging and
+/// live notices are in <see cref="LiveLogViewModel{TEntry, TItem}" />; nothing is requested until
+/// <see cref="LiveLogViewModel{TEntry, TItem}.LoadCommand" /> runs, so a printer page costs nothing until its Console tab
+/// is shown.
 /// <para>
 /// Reading is open to everyone. Sending a command can change or stop what the printer is doing, so the command box exists
 /// only when the printer's connector can take commands (<see cref="SupportsCommands"/>) and the user turned on Expert mode
 /// (<see cref="IsExpertMode"/>); together they make <see cref="CanSend"/>.
 /// </para>
 /// </summary>
-public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
+public partial class PrinterConsoleViewModel : LiveLogViewModel<ConsoleLine, ConsoleLineItem>
 {
     /// <summary>How many lines one request asks for.</summary>
     internal const int PageSize = 200;
@@ -31,44 +34,27 @@ public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
     /// <summary>How many sent commands are remembered for recalling with the arrow keys.</summary>
     internal const int MaxRemembered = 50;
 
-    // Bounds the catch-up after a long gap, so a flood cannot keep the loop running.
-    private const int MaxPagesPerLoad = 10;
-
-    // Commands that can interrupt a print or reset the printer's settings are confirmed one by one. Emergency stops (M112)
-    // are deliberately not on the list: they have to work at once.
-    private static readonly HashSet<string> RiskyCommands = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "FIRMWARE_RESTART", "RESTART", "SAVE_CONFIG", "M502", "M997",
-    };
-
     private readonly IAgentCommandsService _commands;
     private readonly List<string> _history = [];
-    private readonly CancellationTokenSource _lifetime = new();
     private readonly ILogger<PrinterConsoleViewModel> _logger;
-    private readonly Guid _printerId;
-    private bool _closed;
     private int _historyIndex;
-    private long? _lastSequence;
-    private bool _reloadRequested;
-    private Guid? _streamId;
 
     public PrinterConsoleViewModel(
         Guid printerId,
         IAgentCommandsService commands,
         ILogger<PrinterConsoleViewModel>? logger = null,
         bool supportsCommands = false)
+        : base(printerId, "console", PageSize, MaxShown, logger ?? NullLogger<PrinterConsoleViewModel>.Instance)
     {
-        _printerId = printerId;
         _commands = commands;
         _logger = logger ?? NullLogger<PrinterConsoleViewModel>.Instance;
         SupportsCommands = supportsCommands;
 
-        Lines.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
         WeakReferenceMessenger.Default.Register<PrinterConsoleData, Guid>(this, printerId, HandleRecorded);
     }
 
     /// <summary>Newest first, so what the printer just wrote is at the top and nobody has to scroll for it.</summary>
-    public ObservableCollection<ConsoleLineItem> Lines { get; } = [];
+    public ObservableCollection<ConsoleLineItem> Lines => Items;
 
     /// <summary>True when the printer's connector can take commands. Decided when the page opens.</summary>
     public bool SupportsCommands { get; }
@@ -94,58 +80,12 @@ public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     public partial string CommandText { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
-    public partial bool IsSending { get; set; }
-
     /// <summary>Why the last command was not sent or was refused by the printer; null when it went well.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSendError))]
     public partial string? SendError { get; set; }
 
     public bool HasSendError => !string.IsNullOrEmpty(SendError);
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasError))]
-    [NotifyPropertyChangedFor(nameof(IsEmpty))]
-    public partial string? ErrorMessage { get; set; }
-
-    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
-
-    /// <summary>True when the agent no longer has some older lines, so the console does not show everything.</summary>
-    [ObservableProperty]
-    public partial bool IsIncomplete { get; set; }
-
-    /// <summary>True once a load has finished successfully, so "nothing yet" is never shown before the answer is in.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEmpty))]
-    public partial bool IsLoaded { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEmpty))]
-    public partial bool IsLoading { get; set; }
-
-    /// <summary>The agent answered and the printer has not written anything yet (or the view was cleared).</summary>
-    public bool IsEmpty => IsLoaded && !IsLoading && !HasError && Lines.Count == 0;
-
-    /// <summary>Stops listening and cancels what is running. Called when the page that shows the console is closed.</summary>
-    internal void Stop()
-    {
-        _closed = true;
-        _lifetime.Cancel();
-        WeakReferenceMessenger.Default.Unregister<PrinterConsoleData, Guid>(this, _printerId);
-    }
-
-    /// <summary>
-    /// Empties the list on screen. The agent's log is not touched, and what was cleared does not come back: the next lines
-    /// are fetched after the last one that was shown.
-    /// </summary>
-    [RelayCommand]
-    private void Clear()
-    {
-        Lines.Clear();
-        IsIncomplete = false;
-    }
 
     /// <summary>
     /// The lines on screen as text to copy: one per line with its time, oldest first like a log file, although the list
@@ -154,17 +94,27 @@ public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
     public string GetTranscript() =>
         string.Join(Environment.NewLine, Lines.Reverse().Select(l => $"{l.TimeText} {l.Text}"));
 
-    /// <summary>Whether a command is risky enough to be confirmed before it is sent, and its name for the question.</summary>
-    internal static bool IsRisky(string command, out string name)
+    protected override ConsoleLineItem CreateItem(ConsoleLine entry) => new(entry);
+
+    protected override async Task<LogSlice<ConsoleLine>> FetchAsync(long? afterSequence, int limit, CancellationToken cancellationToken)
     {
-        name = command.Split(' ', 2)[0].ToUpperInvariant();
-        return RiskyCommands.Contains(name);
+        var page = await _commands.GetPrinterConsoleAsync(PrinterId, afterSequence, limit, cancellationToken);
+        return new LogSlice<ConsoleLine>(page.Lines, page.LatestSequence, page.Truncated, page.StreamId);
     }
 
-    private bool CanSendCommand() => CanSend && !IsSending && !string.IsNullOrWhiteSpace(CommandText);
+    protected override long SequenceOf(ConsoleLine entry) => entry.Sequence;
 
+    protected override void StopListening() =>
+        WeakReferenceMessenger.Default.Unregister<PrinterConsoleData, Guid>(this, PrinterId);
+
+    /// <summary>
+    /// Empties the list on screen. The agent's log is not touched, and what was cleared does not come back: the next lines
+    /// are fetched after the last one that was shown.
+    /// </summary>
     [RelayCommand]
-    private Task Load(CancellationToken cancellationToken) => LoadAsync(cancellationToken);
+    private void Clear() => ClearShown();
+
+    private bool CanSendCommand() => CanSend && !string.IsNullOrWhiteSpace(CommandText);
 
     /// <summary>Brings back the command sent before the one in the box, like the up arrow of a terminal.</summary>
     [RelayCommand]
@@ -196,11 +146,21 @@ public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
     }
 
     /// <summary>
-    /// Sends the command in the box. The rules are checked here and again by the agent; a risky command is confirmed first.
-    /// What the printer answers arrives as console lines, so nothing is shown for it here.
+    /// Sends the command in the box. The rules are checked here and again by the agent. What the printer answers arrives
+    /// as console lines, so nothing is shown for it here.
+    /// <para>
+    /// The command takes no cancellation token of its own on purpose: the toolkit cancels a command's earlier run when it
+    /// runs again, which would cancel the wait for the long command the moment the emergency stop is sent. What ends a
+    /// send is the console being closed (<see cref="LiveLogViewModel{TEntry, TItem}.Stop" />).
+    /// </para>
+    /// <para>
+    /// Commands may overlap on purpose. A printer can be busy with one command for minutes (homing, heating up), and the
+    /// box must stay free for the next one: an emergency stop cannot wait for the one before it. So the box is emptied as
+    /// soon as the command is on its way, and is given back to the user only if the printer then refuses it.
+    /// </para>
     /// </summary>
-    [RelayCommand(CanExecute = nameof(CanSendCommand))]
-    private async Task Send(CancellationToken cancellationToken)
+    [RelayCommand(CanExecute = nameof(CanSendCommand), AllowConcurrentExecutions = true)]
+    private async Task Send()
     {
         if (!ConsoleCommandRules.TryNormalize(CommandText, out var command, out var error))
         {
@@ -208,46 +168,38 @@ public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
-        if (IsRisky(command, out var name))
-        {
-            var confirm = new ConfirmViewModel(
-                $"{name} can interrupt a print or reset the printer's settings. Send it to the printer?", "Send");
-            if (await this.ShowOverlayDialogAsync("Send command", confirm) != true)
-            {
-                return;
-            }
-        }
-
-        // Expert mode may have been turned off while the question was open.
-        if (!CanSend)
-        {
-            return;
-        }
-
-        IsSending = true;
+        CommandText = string.Empty;
         SendError = null;
         try
         {
-            await _commands.SendConsoleCommandAsync(_printerId, command, cancellationToken);
+            await _commands.SendConsoleCommandAsync(PrinterId, command, LifetimeToken);
+
+            // Only what the printer accepted is remembered for recall: a command it refused (a typo, a wrong argument) would
+            // only come back to be refused again, and one with a secret in it has no reason to stay.
             Remember(command);
-            CommandText = string.Empty;
         }
         catch (OperationCanceledException)
         {
-            _logger.LogDebug("Sending a command to printer {PrinterId} was cancelled", _printerId);
+            _logger.LogDebug("Sending a command to printer {PrinterId} was cancelled", PrinterId);
         }
         catch (AppException ex)
         {
-            SendError = ex.Message;
+            Refused(command, ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send a command to printer {PrinterId}", _printerId);
-            SendError = "The command could not be sent.";
+            _logger.LogError(ex, "Failed to send a command to printer {PrinterId}", PrinterId);
+            Refused(command, "The command could not be sent.");
         }
-        finally
+    }
+
+    // The user gets the command back to fix it, unless they have already started typing something else.
+    private void Refused(string command, string reason)
+    {
+        SendError = reason;
+        if (string.IsNullOrEmpty(CommandText))
         {
-            IsSending = false;
+            CommandText = command;
         }
     }
 
@@ -265,136 +217,6 @@ public partial class PrinterConsoleViewModel : ViewModelBase, IDialogParticipant
         _historyIndex = _history.Count;
     }
 
-    // Not the command itself: starting a cancelable command again cancels its run in progress, which is the opposite of
-    // what a live line needs when it arrives during a load.
-    private async Task LoadAsync(CancellationToken cancellationToken)
-    {
-        if (IsLoading)
-        {
-            // A load is already running and may have missed what prompted this one.
-            _reloadRequested = true;
-            return;
-        }
-
-        IsLoading = true;
-        ErrorMessage = null;
-        try
-        {
-            do
-            {
-                _reloadRequested = false;
-                await FetchAsync(cancellationToken);
-            }
-            while (_reloadRequested);
-
-            IsLoaded = true;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogDebug("Loading the console of printer {PrinterId} was cancelled", _printerId);
-        }
-        catch (AppException ex)
-        {
-            ErrorMessage = ex.Message;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load the console of printer {PrinterId}", _printerId);
-            ErrorMessage = "The console could not be loaded.";
-        }
-        finally
-        {
-            IsLoading = false;
-        }
-    }
-
-    private async Task FetchAsync(CancellationToken cancellationToken)
-    {
-        for (var pages = 0; pages < MaxPagesPerLoad; pages++)
-        {
-            var page = await _commands.GetPrinterConsoleAsync(_printerId, _lastSequence, PageSize, cancellationToken);
-
-            if (_streamId is { } known && known != page.StreamId)
-            {
-                // The agent started a new log (it restarted): what is shown, and the cursor taken from it, no longer
-                // belong to it, even if its sequences have already passed ours.
-                _logger.LogInformation("The console log of printer {PrinterId} started over; reloading", _printerId);
-                Lines.Clear();
-                _lastSequence = null;
-                _streamId = null;
-                IsIncomplete = false;
-                continue;
-            }
-
-            _streamId = page.StreamId;
-            if (page.Truncated)
-            {
-                IsIncomplete = true;
-            }
-
-            foreach (var line in page.Lines)
-            {
-                Add(new ConsoleLineItem(line));
-            }
-
-            if (_lastSequence is null || _lastSequence >= page.LatestSequence)
-            {
-                return;
-            }
-        }
-    }
-
-    private void Add(ConsoleLineItem item)
-    {
-        // A live line can arrive while a load is running, so the same line may be offered twice.
-        if (item.Line.Sequence <= (_lastSequence ?? 0))
-        {
-            return;
-        }
-
-        Lines.Insert(0, item);
-        _lastSequence = item.Line.Sequence;
-
-        while (Lines.Count > MaxShown)
-        {
-            Lines.RemoveAt(Lines.Count - 1);
-            IsIncomplete = true;
-        }
-    }
-
-    private void HandleRecorded(object recipient, PrinterConsoleData message)
-    {
-        if (_closed)
-        {
-            return;
-        }
-
-        if (IsLoading)
-        {
-            // The running load may have fetched before this line existed; it fetches once more when it is done.
-            _reloadRequested = true;
-            return;
-        }
-
-        if (!IsLoaded)
-        {
-            return;
-        }
-
-        var notice = message.Value;
-        var sameStream = _streamId == notice.StreamId;
-        if (sameStream && notice.Line.Sequence <= (_lastSequence ?? 0))
-        {
-            return; // already shown
-        }
-
-        if (sameStream && notice.Line.Sequence == (_lastSequence ?? 0) + 1)
-        {
-            Add(new ConsoleLineItem(notice.Line));
-            return;
-        }
-
-        // Another log, or something in between was missed: ask the agent instead of guessing.
-        _ = LoadAsync(_lifetime.Token);
-    }
+    private void HandleRecorded(object recipient, PrinterConsoleData message) =>
+        HandleLive(message.Value.StreamId, message.Value.Line);
 }

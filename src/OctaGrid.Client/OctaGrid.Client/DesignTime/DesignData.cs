@@ -56,7 +56,8 @@ internal static class DesignData
             },
             AgentCommands, Images),
         () => { },
-        Settings);
+        Settings,
+        Notifications);
 
     public static PrinterListViewModel Printers => new(Client, Notifications, State, AgentCommands);
 

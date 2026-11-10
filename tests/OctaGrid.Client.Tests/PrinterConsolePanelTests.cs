@@ -27,6 +27,12 @@ public class PrinterConsolePanelTests
         return (window, panel, viewModel, scroller);
     }
 
+    private static void Resize(Window window, double width)
+    {
+        window.Width = width;
+        Dispatcher.UIThread.RunJobs();
+    }
+
     private static void AddLines(PrinterConsoleViewModel viewModel, int from, int to)
     {
         for (var i = from; i <= to; i++)
@@ -37,27 +43,6 @@ public class PrinterConsolePanelTests
         Dispatcher.UIThread.RunJobs();
     }
 
-
-    [Fact]
-    public async Task A_risky_command_is_not_sent_unless_the_user_confirms()
-    {
-        // Showing the question needs a window to put it in; the panel is not in one here, so the question cannot be
-        // answered, which counts as "no".
-        await HeadlessUi.Run(async () =>
-        {
-            var commands = new PrinterConsoleViewModelTests.FakeCommands();
-            var viewModel = new PrinterConsoleViewModel(Guid.NewGuid(), commands, supportsCommands: true)
-            {
-                IsExpertMode = true,
-                CommandText = "FIRMWARE_RESTART",
-            };
-
-            await Assert.ThrowsAnyAsync<Exception>(() => viewModel.SendCommand.ExecuteAsync(null));
-
-            Assert.Empty(commands.Sent);
-            Assert.Equal("FIRMWARE_RESTART", viewModel.CommandText);
-        });
-    }
 
     [Fact]
     public async Task The_copy_button_puts_the_lines_on_the_clipboard_and_the_lines_can_be_selected()
@@ -140,6 +125,23 @@ public class PrinterConsolePanelTests
     }
 
     [Fact]
+    public async Task A_full_console_makes_only_the_rows_in_view_and_not_all_of_them()
+    {
+        await HeadlessUi.Run(() =>
+        {
+            var (window, panel, viewModel, scroller) = Show();
+
+            AddLines(viewModel, 1, PrinterConsoleViewModel.MaxShown);
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+
+            var rows = panel.GetVisualDescendants().OfType<SelectableTextBlock>().Count();
+            Assert.InRange(rows, 1, PrinterConsoleViewModel.MaxShown / 4);
+            Assert.True(scroller.Extent.Height > scroller.Viewport.Height);
+            window.Close();
+        });
+    }
+
+    [Fact]
     public async Task The_newest_line_is_at_the_top_and_stays_in_view_while_the_user_is_at_the_top()
     {
         await HeadlessUi.Run(() =>
@@ -185,6 +187,55 @@ public class PrinterConsolePanelTests
             window.Close();
         });
     }
+
+    [Fact]
+    public async Task What_the_user_is_reading_does_not_move_when_lines_of_different_heights_are_added_above_it()
+    {
+        await HeadlessUi.Run(() =>
+        {
+            // A narrow window, so long lines wrap and the rows have different heights: the case where the size of the
+            // list is only an estimate.
+            var (window, panel, viewModel, scroller) = Show();
+            Resize(window, 320);
+            var list = panel.FindControl<ItemsControl>("LinesList")!;
+            for (var i = 1; i <= 300; i++)
+            {
+                viewModel.Lines.Insert(0, Line(i));
+            }
+
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+            scroller.Offset = new Avalonia.Vector(0, 1800);
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+
+            // The row at the top of what is in view, and how far below the top edge it is.
+            var anchor = list.GetRealizedContainers()
+                .Where(c => c.Bounds.Bottom > scroller.Offset.Y)
+                .OrderBy(c => c.Bounds.Y)
+                .First();
+            var anchorItem = anchor.DataContext;
+            var before = anchor.Bounds.Y - scroller.Offset.Y;
+
+            for (var i = 301; i <= 312; i++)
+            {
+                viewModel.Lines.Insert(0, Line(i));
+            }
+
+            // The correction runs after the rows were added; the rows it brings into view are made by the layout after it.
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+            window.UpdateLayout();
+
+            var moved = list.ContainerFromItem(anchorItem!);
+            Assert.NotNull(moved);
+            Assert.Equal(before, moved.Bounds.Y - scroller.Offset.Y, 2);
+            window.Close();
+        });
+    }
+
+    // Lines of very different lengths, so that some wrap in a narrow window and some do not.
+    private static ConsoleLineItem Line(int i) =>
+        new(new ConsoleLine(i, Start.AddSeconds(i), new string('w', 5 + (i * 37 % 160))));
 
     [Fact]
     public async Task A_panel_that_is_gone_no_longer_follows_the_lines()

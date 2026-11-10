@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Messaging;
+using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core.Events;
 
@@ -17,6 +18,9 @@ namespace OctaGrid.Agent.Core.Events;
 public sealed class PrinterConsoleLog
 {
     private const string Ellipsis = "…";
+
+    // Besides CR and LF, the separators that end a line in Unicode text (next line, line and paragraph separator).
+    private static readonly char[] LineBreaks = ['\r', '\n', '\u0085', '\u2028', '\u2029'];
 
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, Journal> _journals = [];
@@ -97,13 +101,25 @@ public sealed class PrinterConsoleLog
         }
     }
 
+    /// <summary>
+    /// Records a command the user sent, so it is shown before what the printer answers. It is not held to the rate limit:
+    /// that limit protects the log from a printer that floods it, and the user typing a command is not a flood. Without
+    /// this, an emergency stop sent while the printer spams the console would leave no trace of what was sent.
+    /// </summary>
+    internal void Echo(Guid printerId, string text) => Write(printerId, text, rateLimited: false);
+
     /// <summary>Records what a printer wrote. Several lines in one text become several entries.</summary>
-    internal void Write(Guid printerId, string? text)
+    internal void Write(Guid printerId, string? text, bool rateLimited = true)
     {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
+
+        // Extensions are not trusted, so the work is bounded before anything is done: text beyond what one write may carry is
+        // never looked at, however much was handed over, and is only counted as skipped.
+        var truncated = text.Length > Options.MaxWriteLength;
+        var accepted = truncated ? text[..Options.MaxWriteLength] : text;
 
         var recorded = new List<ConsoleLine>();
         Guid streamId;
@@ -111,25 +127,45 @@ public sealed class PrinterConsoleLog
         {
             var journal = GetJournal(printerId);
             streamId = journal.StreamId;
-            foreach (var line in Split(text))
+            foreach (var raw in accepted.Split(LineBreaks, StringSplitOptions.RemoveEmptyEntries))
             {
-                Append(journal, line, recorded);
+                Append(journal, raw, recorded, rateLimited);
+            }
+
+            if (truncated)
+            {
+                journal.Skipped++;
             }
         }
 
         Raise(printerId, streamId, recorded);
     }
 
-    private static string Clean(string raw)
+    // The text of one line as it is kept, or null when nothing is left of it: control characters, line separators and
+    // escapes mean nothing in a list, and a line is cut to its limit.
+    private string? Prepare(string raw)
     {
-        var builder = new StringBuilder(raw.Length);
+        var limit = Options.MaxLineLength;
+        var builder = new StringBuilder(Math.Min(raw.Length, limit + 1));
         foreach (var c in raw)
         {
-            // Terminal escapes and other control characters mean nothing in a list; a tab is kept as a space.
-            builder.Append(char.IsControl(c) ? ' ' : c);
+            builder.Append(ConsoleCommandRules.IsLineBreakOrControl(c) ? ' ' : c);
+            if (builder.Length > limit)
+            {
+                break;
+            }
         }
 
-        return builder.ToString().TrimEnd();
+        // Whether the line is too long is decided before trailing spaces are trimmed: trimming first could bring a line that
+        // was cut back under the limit, and it would be kept cut off with nothing to say so.
+        if (builder.Length > limit)
+        {
+            var kept = builder.ToString(0, limit - Ellipsis.Length).TrimEnd();
+            return kept.Length == 0 ? null : kept + Ellipsis;
+        }
+
+        var line = builder.ToString().TrimEnd();
+        return line.Length == 0 ? null : line;
     }
 
     // Callers hold the lock.
@@ -146,19 +182,29 @@ public sealed class PrinterConsoleLog
     }
 
     // Callers hold the lock.
-    private void Append(Journal journal, string text, List<ConsoleLine> recorded)
+    private void Append(Journal journal, string raw, List<ConsoleLine> recorded, bool rateLimited)
     {
         var now = _timeProvider.GetUtcNow();
         journal.Tokens = Math.Min(Options.Burst, journal.Tokens + (now - journal.RefilledAt).TotalSeconds * Options.LinesPerSecond);
         journal.RefilledAt = now;
 
-        if (journal.Tokens < 1)
+        // Checked before the line is cleaned: a line that is going to be skipped costs nothing but the count.
+        if (rateLimited && journal.Tokens < 1)
         {
             journal.Skipped++;
             return;
         }
 
-        journal.Tokens--;
+        if (Prepare(raw) is not { } text)
+        {
+            return;
+        }
+
+        if (rateLimited)
+        {
+            journal.Tokens--;
+        }
+
         if (journal.Skipped > 0)
         {
             // Said once the flood is over, so the reader knows the list has a hole and how big it is.
@@ -201,23 +247,6 @@ public sealed class PrinterConsoleLog
                     _logger.LogError(ex, "A handler of console line {Sequence} for printer {PrinterId} failed", line.Sequence, printerId);
                 }
             }
-        }
-    }
-
-    // Extensions are not trusted: whatever a printer or connector sends is cut into clean, bounded lines here.
-    private IEnumerable<string> Split(string text)
-    {
-        foreach (var raw in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var line = Clean(raw);
-            if (line.Length == 0)
-            {
-                continue;
-            }
-
-            yield return line.Length > Options.MaxLineLength
-                ? string.Concat(line.AsSpan(0, Options.MaxLineLength - Ellipsis.Length), Ellipsis)
-                : line;
         }
     }
 

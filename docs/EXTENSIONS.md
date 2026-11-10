@@ -191,10 +191,14 @@ Sending a command can change or stop what the printer is doing, so OctaGrid is c
 - The command box appears only when the user turned on **Expert mode** in Settings (it asks first), and only for
   connectors that declare `ConsoleCommands`.
 - A command is one line of plain text of at most 256 characters (`ConsoleCommandRules`). OctaGrid checks this where the
-  user types it and again before it reaches your connector, so you never get several lines or control characters.
-- A few commands that can interrupt a print or reset settings (such as `FIRMWARE_RESTART` and `SAVE_CONFIG`) are
-  confirmed one by one. An emergency stop (`M112`) is not, because it has to work at once.
-- The command is shown in the console as `> command` before it is sent, and written to the application log.
+  user types it and again before it reaches your connector, so you never get several lines, control characters or
+  Unicode line separators.
+- Expert mode is the user's confirmation that they know what they send, so commands are not confirmed one by one.
+- Commands can overlap. The box is emptied as soon as a command is on its way and OctaGrid does not wait for it to
+  finish before passing on the next, so an emergency stop (`M112`) can reach a printer that is still busy with a long
+  command. Your connector has to cope with a call while an earlier one is still running.
+- The command is shown in the console as `> command` before it is sent. Only its name (the first word) is written to the
+  application log, because the arguments can hold a secret such as a Wi-Fi password.
 
 ## Not available yet
 

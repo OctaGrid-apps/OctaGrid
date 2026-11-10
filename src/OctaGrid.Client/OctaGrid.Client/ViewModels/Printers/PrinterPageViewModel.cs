@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Exceptions;
 
 namespace OctaGrid.Client.ViewModels;
 
@@ -26,16 +27,22 @@ public enum PrinterPageTab
 public partial class PrinterPageViewModel : ViewModelBase
 {
     private readonly IAppSettingsStore _appSettings;
+    private readonly INotificationService? _notifications;
     private readonly Action _close;
     private bool _consoleRequested;
     private bool _eventsRequested;
     private bool _stopped;
 
-    public PrinterPageViewModel(PrinterDashboardCardViewModel card, Action close, IAppSettingsStore appSettings)
+    public PrinterPageViewModel(
+        PrinterDashboardCardViewModel card,
+        Action close,
+        IAppSettingsStore appSettings,
+        INotificationService? notifications = null)
     {
         Card = card;
         _close = close;
         _appSettings = appSettings;
+        _notifications = notifications;
         Files = card.CreateFilesViewModel();
         PrinterEvents = card.CreateEventsViewModel();
         PrinterConsole = card.CreateConsoleViewModel();
@@ -118,16 +125,50 @@ public partial class PrinterPageViewModel : ViewModelBase
     [RelayCommand]
     private void GoBack() => _close();
 
+    // The card's command and the file list log what goes wrong before they rethrow, so a failure is only reported here:
+    // a row's button must show the user what happened, and must not let the error escape from the click.
     private async Task PrintFileAsync(PrintMetadataListItem file, CancellationToken cancellationToken)
     {
-        await Card.StartFileCommand.ExecuteAsync(file.Metadata.FileName);
+        try
+        {
+            await Card.StartFileCommand.ExecuteAsync(file.Metadata.FileName);
 
-        // The job is what the user wants to see next.
-        SelectedTabIndex = (int)PrinterPageTab.Overview;
+            // The job is what the user wants to see next.
+            SelectedTabIndex = (int)PrinterPageTab.Overview;
+        }
+        catch (OperationCanceledException)
+        {
+            // Nothing to report: the user or the page ended it.
+        }
+        catch (AppException ex)
+        {
+            _notifications?.ShowError("The print could not be started", ex.Message);
+        }
+        catch (Exception)
+        {
+            _notifications?.ShowError("The print could not be started", "Something went wrong. Check the printer and try again.");
+        }
     }
 
-    private Task DeleteFileAsync(PrintMetadataListItem file, CancellationToken cancellationToken) =>
-        Files.DeleteItemAsync(file, cancellationToken);
+    private async Task DeleteFileAsync(PrintMetadataListItem file, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Files.DeleteItemAsync(file, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Nothing to report.
+        }
+        catch (AppException ex)
+        {
+            _notifications?.ShowError("The file could not be deleted", ex.Message);
+        }
+        catch (Exception)
+        {
+            _notifications?.ShowError("The file could not be deleted", "Something went wrong. Check the printer and try again.");
+        }
+    }
 
     // Expert mode can be turned off while the page is open (in Settings, or in another window); the command box follows.
     private void OnSettingsChanged(object? sender, ClientSettings settings) =>

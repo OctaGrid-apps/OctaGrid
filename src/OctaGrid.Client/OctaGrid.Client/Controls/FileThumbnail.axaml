@@ -1,0 +1,33 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Controls.FileThumbnail"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    x:Name="Root"
+    x:DataType="controls:FileThumbnail">
+    <!--  The picture of a print file in a tile, or a cube while there is none. The size is up to whoever places it.  -->
+    <Border
+        Padding="0"
+        Background="{DynamicResource TileBackground}"
+        BorderBrush="{DynamicResource CardBorderBrush}"
+        BorderThickness="1"
+        Classes="tile"
+        ClipToBounds="True">
+        <Grid>
+            <PathIcon
+                Width="24"
+                Height="24"
+                VerticalAlignment="Center"
+                Data="{StaticResource cube-regular}"
+                IsVisible="{Binding !HasImage, ElementName=Root}" />
+            <Image
+                IsVisible="{Binding HasImage, ElementName=Root}"
+                Source="{Binding Picture, ElementName=Root}"
+                Stretch="UniformToFill">
+                <ToolTip.Tip>
+                    <Image Source="{Binding Picture, ElementName=Root}" />
+                </ToolTip.Tip>
+            </Image>
+        </Grid>
+    </Border>
+</UserControl>

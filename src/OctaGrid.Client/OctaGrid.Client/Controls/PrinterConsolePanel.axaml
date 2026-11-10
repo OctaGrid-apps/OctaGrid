@@ -3,9 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:printers="using:OctaGrid.Protocol.Printers"
-    xmlns:services="using:OctaGrid.Client.Services"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
-    services:DialogManager.Register="{Binding}"
     x:DataType="vm:PrinterConsoleViewModel">
     <StackPanel Spacing="{DynamicResource Gap.CardContent}">
         <Grid ColumnDefinitions="*,Auto">
@@ -50,7 +48,6 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Gap.CardContent}">
                 <TextBox
                     AutomationProperties.Name="Command to send to the printer"
-                    IsEnabled="{Binding !IsSending}"
                     MaxLength="{x:Static printers:ConsoleCommandRules.MaxLength}"
                     PlaceholderText="Send a G-code command, for example M105"
                     Text="{Binding CommandText, Mode=TwoWay}">
@@ -95,26 +92,38 @@
             Height="400"
             Background="{DynamicResource TileBackground}"
             Classes="tile">
-            <ScrollViewer
-                x:Name="LinesScroller"
-                HorizontalScrollBarVisibility="Auto"
-                VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Lines}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ConsoleLineItem">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource Gap.IconLabel}">
-                                <TextBlock Classes="caption mono secondary" Text="{Binding TimeText}" />
-                                <!--  Selectable, so a line or a part of it can be copied with Ctrl+C  -->
-                                <SelectableTextBlock
-                                    Grid.Column="1"
-                                    Classes="caption mono"
-                                    Text="{Binding Text}"
-                                    TextWrapping="Wrap" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+            <!--
+                Virtualized: only the rows in view are made, so a console that is full (500 lines) and busy costs the same as an
+                empty one. An ItemsControl has no ScrollViewer of its own, and a virtualizing panel needs the one that scrolls
+                it to be part of the control, so the template puts it there.
+            -->
+            <ItemsControl x:Name="LinesList" ItemsSource="{Binding Lines}">
+                <ItemsControl.Template>
+                    <ControlTemplate>
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter ItemsPanel="{TemplateBinding ItemsPanel}" />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ConsoleLineItem">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource Gap.IconLabel}">
+                            <TextBlock Classes="caption mono secondary" Text="{Binding TimeText}" />
+                            <!--  Selectable, so a line or a part of it can be copied with Ctrl+C  -->
+                            <SelectableTextBlock
+                                Grid.Column="1"
+                                Classes="caption mono"
+                                Text="{Binding Text}"
+                                TextWrapping="Wrap" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </Border>
 
         <!--  Newest lines are at the top, so the lines that are no longer kept are the ones below the list  -->

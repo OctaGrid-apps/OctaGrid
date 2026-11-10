@@ -41,7 +41,7 @@ public class TemperatureChart : Control
     // Moves the "now" edge of the time axis while no new readings arrive; runs only while the chart is on screen.
     private readonly DispatcherTimer _clock;
     private bool _isAttached;
-    private bool _redrawQueued;
+    private int _redrawQueued;
 
     public TemperatureChart()
     {
@@ -258,18 +258,18 @@ public class TemperatureChart : Control
         LabelSize,
         TextBrush);
 
-    // Readings can arrive on any thread; redraw once per burst on the UI thread.
+    // Readings can arrive on any thread; redraw once per burst on the UI thread. The flag is shared between those threads
+    // and the UI thread, so it is only ever changed atomically.
     private void OnSourceChanged(object? sender, EventArgs e)
     {
-        if (_redrawQueued)
+        if (Interlocked.Exchange(ref _redrawQueued, 1) == 1)
         {
             return;
         }
 
-        _redrawQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
-            _redrawQueued = false;
+            Interlocked.Exchange(ref _redrawQueued, 0);
             InvalidateVisual();
         });
     }

@@ -59,6 +59,16 @@ public class PrinterConsoleLogTests
     }
 
     [Fact]
+    public void Unicode_line_and_paragraph_separators_end_a_line_like_a_line_feed()
+    {
+        var (log, _, printer) = Create();
+
+        log.CreateSink(printer).WriteLine("one\u2028two\u2029three\u0085four");
+
+        Assert.Equal(["one", "two", "three", "four"], log.Get(printer, null, 10).Lines.Select(l => l.Text));
+    }
+
+    [Fact]
     public void Control_characters_are_replaced_and_trailing_space_is_trimmed()
     {
         var (log, _, printer) = Create();
@@ -91,6 +101,81 @@ public class PrinterConsoleLogTests
         var text = Assert.Single(log.Get(printer, null, 10).Lines).Text;
         Assert.Equal(20, text.Length);
         Assert.EndsWith("…", text);
+    }
+
+    [Fact]
+    public void A_huge_write_is_bounded_before_it_is_processed_and_the_gap_is_reported_later()
+    {
+        var (log, time, printer) = Create();
+        var sink = log.CreateSink(printer);
+        var huge = string.Concat(Enumerable.Repeat("x\n", 2_500_000));
+
+        sink.WriteLine(huge);
+
+        // Only the burst got into the log, however many lines were handed over.
+        Assert.Equal(200, log.Get(printer, null, 500).Lines.Count);
+
+        time.Advance(TimeSpan.FromSeconds(10));
+        sink.WriteLine("after");
+        var marker = log.Get(printer, null, 500).Lines.Single(l => l.Text.Contains("skipped", StringComparison.Ordinal)).Text;
+        var skipped = int.Parse(marker.Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture);
+
+        // What was counted is what fits in one write, not what was handed over.
+        Assert.InRange(skipped, 1, new PrinterConsoleLogOptions().MaxWriteLength);
+    }
+
+    [Fact]
+    public void Text_beyond_what_one_write_may_carry_is_not_looked_at_and_is_reported_as_skipped()
+    {
+        var (log, time, printer) = Create(new PrinterConsoleLogOptions(MaxWriteLength: 10));
+        var sink = log.CreateSink(printer);
+
+        sink.WriteLine("aaaa\nbbbb\ncccc\ndddd");
+        time.Advance(TimeSpan.FromSeconds(1));
+        sink.WriteLine("after");
+
+        Assert.Equal(["aaaa", "bbbb", "… 1 lines skipped", "after"], log.Get(printer, null, 10).Lines.Select(l => l.Text));
+    }
+
+    [Fact]
+    public void One_enormous_line_is_cut_without_being_copied_whole()
+    {
+        var (log, _, printer) = Create();
+
+        log.CreateSink(printer).WriteLine(new string('y', 50_000_000));
+
+        var line = Assert.Single(log.Get(printer, null, 10).Lines);
+        Assert.Equal(new PrinterConsoleLogOptions().MaxLineLength, line.Text.Length);
+        Assert.EndsWith("…", line.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_line_cut_at_the_limit_keeps_its_ellipsis_even_when_spaces_come_right_after_the_cut()
+    {
+        var (log, _, printer) = Create();
+        var limit = new PrinterConsoleLogOptions().MaxLineLength;
+
+        // Spaces start exactly where the limit falls, so trimming them would make the cut line look complete.
+        log.CreateSink(printer).WriteLine(new string('x', limit - 1) + new string(' ', 5) + "tail");
+
+        var text = Assert.Single(log.Get(printer, null, 10).Lines).Text;
+        Assert.EndsWith("…", text, StringComparison.Ordinal);
+        Assert.True(text.Length <= limit);
+    }
+
+    [Fact]
+    public void An_echo_is_recorded_even_when_the_rate_limit_has_no_room_left()
+    {
+        var (log, _, printer) = Create(new PrinterConsoleLogOptions(Burst: 2, LinesPerSecond: 1));
+        var sink = log.CreateSink(printer);
+        for (var i = 0; i < 5; i++)
+        {
+            sink.WriteLine($"spam {i}");
+        }
+
+        log.Echo(printer, "> M112");
+
+        Assert.Contains(log.Get(printer, null, 20).Lines, l => l.Text == "> M112");
     }
 
     [Fact]

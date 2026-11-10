@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Controls;
@@ -20,6 +21,8 @@ public partial class PrinterConsolePanel : UserControl
 
     private bool _isAttached;
     private bool _anchorPending;
+    private object? _anchorItem;
+    private double _anchorFromTop;
     private double _anchorExtent;
     private double _anchorOffset;
     private PrinterConsoleViewModel? _viewModel;
@@ -81,27 +84,65 @@ public partial class PrinterConsolePanel : UserControl
             return;
         }
 
-        var scroller = this.FindControl<ScrollViewer>("LinesScroller");
-        if (scroller is null || scroller.Offset.Y <= TopTolerance)
+        var list = this.FindControl<ItemsControl>("LinesList");
+        var scroller = list?.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (list is null || scroller is null || scroller.Offset.Y <= TopTolerance)
         {
             // At the top the newest line is simply in view, however many arrive.
             return;
         }
 
-        // Several lines can arrive before the next layout. They are measured against the same starting point, so the view
-        // moves by exactly what was added in total.
+        // Several lines can arrive before the next layout; the place to keep is taken once, before any of them is laid out.
         if (!_anchorPending)
         {
             _anchorPending = true;
-            _anchorExtent = scroller.Extent.Height;
-            _anchorOffset = scroller.Offset.Y;
-            Dispatcher.UIThread.Post(() => KeepPlace(scroller), DispatcherPriority.Background);
+            CaptureAnchor(list, scroller);
+            Dispatcher.UIThread.Post(() => KeepPlace(list, scroller), DispatcherPriority.Background);
         }
     }
 
-    private void KeepPlace(ScrollViewer scroller)
+    // Remembers which row is at the top of what the user sees and how far below the top edge it is. The row is what has to
+    // stay where it is: the size of a virtualized list is an estimate (rows that are not made yet count as an average
+    // row, and wrapped rows differ in height), so how much the list grew says little about how far the row moved.
+    private void CaptureAnchor(ItemsControl list, ScrollViewer scroller)
+    {
+        _anchorExtent = scroller.Extent.Height;
+        _anchorOffset = scroller.Offset.Y;
+
+        var top = list.GetRealizedContainers()
+            .Where(c => c.Bounds.Bottom > scroller.Offset.Y)
+            .OrderBy(c => c.Bounds.Y)
+            .FirstOrDefault();
+        _anchorItem = top?.DataContext;
+        _anchorFromTop = top is null ? 0 : top.Bounds.Y - scroller.Offset.Y;
+    }
+
+    private void KeepPlace(ItemsControl list, ScrollViewer scroller)
     {
         _anchorPending = false;
+        var anchorItem = _anchorItem;
+        _anchorItem = null;
+
+        if (anchorItem is not null)
+        {
+            // Lines added above can push the row far out of the part that is in view, where it is no longer made and
+            // where the size of the list is only an estimate. Bringing it into view makes it, and measures it.
+            var row = list.ContainerFromItem(anchorItem);
+            if (row is null)
+            {
+                list.ScrollIntoView(anchorItem);
+                row = list.ContainerFromItem(anchorItem);
+            }
+
+            if (row is not null)
+            {
+                scroller.Offset = new Vector(scroller.Offset.X, row.Bounds.Y - _anchorFromTop);
+                return;
+            }
+        }
+
+        // The row cannot be made: the growth of the list is the best that is known, and the next line that arrives
+        // corrects it.
         var added = scroller.Extent.Height - _anchorExtent;
         if (added > 0)
         {
