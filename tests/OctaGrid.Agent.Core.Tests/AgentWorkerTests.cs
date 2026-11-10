@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -41,6 +42,74 @@ public class AgentWorkerTests
 
     private static PrinterProfile Printer(string connectorId = "acme.fake") =>
         new(Guid.NewGuid(), connectorId, new Dictionary<string, string> { ["url"] = "10.0.0.1" });
+
+    private sealed class MutableProfiles : IPrinterProfileSource
+    {
+        public List<PrinterProfile> Profiles { get; } = [];
+
+        public Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PrinterProfile>>(Profiles.ToList());
+    }
+
+    [Fact]
+    public async Task What_a_session_reports_is_kept_as_history_until_the_printer_is_deleted()
+    {
+        var sessions = new List<FakeSession>();
+        var connector = new FakeConnector("acme.fake", _ =>
+        {
+            var session = new FakeSession();
+            sessions.Add(session);
+            return session;
+        });
+        var printer = Printer();
+        var profiles = new MutableProfiles { Profiles = { printer } };
+        var worker = new AgentWorker(
+            new FakeTelemetry(), profiles, new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore()));
+
+        await worker.ExecuteAsync(CancellationToken.None);
+        await sessions[0].Started;
+        sessions[0].Telemetry!.Send(new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Printing });
+
+        var page = worker.GetPrinterEvents(printer.PrinterId, null, 10);
+        Assert.Equal("State changed to Printing.", Assert.Single(page.Events).Message);
+
+        profiles.Profiles.Clear();
+        await worker.RefreshProfilesAsync(CancellationToken.None);
+
+        Assert.Empty(worker.GetPrinterEvents(printer.PrinterId, null, 10).Events);
+        await worker.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Events_are_announced_to_whoever_subscribed_with_the_printer_they_belong_to()
+    {
+        var sessions = new List<FakeSession>();
+        var connector = new FakeConnector("acme.fake", _ =>
+        {
+            var session = new FakeSession();
+            sessions.Add(session);
+            return session;
+        });
+        var printer = Printer();
+        var worker = new AgentWorker(
+            new FakeTelemetry(), new FixedProfiles(printer), new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore()));
+        var announced = new List<PrinterEventRecorded>();
+        worker.EventRecorded += announced.Add;
+
+        await worker.ExecuteAsync(CancellationToken.None);
+        await sessions[0].Started;
+        sessions[0].Telemetry!.Send(new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Paused });
+
+        var notice = Assert.Single(announced);
+        Assert.Equal(printer.PrinterId, notice.PrinterId);
+        Assert.Equal(worker.GetPrinterEvents(printer.PrinterId, null, 10).HistoryId, notice.HistoryId);
+
+        worker.EventRecorded -= announced.Add;
+        sessions[0].Telemetry!.Send(new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Printing });
+
+        Assert.Single(announced);
+        await worker.DisposeAsync();
+    }
 
     [Fact]
     public async Task Resolves_from_the_container_the_way_the_app_registers_it()

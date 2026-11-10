@@ -27,14 +27,18 @@ public class DeviceOrchestrator : IAsyncDisposable
     private readonly ILogger<DeviceOrchestrator> _logger;
     private readonly ConnectorRegistry _registry;
     private readonly ConcurrentDictionary<Guid, DeviceSession> _sessions = new();
+    private readonly TimeSpan _stopTimeout;
     private readonly ITelemetrySink _telemetry;
 
+    /// <param name="stopTimeout">How long to wait for a session to end after it is told to stop. Defaults to ten seconds.</param>
     public DeviceOrchestrator(
         ConnectorRegistry registry,
         ITelemetrySink telemetry,
         ILoggerFactory? loggerFactory = null,
-        string? dataRoot = null)
+        string? dataRoot = null,
+        TimeSpan? stopTimeout = null)
     {
+        _stopTimeout = stopTimeout ?? TimeSpan.FromSeconds(10);
         _registry = registry;
         _telemetry = telemetry;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -252,7 +256,14 @@ public class DeviceOrchestrator : IAsyncDisposable
             session.Cts.Cancel();
             try
             {
-                await session.ExecutionTask;
+                // A connector that ignores cancellation must not hold up every later change of printers.
+                await session.ExecutionTask.WaitAsync(_stopTimeout);
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Session for device {DeviceId} ({ConnectorId}) did not stop within {TimeoutSeconds}s; abandoning it",
+                    deviceId, session.Profile.ConnectorId, _stopTimeout.TotalSeconds);
+                return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

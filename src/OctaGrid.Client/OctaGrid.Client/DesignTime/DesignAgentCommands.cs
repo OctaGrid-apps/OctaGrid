@@ -1,6 +1,7 @@
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.DesignTime;
@@ -8,8 +9,22 @@ namespace OctaGrid.Client.DesignTime;
 /// <summary>Agent commands that do nothing, for the designer and for tests.</summary>
 internal sealed class DesignAgentCommands : IAgentCommandsService
 {
+    private static readonly Guid DesignHistoryId = Guid.NewGuid();
+
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
+
+    public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.Now;
+        PrinterEvent[] events =
+        [
+            new(1, now.AddMinutes(-42), PrinterSeverity.Info, "state.changed", "State changed to Printing."),
+            new(2, now.AddMinutes(-12), PrinterSeverity.Warning, "filament.low", "Filament is running low."),
+            new(3, now.AddMinutes(-3), PrinterSeverity.Info, "filament.low", "Resolved: Filament is running low.")
+        ];
+        return Task.FromResult(new PrinterEventPage(events.Where(e => e.Sequence > (afterSequence ?? 0)).ToList(), 3, false, DesignHistoryId));
+    }
 
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
         Task.FromResult<IEnumerable<PrintMetadata>>([]);

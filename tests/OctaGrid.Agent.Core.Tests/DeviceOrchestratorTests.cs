@@ -1,4 +1,6 @@
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Agent.Core.Tests;
@@ -33,6 +35,44 @@ public class DeviceOrchestratorTests
         var orchestrator = new DeviceOrchestrator(
             new ConnectorRegistry().Add(connector), telemetry, dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
         return (orchestrator, connector, sessions, telemetry);
+    }
+
+    /// <summary>A session that never ends, whatever it is told: a connector stuck in a blocking call.</summary>
+    private sealed class StuckSession : IPrinterSession
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Started => _started.Task;
+
+        public Task RunAsync(ITelemetrySink telemetry, CancellationToken cancellationToken)
+        {
+            _started.TrySetResult();
+            return new TaskCompletionSource().Task;
+        }
+
+        public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ConnectionTestResult.Ok());
+
+        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task A_session_that_ignores_the_stop_does_not_hold_up_the_change_of_printers()
+    {
+        var stuck = new StuckSession();
+        var connector = new FakeConnector(Id, _ => stuck);
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(connector), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), stopTimeout: TimeSpan.FromMilliseconds(50));
+        await orchestrator.ApplyProfilesAsync([Profile()]);
+        await stuck.Started;
+
+        // Without the limit this never completes; the wait only fails the test instead of hanging it.
+        await orchestrator.ApplyProfilesAsync([]).WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, orchestrator.ActiveSessionCount(Id));
     }
 
     [Fact]

@@ -150,10 +150,10 @@
                 BorderBrush="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}"
                 BorderThickness="1"
                 CornerRadius="{DynamicResource RadiusSm}"
-                IsVisible="{Binding Item.StateMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                <TextBlock Foreground="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}" Text="{Binding Item.StateMessage}">
+                IsVisible="{Binding Item.ConditionMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Foreground="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}" Text="{Binding Item.ConditionMessage}">
                     <ToolTip.Tip>
-                        <ListBox ItemsSource="{Binding Item.StateMessages}" />
+                        <ListBox ItemsSource="{Binding Item.ConditionMessages}" />
                     </ToolTip.Tip>
                 </TextBlock>
             </Border>
@@ -200,6 +200,16 @@
                     Grid.Column="1"
                     HorizontalAlignment="Right"
                     Classes="inline">
+
+                    <Button
+                        MinWidth="{DynamicResource Space10}"
+                        HorizontalContentAlignment="Center"
+                        AutomationProperties.Name="Show history"
+                        Classes="icon"
+                        Command="{Binding ShowHistoryCommand}"
+                        ToolTip.Tip="Show history">
+                        <PathIcon Data="{StaticResource text-bullet-list-square-clock-regular}" />
+                    </Button>
 
                     <Button
                         MinWidth="{DynamicResource Space10}"

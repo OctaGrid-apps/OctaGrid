@@ -1,5 +1,6 @@
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Contracts;
@@ -7,6 +8,13 @@ namespace OctaGrid.Client.Contracts;
 public interface IAgentCommandsService
 {
     Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What happened to a printer, oldest first. Pass the sequence of the last event already shown as
+    /// <paramref name="afterSequence"/> to get only what came after it, or null for the newest events. The page says
+    /// when events were lost because the agent keeps a bounded history.
+    /// </summary>
+    Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken);
 
     Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken);
 

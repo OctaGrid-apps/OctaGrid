@@ -416,13 +416,13 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         }
     }
 
-    // The reason goes out as the one entry of StateMessages, which the card lists. The next report
-    // carries an empty list, so it clears itself as soon as the printer is back.
+    // The reason goes out as the one condition, which the card shows. The next report carries no
+    // conditions, so it clears itself as soon as the printer is back.
     private void ReportOffline(ITelemetrySink telemetry, string reason) =>
         telemetry.Send(new PrinterTelemetry(DeviceId)
         {
             State = UniversalPrinterState.Offline,
-            StateMessages = new Stack<PrinterStateMessage>([new PrinterStateMessage(reason)])
+            Conditions = [new PrinterCondition("connection.failed", PrinterSeverity.Error, reason)]
         });
 
     /// <summary>

@@ -1,19 +1,23 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Events;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core;
 
 public class AgentWorker : IAsyncDisposable
 {
+    private readonly PrinterEventLog _events;
     private readonly ExtensionManager _extensions;
     private readonly ILogger<AgentWorker> _logger;
     private readonly DeviceOrchestrator _orchestrator;
     private readonly IPrinterProfileSource _profileSource;
+    private readonly SemaphoreSlim _applyGate = new(1, 1);
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private DeveloperExtensionWatcher? _developerWatcher;
 
@@ -22,14 +26,30 @@ public class AgentWorker : IAsyncDisposable
         ITelemetrySink telemetry,
         IPrinterProfileSource profileSource,
         ExtensionManager extensions,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        TimeProvider? timeProvider = null)
     {
         var factory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = factory.CreateLogger<AgentWorker>();
         _profileSource = profileSource;
         _extensions = extensions;
-        _orchestrator = new DeviceOrchestrator(extensions.Registry, telemetry, factory);
+        _events = new PrinterEventLog(timeProvider, logger: factory.CreateLogger<PrinterEventLog>());
+        _orchestrator = new DeviceOrchestrator(extensions.Registry, new EventRecordingTelemetrySink(telemetry, _events, factory.CreateLogger<EventRecordingTelemetrySink>()), factory);
     }
+
+    /// <summary>Raised when an event is recorded for a printer, so clients can show it live. See <see cref="PrinterEventLog.Recorded"/>.</summary>
+    public event Action<PrinterEventRecorded>? EventRecorded
+    {
+        add => _events.Recorded += value;
+        remove => _events.Recorded -= value;
+    }
+
+    /// <summary>
+    /// What happened to a printer, oldest first, for a client that needs to catch up. See
+    /// <see cref="PrinterEventLog.Get"/> for the cursor rules.
+    /// </summary>
+    public PrinterEventPage GetPrinterEvents(Guid deviceId, long? afterSequence, int limit) =>
+        _events.Get(deviceId, afterSequence, limit);
 
     /// <summary>Descriptors of the enabled connectors, for clients.</summary>
     public IReadOnlyList<ConnectorDescriptor> ConnectorDescriptors => _extensions.EnabledDescriptors;
@@ -174,12 +194,10 @@ public class AgentWorker : IAsyncDisposable
         return _orchestrator.DisposeAsync();
     }
 
-    public async Task ExecuteAsync(CancellationToken stoppingToken)
+    public Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("AgentWorker starting initial profile load");
-        var profiles = await _profileSource.GetProfilesAsync(stoppingToken);
-        _logger.LogInformation("Loaded {ProfileCount} printer profile(s) from source", profiles.Count);
-        await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
+        return LoadAndApplyProfilesAsync(stoppingToken);
     }
 
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
@@ -191,12 +209,30 @@ public class AgentWorker : IAsyncDisposable
     public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
         _orchestrator.PausePrintJobAsync(deviceId, cancellationToken);
 
-    public async Task RefreshProfilesAsync(CancellationToken cancellationToken)
+    public Task RefreshProfilesAsync(CancellationToken cancellationToken)
     {
         _logger.LogDebug("Refreshing printer profiles from source");
-        var profiles = await _profileSource.GetProfilesAsync(cancellationToken);
-        _logger.LogInformation("Applying {ProfileCount} refreshed printer profile(s)", profiles.Count);
-        await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
+        return LoadAndApplyProfilesAsync(cancellationToken);
+    }
+
+    // One at a time, and the profiles are read inside the gate: otherwise a refresh that read the list earlier could
+    // finish last, stop the session of a printer added in between, and forget its history.
+    private async Task LoadAndApplyProfilesAsync(CancellationToken cancellationToken)
+    {
+        await _applyGate.WaitAsync(cancellationToken);
+        try
+        {
+            var profiles = await _profileSource.GetProfilesAsync(cancellationToken);
+            _logger.LogInformation("Applying {ProfileCount} printer profile(s)", profiles.Count);
+            await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
+
+            // A printer that was deleted takes its history with it; one whose connector is only turned off keeps it.
+            _events.Retain(profiles.Select(p => p.PrinterId).ToList());
+        }
+        finally
+        {
+            _applyGate.Release();
+        }
     }
 
     public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>

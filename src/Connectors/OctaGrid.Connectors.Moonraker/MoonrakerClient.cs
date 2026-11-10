@@ -17,14 +17,15 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(10);
 
-    private static readonly object SubscribeParams = new
+    // print_stats.message holds why a print failed (state "error"); webhooks.state_message only explains Klipper itself.
+    internal static readonly object SubscribeParams = new
     {
         objects = new
         {
             webhooks = new[] { "state", "state_message" },
             extruder = new[] { "temperature", "target" },
             heater_bed = new[] { "temperature", "target" },
-            print_stats = new[] { "filename", "state", "total_duration", "print_duration", "info" },
+            print_stats = new[] { "filename", "state", "message", "total_duration", "print_duration", "info" },
             display_status = new[] { "progress" }
         }
     };
@@ -38,7 +39,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     // Single-flight: while one query is pending, further triggers join it instead of queueing more
     // requests behind it. Against a frozen Moonraker every extra request would just wait for the
     // same timeout, and they'd pile up with each view switch.
-    private readonly object _queryGate = new();
+    private readonly Lock _queryGate = new();
 
     private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
     private JsonRpc? _jsonRpc;
@@ -351,7 +352,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         try
         {
             var initialStatus = await call.WaitAsync(QueryTimeout).ConfigureAwait(false);
-            listener.OnStatusUpdate(initialStatus, DateTime.UtcNow.Millisecond);
+            listener.OnStatusQueried(initialStatus);
         }
         catch (TimeoutException)
         {
@@ -389,7 +390,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
             // Bounded: a peer that accepts the socket but never answers must not hang the session.
             var subscribeCall = rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.objects.subscribe", SubscribeParams, CancellationToken.None);
             var initialStatus = await subscribeCall.WaitAsync(QueryTimeout, ct).ConfigureAwait(false);
-            _listener.OnStatusUpdate(initialStatus, DateTime.UtcNow.Millisecond);
+            _listener.OnStatusQueried(initialStatus);
             _logger.LogDebug("Subscribed to Moonraker objects for device {DeviceId}", deviceId);
 
             // Completes when the connection drops. No polling needed.
