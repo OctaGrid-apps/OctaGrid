@@ -79,7 +79,7 @@ Use ONE role class per TextBlock, then optional modifiers (secondary, mono):
     </Style>
 
     <!--  Footnotes, file names, counters  -->
-    <Style Selector="TextBlock.caption">
+    <Style Selector="TextBlock.caption, SelectableTextBlock.caption">
         <Setter Property="FontSize" Value="{DynamicResource Font.Size.Caption}" />
         <Setter Property="LineHeight" Value="{DynamicResource Font.LineHeight.Caption}" />
     </Style>
@@ -117,7 +117,7 @@ Use ONE role class per TextBlock, then optional modifiers (secondary, mono):
     </Style>
 
     <!--  Machine values: addresses, file names, tokens  -->
-    <Style Selector="TextBlock.mono">
+    <Style Selector="TextBlock.mono, SelectableTextBlock.mono">
         <Setter Property="FontFamily" Value="{DynamicResource Font.Family.Mono}" />
     </Style>
 

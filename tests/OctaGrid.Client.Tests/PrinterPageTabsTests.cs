@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Messaging;
 using OctaGrid.Client.Contracts;
+using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Protocol.Agents;
@@ -39,6 +40,8 @@ public class PrinterPageTabsTests
         }
 
         public int ConsoleRequests { get; private set; }
+
+        public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
         {
@@ -88,7 +91,7 @@ public class PrinterPageTabsTests
         commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", capabilities, [], []));
         var item = new PrinterStatusWidget { Id = Guid.NewGuid(), Name = "Voron", State = UniversalPrinterState.Idle, ConnectorId = ConnectorId };
         var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache());
-        return (new PrinterPageViewModel(card, () => { }), commands, item);
+        return (new PrinterPageViewModel(card, () => { }, new InMemorySettingsStore()), commands, item);
     }
 
     private static PrintMetadata File(string name) => new(name, 1024, "PLA", 0.4, 600);
@@ -181,6 +184,43 @@ public class PrinterPageTabsTests
     }
 
     [Fact]
+    public void The_console_follows_Expert_mode_while_the_page_is_open_and_stops_following_when_it_closes()
+    {
+        var store = new InMemorySettingsStore(new ClientSettings { IsExpertMode = true });
+        var commands = new FakeCommands();
+        commands.ConnectorList.Add(new ConnectorDescriptor(
+            ConnectorId, "Acme printer", "1.0.0", "Acme", ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands, [], []));
+        var item = new PrinterStatusWidget { Id = Guid.NewGuid(), ConnectorId = ConnectorId };
+        var page = new PrinterPageViewModel(new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache()), () => { }, store);
+
+        Assert.True(page.PrinterConsole.IsExpertMode);
+        Assert.True(page.PrinterConsole.CanSend);
+
+        store.Update(s => s with { IsExpertMode = false });
+        Assert.False(page.PrinterConsole.CanSend);
+        Assert.True(page.PrinterConsole.ShowExpertModeHint);
+
+        page.Stop();
+        store.Update(s => s with { IsExpertMode = true });
+        Assert.False(page.PrinterConsole.IsExpertMode);
+    }
+
+    [Fact]
+    public void A_connector_that_only_reports_a_console_offers_no_command_box()
+    {
+        var store = new InMemorySettingsStore(new ClientSettings { IsExpertMode = true });
+        var commands = new FakeCommands();
+        commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", ConnectorCapabilities.Console, [], []));
+        var item = new PrinterStatusWidget { Id = Guid.NewGuid(), ConnectorId = ConnectorId };
+        var page = new PrinterPageViewModel(new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache()), () => { }, store);
+
+        Assert.True(page.HasConsole);
+        Assert.False(page.PrinterConsole.SupportsCommands);
+        Assert.False(page.PrinterConsole.CanSend);
+        Assert.False(page.PrinterConsole.ShowExpertModeHint);
+    }
+
+    [Fact]
     public void Stopping_the_page_stops_the_console_too()
     {
         var (page, _, item) = Create(ConnectorCapabilities.Console);
@@ -216,36 +256,68 @@ public class PrinterPageTabsTests
     }
 
     [Fact]
-    public void Printing_needs_a_selected_file_and_a_printer_that_is_ready()
+    public void Every_file_is_a_row_and_the_rows_follow_the_file_list()
+    {
+        var (page, commands, _) = Create();
+        commands.Files.Add(File("benchy.gcode"));
+        commands.Files.Add(File("cube.gcode"));
+
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+        Assert.Equal(["benchy.gcode", "cube.gcode"], page.FileRows.Select(r => r.File.Metadata.FileName));
+
+        commands.Files.RemoveAt(0);
+        page.SelectedTabIndex = (int)PrinterPageTab.Overview;
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        Assert.Equal(["cube.gcode"], page.FileRows.Select(r => r.File.Metadata.FileName));
+    }
+
+    [Fact]
+    public void A_row_can_print_only_while_the_printer_is_ready()
     {
         var (page, commands, item) = Create();
-        var file = new PrintMetadataListItem(File("benchy.gcode"), []);
-        page.Files.Files = [file];
+        commands.Files.Add(File("benchy.gcode"));
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+        var row = Assert.Single(page.FileRows);
 
-        Assert.False(page.PrintSelectedFileCommand.CanExecute(null));
-
-        page.Files.SelectedItem = file;
-        Assert.True(page.PrintSelectedFileCommand.CanExecute(null));
+        Assert.True(row.PrintCommand.CanExecute(null));
 
         item.State = UniversalPrinterState.Printing;
-        Assert.False(page.PrintSelectedFileCommand.CanExecute(null));
+        Assert.False(row.PrintCommand.CanExecute(null));
+
+        item.State = UniversalPrinterState.Completed;
+        Assert.True(row.PrintCommand.CanExecute(null));
         Assert.Empty(commands.Started);
     }
 
     [Fact]
-    public async Task Printing_the_selected_file_starts_it_and_returns_to_the_overview()
+    public async Task Printing_from_a_row_starts_that_file_and_returns_to_the_overview()
     {
         var (page, commands, item) = Create();
-        var file = new PrintMetadataListItem(File("benchy.gcode"), []);
-        page.Files.Files = [file];
-        page.Files.SelectedItem = file;
+        commands.Files.Add(File("benchy.gcode"));
+        commands.Files.Add(File("cube.gcode"));
         page.SelectedTabIndex = (int)PrinterPageTab.Files;
 
-        await page.PrintSelectedFileCommand.ExecuteAsync(null);
+        await page.FileRows[1].PrintCommand.ExecuteAsync(null);
 
-        Assert.Equal(["benchy.gcode"], commands.Started);
-        Assert.Equal("benchy.gcode", item.PrintFileName);
+        Assert.Equal(["cube.gcode"], commands.Started);
+        Assert.Equal("cube.gcode", item.PrintFileName);
         Assert.Equal((int)PrinterPageTab.Overview, page.SelectedTabIndex);
+    }
+
+    [Theory]
+    [InlineData("PLA", 0.4, "PLA • {n} mm")]
+    [InlineData("PETG", null, "PETG")]
+    [InlineData(null, 0.6, "{n} mm")]
+    [InlineData("", null, "")]
+    public void A_row_shows_material_and_nozzle_under_the_name(string? material, double? nozzle, string expected)
+    {
+        var file = new PrintMetadataListItem(new PrintMetadata("a.gcode", 1, material, nozzle, 60), []);
+        var row = new PrinterFileRowViewModel(file, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, () => true);
+
+        // The nozzle follows the user's number format (a comma in many languages), so the expectation does too.
+        var nozzleText = nozzle?.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture) ?? string.Empty;
+        Assert.Equal(expected.Replace("{n}", nozzleText, StringComparison.Ordinal), row.DetailsText);
     }
 
     [Fact]

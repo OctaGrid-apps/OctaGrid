@@ -260,6 +260,10 @@ public class AgentWorker : IAsyncDisposable
     public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
         _orchestrator.ResumePrintJobAsync(deviceId, cancellationToken);
 
+    /// <summary>Sends a command the user typed to a printer. See <see cref="DeviceOrchestrator.SendConsoleCommandAsync"/> for the checks and errors.</summary>
+    public Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken) =>
+        _orchestrator.SendConsoleCommandAsync(deviceId, command, cancellationToken);
+
     public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         _orchestrator.StartPrintJobAsync(deviceId, fileName, cancellationToken);
 

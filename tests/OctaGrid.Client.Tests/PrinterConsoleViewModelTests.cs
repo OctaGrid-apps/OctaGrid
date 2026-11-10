@@ -12,7 +12,7 @@ namespace OctaGrid.Client.Tests;
 public class PrinterConsoleViewModelTests
 {
     /// <summary>Answers console requests the way the agent does and counts them; everything else is unused here.</summary>
-    private sealed class FakeCommands : IAgentCommandsService
+    internal sealed class FakeCommands : IAgentCommandsService
     {
         public List<ConsoleLine> Stored { get; } = [];
 
@@ -38,6 +38,21 @@ public class PrinterConsoleViewModelTests
                 ? Stored.TakeLast(limit).ToList()
                 : Stored.Where(l => l.Sequence > afterSequence).Take(limit).ToList();
             return Task.FromResult(new ConsolePage(lines, latest, Truncated, StreamId));
+        }
+
+        public List<string> Sent { get; } = [];
+
+        public Exception? SendFailure { get; set; }
+
+        public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken)
+        {
+            if (SendFailure is not null)
+            {
+                return Task.FromException(SendFailure);
+            }
+
+            Sent.Add(command);
+            return Task.CompletedTask;
         }
 
         public IReadOnlyList<ConnectorDescriptor> Connectors => [];
@@ -96,15 +111,36 @@ public class PrinterConsoleViewModelTests
     }
 
     [Fact]
-    public async Task Loading_shows_the_oldest_line_first_and_the_newest_last()
+    public async Task Loading_shows_the_newest_line_first()
     {
         var (viewModel, _, _) = Create(storedLines: 3);
 
         await viewModel.LoadCommand.ExecuteAsync(null);
 
-        Assert.Equal(["line 1", "line 2", "line 3"], viewModel.Lines.Select(l => l.Text));
+        Assert.Equal(["line 3", "line 2", "line 1"], viewModel.Lines.Select(l => l.Text));
         Assert.False(viewModel.IsLoading);
         Assert.False(viewModel.IsEmpty);
+    }
+
+    [Fact]
+    public async Task The_text_to_copy_is_oldest_first_with_the_time_of_each_line()
+    {
+        var (viewModel, _, _) = Create(storedLines: 3);
+        await viewModel.LoadCommand.ExecuteAsync(null);
+
+        var lines = viewModel.GetTranscript().Split(Environment.NewLine);
+
+        Assert.Equal(3, lines.Length);
+        Assert.EndsWith(" line 1", lines[0], StringComparison.Ordinal);
+        Assert.EndsWith(" line 2", lines[1], StringComparison.Ordinal);
+        Assert.EndsWith(" line 3", lines[2], StringComparison.Ordinal);
+        Assert.StartsWith(viewModel.Lines[2].TimeText, lines[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void There_is_no_text_to_copy_before_anything_was_written()
+    {
+        Assert.Equal(string.Empty, Create().ViewModel.GetTranscript());
     }
 
     [Fact]
@@ -149,7 +185,7 @@ public class PrinterConsoleViewModelTests
     }
 
     [Fact]
-    public async Task The_next_live_line_is_added_at_the_bottom_without_asking_the_agent()
+    public async Task The_next_live_line_is_added_at_the_top_without_asking_the_agent()
     {
         var (viewModel, commands, printerId) = Create(storedLines: 2);
         await viewModel.LoadCommand.ExecuteAsync(null);
@@ -157,7 +193,7 @@ public class PrinterConsoleViewModelTests
 
         Publish(printerId, commands.StreamId, Line(3, "live"));
 
-        Assert.Equal("live 3", viewModel.Lines[^1].Text);
+        Assert.Equal("live 3", viewModel.Lines[0].Text);
         Assert.Equal(3, viewModel.Lines.Count);
         Assert.Equal(requests, commands.Requests.Count);
     }
@@ -184,7 +220,7 @@ public class PrinterConsoleViewModelTests
         // Line 3 was never delivered; line 4 arrives.
         Publish(printerId, commands.StreamId, Line(4));
 
-        Assert.Equal(["line 1", "line 2", "line 3", "line 4"], viewModel.Lines.Select(l => l.Text));
+        Assert.Equal(["line 4", "line 3", "line 2", "line 1"], viewModel.Lines.Select(l => l.Text));
         Assert.Equal(2, commands.Requests[^1]);
     }
 
@@ -204,7 +240,7 @@ public class PrinterConsoleViewModelTests
 
         Publish(printerId, commands.StreamId, Line(5, "fresh"));
 
-        Assert.Equal(["fresh 1", "fresh 2", "fresh 3", "fresh 4", "fresh 5"], viewModel.Lines.Select(l => l.Text));
+        Assert.Equal(["fresh 5", "fresh 4", "fresh 3", "fresh 2", "fresh 1"], viewModel.Lines.Select(l => l.Text));
     }
 
     [Fact]
@@ -219,7 +255,7 @@ public class PrinterConsoleViewModelTests
         }
 
         Assert.Equal(PrinterConsoleViewModel.MaxShown, viewModel.Lines.Count);
-        Assert.Equal($"line {PrinterConsoleViewModel.MaxShown + 5}", viewModel.Lines[^1].Text);
+        Assert.Equal($"line {PrinterConsoleViewModel.MaxShown + 5}", viewModel.Lines[0].Text);
         Assert.True(viewModel.IsIncomplete);
     }
 
@@ -263,6 +299,198 @@ public class PrinterConsoleViewModelTests
 
         Assert.Single(viewModel.Lines);
         Assert.False(WeakReferenceMessenger.Default.IsRegistered<PrinterConsoleData, Guid>(viewModel, printerId));
+    }
+
+    private static (PrinterConsoleViewModel ViewModel, FakeCommands Commands) CreateWithCommandBox(bool supports = true, bool expert = true)
+    {
+        var commands = new FakeCommands();
+        var viewModel = new PrinterConsoleViewModel(Guid.NewGuid(), commands, supportsCommands: supports) { IsExpertMode = expert };
+        return (viewModel, commands);
+    }
+
+    [Theory]
+    [InlineData(true, true, true, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, false, false)]
+    public void The_command_box_needs_a_connector_that_takes_commands_and_Expert_mode(
+        bool supports, bool expert, bool canSend, bool showHint)
+    {
+        var (viewModel, _) = CreateWithCommandBox(supports, expert);
+
+        Assert.Equal(canSend, viewModel.CanSend);
+        Assert.Equal(showHint, viewModel.ShowExpertModeHint);
+    }
+
+    [Fact]
+    public async Task A_command_is_sent_without_the_spaces_around_it_and_the_box_is_emptied()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        viewModel.CommandText = "  M105  ";
+
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.Equal(["M105"], commands.Sent);
+        Assert.Equal(string.Empty, viewModel.CommandText);
+        Assert.False(viewModel.HasSendError);
+        Assert.False(viewModel.IsSending);
+    }
+
+    [Fact]
+    public void Nothing_can_be_sent_while_the_box_is_empty_or_Expert_mode_is_off()
+    {
+        var (viewModel, _) = CreateWithCommandBox();
+        Assert.False(viewModel.SendCommand.CanExecute(null));
+
+        viewModel.CommandText = "M105";
+        Assert.True(viewModel.SendCommand.CanExecute(null));
+
+        viewModel.IsExpertMode = false;
+        Assert.False(viewModel.SendCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task A_command_that_breaks_the_rules_is_refused_before_it_reaches_the_agent()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        viewModel.CommandText = new string('x', Protocol.Printers.ConsoleCommandRules.MaxLength + 1);
+
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.Empty(commands.Sent);
+        Assert.True(viewModel.HasSendError);
+        Assert.NotEqual(string.Empty, viewModel.CommandText);
+    }
+
+    [Fact]
+    public async Task A_reason_from_the_printer_is_shown_and_the_command_stays_for_a_fix()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        commands.SendFailure = new Protocol.Exceptions.ValidationException("command", "Unknown command \"FOO\".");
+        viewModel.CommandText = "FOO";
+
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.Equal("Unknown command \"FOO\".", viewModel.SendError);
+        Assert.Equal("FOO", viewModel.CommandText);
+        Assert.False(viewModel.IsSending);
+    }
+
+    [Fact]
+    public async Task A_failure_nobody_expected_shows_a_general_message()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        commands.SendFailure = new InvalidOperationException("boom");
+        viewModel.CommandText = "M105";
+
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.Equal("The command could not be sent.", viewModel.SendError);
+        Assert.DoesNotContain("boom", viewModel.SendError);
+    }
+
+    [Fact]
+    public async Task The_next_successful_command_clears_the_earlier_error()
+    {
+        var (viewModel, commands) = CreateWithCommandBox();
+        commands.SendFailure = new Protocol.Exceptions.ValidationException("command", "nope");
+        viewModel.CommandText = "FOO";
+        await viewModel.SendCommand.ExecuteAsync(null);
+        Assert.True(viewModel.HasSendError);
+
+        commands.SendFailure = null;
+        viewModel.CommandText = "M105";
+        await viewModel.SendCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasSendError);
+    }
+
+    [Theory]
+    [InlineData("FIRMWARE_RESTART", "FIRMWARE_RESTART")]
+    [InlineData("restart", "RESTART")]
+    [InlineData("SAVE_CONFIG", "SAVE_CONFIG")]
+    [InlineData("M502", "M502")]
+    [InlineData("m997 now", "M997")]
+    public void Commands_that_can_interrupt_a_print_or_reset_the_printer_are_risky(string command, string name)
+    {
+        Assert.True(PrinterConsoleViewModel.IsRisky(command, out var found));
+        Assert.Equal(name, found);
+    }
+
+    [Theory]
+    [InlineData("M105")]
+    [InlineData("G28")]
+    [InlineData("M112")]
+    [InlineData("EMERGENCY_STOP")]
+    [InlineData("RESTART_SOMETHING")]
+    [InlineData("M5020")]
+    public void Ordinary_commands_and_emergency_stops_are_not_held_back_for_a_question(string command)
+    {
+        Assert.False(PrinterConsoleViewModel.IsRisky(command, out _));
+    }
+
+    [Fact]
+    public async Task Earlier_commands_can_be_recalled_newest_first_and_the_box_empties_past_the_newest()
+    {
+        var (viewModel, _) = CreateWithCommandBox();
+        foreach (var command in new[] { "M105", "G28", "M115" })
+        {
+            viewModel.CommandText = command;
+            await viewModel.SendCommand.ExecuteAsync(null);
+        }
+
+        viewModel.RecallPreviousCommand.Execute(null);
+        Assert.Equal("M115", viewModel.CommandText);
+        viewModel.RecallPreviousCommand.Execute(null);
+        Assert.Equal("G28", viewModel.CommandText);
+        viewModel.RecallPreviousCommand.Execute(null);
+        viewModel.RecallPreviousCommand.Execute(null);
+        Assert.Equal("M105", viewModel.CommandText);
+
+        viewModel.RecallNextCommand.Execute(null);
+        Assert.Equal("G28", viewModel.CommandText);
+        viewModel.RecallNextCommand.Execute(null);
+        viewModel.RecallNextCommand.Execute(null);
+        Assert.Equal(string.Empty, viewModel.CommandText);
+    }
+
+    [Fact]
+    public void Recalling_with_nothing_sent_changes_nothing()
+    {
+        var (viewModel, _) = CreateWithCommandBox();
+        viewModel.CommandText = "partly typed";
+
+        viewModel.RecallPreviousCommand.Execute(null);
+
+        Assert.Equal("partly typed", viewModel.CommandText);
+    }
+
+    [Fact]
+    public async Task Sending_the_same_command_again_is_remembered_once_and_only_the_latest_are_kept()
+    {
+        var (viewModel, _) = CreateWithCommandBox();
+        foreach (var command in new[] { "M105", "M105" })
+        {
+            viewModel.CommandText = command;
+            await viewModel.SendCommand.ExecuteAsync(null);
+        }
+
+        viewModel.RecallPreviousCommand.Execute(null);
+        viewModel.RecallPreviousCommand.Execute(null);
+        Assert.Equal("M105", viewModel.CommandText);
+
+        for (var i = 0; i < PrinterConsoleViewModel.MaxRemembered + 5; i++)
+        {
+            viewModel.CommandText = $"M117 {i}";
+            await viewModel.SendCommand.ExecuteAsync(null);
+        }
+
+        for (var i = 0; i < PrinterConsoleViewModel.MaxRemembered + 10; i++)
+        {
+            viewModel.RecallPreviousCommand.Execute(null);
+        }
+
+        Assert.Equal("M117 5", viewModel.CommandText);
     }
 
     [Fact]

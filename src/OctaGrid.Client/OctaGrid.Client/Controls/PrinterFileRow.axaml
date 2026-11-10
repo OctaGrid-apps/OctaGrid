@@ -1,0 +1,92 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Controls.PrinterFileRow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:OctaGrid.Client.Converters"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    x:DataType="vm:PrinterFileRowViewModel">
+    <!--  A file as a row of its own, like an entry of the Microsoft Store library: thumbnail, name, details and its buttons.  -->
+    <Border
+        Padding="{DynamicResource Padding.Tile}"
+        Background="{DynamicResource CardBackground}"
+        BorderBrush="{DynamicResource CardBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="{DynamicResource RadiusMd}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource Gap.CardGrid}">
+
+            <Border
+                Width="{DynamicResource Space12}"
+                Height="{DynamicResource Space12}"
+                Padding="0"
+                Background="{DynamicResource TileBackground}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="1"
+                Classes="tile"
+                ClipToBounds="True">
+                <Grid>
+                    <PathIcon
+                        Width="24"
+                        Height="24"
+                        Data="{StaticResource cube-regular}"
+                        IsVisible="{Binding File.ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}" />
+                    <Image
+                        IsVisible="{Binding !File.ThumbnailData, Converter={x:Static conv:CollectionIsNullOrEmptyConverter.Instance}}"
+                        Source="{Binding File.ThumbnailData, Converter={x:Static conv:ByteArrayToBitmapConverter.Instance}}"
+                        Stretch="UniformToFill" />
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock
+                    Classes="lead"
+                    Text="{Binding File.Metadata.FileName}"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip.Tip="{Binding File.Metadata.FileName}" />
+                <TextBlock
+                    Classes="small secondary"
+                    IsVisible="{Binding DetailsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Text="{Binding DetailsText}" />
+            </StackPanel>
+
+            <!--  The page hides this when it is narrow (class file-estimate), so the name keeps its room  -->
+            <StackPanel
+                Grid.Column="2"
+                MinWidth="{DynamicResource Space16}"
+                VerticalAlignment="Center"
+                Classes="file-estimate">
+                <TextBlock Classes="caption secondary" Text="Estimated time" />
+                <TextBlock Classes="body" Text="{Binding File.Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay, FallbackValue=---}" />
+            </StackPanel>
+
+            <Button
+                Grid.Column="3"
+                MinWidth="{DynamicResource Space16}"
+                VerticalAlignment="Center"
+                HorizontalContentAlignment="Center"
+                AutomationProperties.Name="{Binding File.Metadata.FileName, StringFormat='Print {0}'}"
+                Classes="primary"
+                Command="{Binding PrintCommand}"
+                ToolTip.Tip="Print">
+                <PathIcon Data="{StaticResource play-regular}" />
+            </Button>
+
+            <Button
+                Grid.Column="4"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="More actions"
+                Classes="icon"
+                ToolTip.Tip="More actions">
+                <PathIcon Data="{StaticResource more-vertical-regular}" />
+                <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <MenuItem Command="{Binding DeleteCommand}" Header="Delete">
+                            <MenuItem.Icon>
+                                <PathIcon Data="{StaticResource delete-regular}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,6 +1,9 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using OctaGrid.Client.Models;
+using OctaGrid.Client.Services;
 
 namespace OctaGrid.Client.ViewModels;
 
@@ -22,22 +25,26 @@ public enum PrinterPageTab
 /// </summary>
 public partial class PrinterPageViewModel : ViewModelBase
 {
+    private readonly IAppSettingsStore _appSettings;
     private readonly Action _close;
     private bool _consoleRequested;
     private bool _eventsRequested;
     private bool _stopped;
 
-    public PrinterPageViewModel(PrinterDashboardCardViewModel card, Action close)
+    public PrinterPageViewModel(PrinterDashboardCardViewModel card, Action close, IAppSettingsStore appSettings)
     {
         Card = card;
         _close = close;
+        _appSettings = appSettings;
         Files = card.CreateFilesViewModel();
         PrinterEvents = card.CreateEventsViewModel();
         PrinterConsole = card.CreateConsoleViewModel();
         HasConsole = card.SupportsConsole;
+        PrinterConsole.IsExpertMode = appSettings.ClientSettings.IsExpertMode;
 
         Item.PropertyChanged += OnItemPropertyChanged;
         Files.PropertyChanged += OnFilesPropertyChanged;
+        appSettings.SettingsChanged += OnSettingsChanged;
     }
 
     /// <summary>The card that owns the printer's telemetry and commands.</summary>
@@ -45,6 +52,9 @@ public partial class PrinterPageViewModel : ViewModelBase
 
     /// <summary>The files on the printer.</summary>
     public FilePickerViewModel Files { get; }
+
+    /// <summary>The files as rows with their own Print and Delete buttons; they follow <see cref="Files" />.</summary>
+    public ObservableCollection<PrinterFileRowViewModel> FileRows { get; } = [];
 
     /// <summary>
     /// Whether the Console tab is shown: the printer's connector has to report a console. Decided when the page opens.
@@ -78,6 +88,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         _stopped = true;
         Item.PropertyChanged -= OnItemPropertyChanged;
         Files.PropertyChanged -= OnFilesPropertyChanged;
+        _appSettings.SettingsChanged -= OnSettingsChanged;
         PrinterEvents.Stop();
         PrinterConsole.Stop();
     }
@@ -104,30 +115,36 @@ public partial class PrinterPageViewModel : ViewModelBase
         }
     }
 
-    private bool CanPrintSelectedFile() => Files.SelectedItem is not null && Item.CanStartNewPrint;
-
     [RelayCommand]
     private void GoBack() => _close();
 
-    [RelayCommand(CanExecute = nameof(CanPrintSelectedFile))]
-    private async Task PrintSelectedFile(CancellationToken cancellationToken)
+    private async Task PrintFileAsync(PrintMetadataListItem file, CancellationToken cancellationToken)
     {
-        if (Files.SelectedItem is not { } selected)
-        {
-            return;
-        }
-
-        await Card.StartFileCommand.ExecuteAsync(selected.Metadata.FileName);
+        await Card.StartFileCommand.ExecuteAsync(file.Metadata.FileName);
 
         // The job is what the user wants to see next.
         SelectedTabIndex = (int)PrinterPageTab.Overview;
     }
 
+    private Task DeleteFileAsync(PrintMetadataListItem file, CancellationToken cancellationToken) =>
+        Files.DeleteItemAsync(file, cancellationToken);
+
+    // Expert mode can be turned off while the page is open (in Settings, or in another window); the command box follows.
+    private void OnSettingsChanged(object? sender, ClientSettings settings) =>
+        PrinterConsole.IsExpertMode = settings.IsExpertMode;
+
+    // The rows follow the file list, which is replaced as a whole each time it is loaded.
     private void OnFilesPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FilePickerViewModel.SelectedItem))
+        if (e.PropertyName != nameof(FilePickerViewModel.Files))
         {
-            PrintSelectedFileCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        FileRows.Clear();
+        foreach (var file in Files.Files)
+        {
+            FileRows.Add(new PrinterFileRowViewModel(file, PrintFileAsync, DeleteFileAsync, () => Item.CanStartNewPrint));
         }
     }
 
@@ -135,7 +152,10 @@ public partial class PrinterPageViewModel : ViewModelBase
     {
         if (e.PropertyName is nameof(PrinterStatusWidget.CanStartNewPrint))
         {
-            PrintSelectedFileCommand.NotifyCanExecuteChanged();
+            foreach (var row in FileRows)
+            {
+                row.PrintCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 }

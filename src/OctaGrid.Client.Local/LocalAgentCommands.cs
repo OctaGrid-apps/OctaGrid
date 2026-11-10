@@ -30,6 +30,9 @@ internal sealed class LocalAgentCommands(AgentWorker agentWorker) : IAgentComman
     public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken)
         => agentWorker.ResumePrintJobAsync(deviceId, cancellationToken);
 
+    public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken)
+        => agentWorker.SendConsoleCommandAsync(printerId, command, cancellationToken);
+
     public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
         => agentWorker.StartPrintJobAsync(deviceId, fileName, cancellationToken);
 

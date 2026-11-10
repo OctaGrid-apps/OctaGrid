@@ -69,14 +69,13 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     }
 
     [RelayCommand]
-    private async Task DeleteFile(CancellationToken cancellationToken)
-    {
-        if (SelectedItem is null)
-        {
-            return;
-        }
+    private Task DeleteFile(CancellationToken cancellationToken) =>
+        SelectedItem is { } selected ? DeleteItemAsync(selected, cancellationToken) : Task.CompletedTask;
 
-        var fileName = SelectedItem.Metadata.FileName;
+    /// <summary>Deletes one file from the printer after asking, then shows the files that are left.</summary>
+    internal async Task DeleteItemAsync(PrintMetadataListItem item, CancellationToken cancellationToken)
+    {
+        var fileName = item.Metadata.FileName;
         try
         {
             var confirm = new ConfirmViewModel($"Delete \"{fileName}\" from the printer? This cannot be undone.", "Delete");

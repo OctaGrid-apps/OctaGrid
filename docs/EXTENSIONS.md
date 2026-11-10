@@ -176,7 +176,25 @@ You can pass on whatever the printer sends. OctaGrid splits text into lines, ski
 characters, cuts very long lines and rate limits a printer that floods the console (it then records how many lines were
 skipped). It keeps the last 500 lines per printer in memory, and they are gone when OctaGrid restarts.
 
-The console is read-only: this capability does not let anyone send a command to the printer.
+`IConsoleOutput` is read-only: it does not let anyone send a command to the printer.
+
+### Taking commands
+
+A connector that can also run what the user types (a line of G-code, a Klipper macro) implements `IConsoleInput` and
+declares `ConnectorCapabilities.ConsoleCommands`, together with `Console` so the user sees the answer. The host calls
+`SendCommandAsync` with one command; return when the printer accepted it, and write what the printer answers to the
+console sink. When the printer rejects the command or cannot be reached, throw an exception whose message tells the
+user what went wrong (an `AppException` such as `ValidationException` for a rejected command).
+
+Sending a command can change or stop what the printer is doing, so OctaGrid is careful with it:
+
+- The command box appears only when the user turned on **Expert mode** in Settings (it asks first), and only for
+  connectors that declare `ConsoleCommands`.
+- A command is one line of plain text of at most 256 characters (`ConsoleCommandRules`). OctaGrid checks this where the
+  user types it and again before it reaches your connector, so you never get several lines or control characters.
+- A few commands that can interrupt a print or reset settings (such as `FIRMWARE_RESTART` and `SAVE_CONFIG`) are
+  confirmed one by one. An emergency stop (`M112`) is not, because it has to work at once.
+- The command is shown in the console as `> command` before it is sent, and written to the application log.
 
 ## Not available yet
 
@@ -190,7 +208,7 @@ The console is read-only: this capability does not let anyone send a command to 
 
 `samples/OctaGrid.Extensions.Sample` is a connector for a simulated printer. It needs no hardware, so it is the quickest
 way to try installing, trusting and removing an extension. It also shows what a small connector looks like (settings,
-print control, files, a custom command and a console).
+print control, files, a custom command and a console that takes commands).
 
 1. Build it:
    ```bash
@@ -204,7 +222,9 @@ print control, files, a custom command and a console).
 4. Add a printer (Printers > add) and pick *Demo printer (simulated)* as its connector. Set *Simulation speed* to **Fast**
    to see a whole print in seconds. Start a file such as `benchy.gcode`, then pause, resume or stop it. The *Say hello*
    custom command answers with a message. Open the printer's page (the open icon on its card) and choose the **Console**
-   tab to see the lines the simulated printer writes.
+   tab to see the lines the simulated printer writes. To send it commands, turn on **Expert mode** in Settings
+   (Settings > Advanced) and try `M105`, `M115` or `G28`; anything else is rejected, which shows how a refused command
+   looks.
 5. Choose **Remove** to take it out again. It is turned off at once and its folder is deleted at the next start.
 
 To see the other states, edit the installed copy of `octagrid-extension.json` (in `extensions/octagrid-samples.demo-printer/1.0.0/`)

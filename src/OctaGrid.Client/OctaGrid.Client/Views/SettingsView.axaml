@@ -1,4 +1,4 @@
-<ContentPage
+﻿<ContentPage
     x:Class="OctaGrid.Client.Views.SettingsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -88,6 +88,19 @@
                         IsVisible="{Binding IsTransparencySupported}">
                         <ToggleSwitch
                             IsChecked="{Binding TransparencyEffects}"
+                            OffContent="Off"
+                            OnContent="On" />
+                    </controls:SettingsCard>
+                </controls:SettingsGroup>
+
+                <!--  Advanced Section  -->
+                <controls:SettingsGroup Header="Advanced">
+                    <controls:SettingsCard
+                        Description="Shows controls that can interrupt a print or change how the printer behaves, such as sending G-code commands"
+                        Header="Expert mode"
+                        Icon="{StaticResource warning-regular}">
+                        <ToggleSwitch
+                            IsChecked="{Binding IsExpertMode}"
                             OffContent="Off"
                             OnContent="On" />
                     </controls:SettingsCard>

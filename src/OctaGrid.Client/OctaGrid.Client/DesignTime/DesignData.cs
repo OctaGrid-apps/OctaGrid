@@ -55,7 +55,8 @@ internal static class DesignData
                 State = OctaGrid.Protocol.Messaging.UniversalPrinterState.Printing,
             },
             AgentCommands, Images),
-        () => { });
+        () => { },
+        Settings);
 
     public static PrinterListViewModel Printers => new(Client, Notifications, State, AgentCommands);
 

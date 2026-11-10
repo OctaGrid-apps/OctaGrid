@@ -51,6 +51,23 @@ public interface IConsoleOutput
     void SetConsoleSink(IConsoleSink sink);
 }
 
+/// <summary>
+/// Optional capability: send a command typed by the user to the printer, for example a line of G-code. Declare
+/// <see cref="ConnectorCapabilities.ConsoleCommands"/>, and <see cref="ConnectorCapabilities.Console"/> as well so the user
+/// sees what the printer answers. The host only calls it for a single line of plain text of reasonable length (see
+/// <c>ConsoleCommandRules</c>), after the user turned on Expert mode, and shows the command in the console before it is
+/// sent.
+/// </summary>
+public interface IConsoleInput
+{
+    /// <summary>
+    /// Sends one command to the printer. Return when the printer has accepted it; what it answers goes to the console
+    /// through <see cref="IConsoleSink"/>. When the printer rejects the command, or cannot be reached, throw an exception
+    /// whose message tells the user what went wrong.
+    /// </summary>
+    Task SendCommandAsync(string command, CancellationToken cancellationToken);
+}
+
 /// <summary>Where a connector writes the lines the printer reports to its console. Safe to call from any thread.</summary>
 public interface IConsoleSink
 {

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
@@ -28,7 +29,8 @@ public sealed class DemoPrinterConnector : IConnector
         "Demo printer (simulated)",
         "1.0.0",
         "OctaGrid Samples",
-        ConnectorCapabilities.PrintControl | ConnectorCapabilities.Files | ConnectorCapabilities.CustomCommands | ConnectorCapabilities.Console,
+        ConnectorCapabilities.PrintControl | ConnectorCapabilities.Files | ConnectorCapabilities.CustomCommands
+            | ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands,
         [
             new SettingField(
                 DemoSession.SpeedKey, "Simulation speed", SettingFieldType.Choice,
@@ -47,7 +49,7 @@ public sealed class DemoPrinterConnector : IConnector
 }
 
 /// <summary>The simulated printer behind <see cref="DemoPrinterConnector"/>.</summary>
-public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, ICustomCommands, IConsoleOutput
+public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, ICustomCommands, IConsoleOutput, IConsoleInput
 {
     public const string SpeedKey = "speed";
     public const string NormalSpeed = "Normal";
@@ -203,6 +205,40 @@ public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, 
         lock (_gate)
         {
             _files.RemoveAll(f => f.FileName == fileName);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    // ---- Console commands ----
+
+    /// <summary>
+    /// Answers a few commands the way a real printer does, and refuses the rest: a printer that does not know a command
+    /// rejects it, and the host shows that reason to the user.
+    /// </summary>
+    public Task SendCommandAsync(string command, CancellationToken cancellationToken)
+    {
+        var name = command.Split(' ', 2)[0].ToUpperInvariant();
+        switch (name)
+        {
+            case "M105":
+                lock (_gate)
+                {
+                    _console?.WriteLine($"ok T:{_nozzle:F1} /{NozzleTarget:F1} B:{_bed:F1} /{BedTarget:F1}");
+                }
+
+                break;
+
+            case "M115":
+                _console?.WriteLine("FIRMWARE_NAME:Demo printer 1.0 (simulated)\nok");
+                break;
+
+            case "G28" or "G1" or "M117":
+                _console?.WriteLine("ok");
+                break;
+
+            default:
+                throw new ValidationException("command", $"Unknown command \"{name}\". Try M105, M115 or G28.");
         }
 
         return Task.CompletedTask;

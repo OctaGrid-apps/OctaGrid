@@ -17,7 +17,8 @@ public sealed class MoonrakerConnector(ILoggerFactory? loggerFactory = null) : I
         "Moonraker (Klipper)",
         ConnectorVersion.Current(typeof(MoonrakerConnector)),
         "OctaGrid",
-        ConnectorCapabilities.PrintControl | ConnectorCapabilities.Files | ConnectorCapabilities.Thumbnails | ConnectorCapabilities.Console,
+        ConnectorCapabilities.PrintControl | ConnectorCapabilities.Files | ConnectorCapabilities.Thumbnails | ConnectorCapabilities.Console
+            | ConnectorCapabilities.ConsoleCommands,
         [
             new SettingField("url", "Printer address", SettingFieldType.Url,
                 Help: "Host name or IP address of the Moonraker API, for example 192.168.1.20:7125."),

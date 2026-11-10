@@ -4,13 +4,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Printers;
 using StreamJsonRpc;
 
 namespace OctaGrid.Connectors.Moonraker;
 
-internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileStorage, IThumbnails, IConsoleOutput
+internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileStorage, IThumbnails, IConsoleOutput, IConsoleInput
 {
     private const string DefaultGCodeRoot = "gcodes";
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
@@ -136,6 +137,25 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
         _logger.LogInformation("Pausing print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.pause", cancellationToken: cancellationToken);
+    }
+
+    public async Task SendCommandAsync(string command, CancellationToken cancellationToken)
+    {
+        var rpc = _jsonRpc
+            ?? throw new InvalidOperationException("Not connected to the printer.");
+
+        try
+        {
+            // The answer is not awaited here: Klipper reports it as console output (notify_gcode_response), and the call
+            // returns once the command has run.
+            await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.gcode.script", new { script = command }, cancellationToken: cancellationToken);
+        }
+        catch (RemoteInvocationException ex)
+        {
+            // Klipper refused the command (an unknown command, a value out of range, a printer in shutdown): the reason is
+            // for the user, so it is passed on as a rejected command and not as a fault of the connection.
+            throw new ValidationException("command", ex.Message);
+        }
     }
 
     public async Task ResumePrintAsync(CancellationToken cancellationToken)

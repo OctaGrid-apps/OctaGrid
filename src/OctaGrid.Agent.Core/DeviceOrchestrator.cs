@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Events;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
@@ -138,6 +139,35 @@ public class DeviceOrchestrator : IAsyncDisposable
         {
             await control.ResumePrintAsync(cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Sends a command the user typed to the printer. The command is checked here again, whatever the client did, because
+    /// it is the one thing that reaches a printer unchanged. It is written to the console first, so what the printer
+    /// answers reads as a reply.
+    /// </summary>
+    /// <exception cref="ValidationException">The command is not one line of plain text, or the printer cannot take commands.</exception>
+    /// <exception cref="NotFoundException">The printer has no running session.</exception>
+    public async Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken)
+    {
+        if (!ConsoleCommandRules.TryNormalize(command, out var normalized, out var error))
+        {
+            throw new ValidationException("command", error!);
+        }
+
+        if (!_sessions.TryGetValue(deviceId, out var session))
+        {
+            throw new NotFoundException("The printer is not connected.");
+        }
+
+        if (session.Session is not IConsoleInput input)
+        {
+            throw new ValidationException("command", "This printer's connector cannot send commands.");
+        }
+
+        _logger.LogInformation("Sending console command to device {DeviceId}: {Command}", deviceId, normalized);
+        _console?.Write(deviceId, $"> {normalized}");
+        await input.SendCommandAsync(normalized, cancellationToken);
     }
 
     public async Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)

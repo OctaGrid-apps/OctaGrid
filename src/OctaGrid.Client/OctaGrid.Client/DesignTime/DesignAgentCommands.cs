@@ -50,6 +50,9 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
     public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
+    public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 

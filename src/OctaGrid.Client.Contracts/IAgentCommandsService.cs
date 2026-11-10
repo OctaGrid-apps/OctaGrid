@@ -23,6 +23,14 @@ public interface IAgentCommandsService
     /// </summary>
     Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Sends a command the user typed (one line, see <see cref="ConsoleCommandRules"/>) to a printer whose connector
+    /// declares <see cref="ConnectorCapabilities.ConsoleCommands"/>. It can change or stop what the printer is doing, so
+    /// clients call it only after the user turned on Expert mode. What the printer answers appears in its console.
+    /// </summary>
+    /// <exception cref="OctaGrid.Protocol.Exceptions.ValidationException">The command is not acceptable, or the printer cannot take commands.</exception>
+    Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken);
+
     Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken);
 
     Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken);

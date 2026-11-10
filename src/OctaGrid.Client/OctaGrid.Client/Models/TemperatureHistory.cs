@@ -58,6 +58,27 @@ public sealed class TemperatureHistory
         return true;
     }
 
+    /// <summary>
+    /// Adds a reading from a telemetry snapshot, which carries only what changed: a temperature the snapshot does not
+    /// mention keeps its latest known value (0 before any). A snapshot without any temperature adds nothing, so the offline
+    /// message that carries none does not draw a drop to zero.
+    /// </summary>
+    public bool Record(double? nozzle, double? nozzleTarget, double? bed, double? bedTarget)
+    {
+        if (nozzle is null && nozzleTarget is null && bed is null && bedTarget is null)
+        {
+            return false;
+        }
+
+        TemperatureSample latest;
+        lock (_gate)
+        {
+            latest = _samples.Count > 0 ? _samples[^1] : default;
+        }
+
+        return Add(nozzle ?? latest.Nozzle, nozzleTarget ?? latest.NozzleTarget, bed ?? latest.Bed, bedTarget ?? latest.BedTarget);
+    }
+
     /// <summary>The current time, on the same clock as the readings.</summary>
     public DateTimeOffset Now => _timeProvider.GetUtcNow();
 

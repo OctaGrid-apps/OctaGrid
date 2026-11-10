@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="OctaGrid.Client.Views.PrinterPageView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -28,10 +28,57 @@
         <Style Selector="PathIcon.startPause.paused">
             <Setter Property="Data" Value="{StaticResource pause-filled}" />
         </Style>
+
+        <!--
+            The page adapts to its own width (the container below), not to the window: it can sit next to a navigation
+            rail or in a narrow window. Wide: the job and the temperatures side by side. Narrow: one below the other, with
+            the temperature tiles in one column when even that is tight, and the extras of a file row dropped.
+            The wide layout is a style as well (not an attribute) so that the narrow styles below can override it.
+        -->
+        <Style Selector="Border#JobCard">
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Grid.Column" Value="0" />
+            <Setter Property="Grid.ColumnSpan" Value="1" />
+        </Style>
+        <Style Selector="Border#TemperaturesCard">
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.ColumnSpan" Value="1" />
+        </Style>
+        <Style Selector="UniformGrid#TemperatureTiles">
+            <Setter Property="Columns" Value="2" />
+        </Style>
+
+        <ContainerQuery Name="printerPage" Query="max-width:780">
+            <Style Selector="Border#JobCard">
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+            </Style>
+            <Style Selector="Border#TemperaturesCard">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="Margin" Value="{DynamicResource Margin.CardStack}" />
+            </Style>
+        </ContainerQuery>
+
+        <ContainerQuery Name="printerPage" Query="max-width:560">
+            <Style Selector="StackPanel.file-estimate">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+        </ContainerQuery>
+
+        <ContainerQuery Name="printerPage" Query="max-width:420">
+            <Style Selector="UniformGrid#TemperatureTiles">
+                <Setter Property="Columns" Value="1" />
+            </Style>
+        </ContainerQuery>
     </UserControl.Styles>
 
     <ScrollViewer>
-        <Border Classes="page">
+        <Border
+            Classes="page"
+            Container.Name="printerPage"
+            Container.Sizing="Width">
             <StackPanel Spacing="{DynamicResource Gap.PageSection}">
 
                 <!--  Header: back, name, state  -->
@@ -45,17 +92,19 @@
                         <PathIcon Data="{StaticResource arrow-left-regular}" />
                     </Button>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <StackPanel Classes="inline">
+                        <!--  The badge goes below a long name instead of being pushed out of the page  -->
+                        <WrapPanel ItemSpacing="{DynamicResource Gap.IconLabel}" LineSpacing="{DynamicResource Gap.Hairline}">
                             <TextBlock
                                 VerticalAlignment="Center"
                                 Classes="title"
-                                Text="{Binding Item.Name}" />
+                                Text="{Binding Item.Name}"
+                                TextWrapping="Wrap" />
                             <controls:PrinterStateBadge
                                 VerticalAlignment="Center"
                                 IsVisible="{Binding Item.IsConnectorAvailable}"
                                 State="{Binding Item.State}" />
                             <controls:ConnectorUnavailableBadge VerticalAlignment="Center" IsVisible="{Binding !Item.IsConnectorAvailable}" />
-                        </StackPanel>
+                        </WrapPanel>
                         <TextBlock Classes="small secondary" Text="{Binding ConnectorName}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Classes="inline">
@@ -92,7 +141,10 @@
                     <ItemsControl ItemsSource="{Binding Item.ConditionMessages}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
-                                <TextBlock Foreground="{Binding $parent[ItemsControl].((vm:PrinterPageViewModel)DataContext).Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}" Text="{Binding}" />
+                                <TextBlock
+                                    Foreground="{Binding $parent[ItemsControl].((vm:PrinterPageViewModel)DataContext).Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}"
+                                    Text="{Binding}"
+                                    TextWrapping="Wrap" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -101,10 +153,16 @@
                 <TabControl SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                     <TabItem Header="Overview">
                         <StackPanel Spacing="{DynamicResource Gap.PageSection}">
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource Gap.CardGrid}">
+                            <!--  Two rows so that the cards can sit side by side or one below the other; see the styles above  -->
+                            <Grid
+                                x:Name="OverviewGrid"
+                                ColumnDefinitions="*,*"
+                                ColumnSpacing="{DynamicResource Gap.CardGrid}"
+                                RowDefinitions="Auto,Auto">
 
                                 <!--  Current job  -->
                                 <Border
+                                    x:Name="JobCard"
                                     Background="{DynamicResource CardBackground}"
                                     BorderBrush="{DynamicResource CardBorderBrush}"
                                     BorderThickness="1"
@@ -143,20 +201,25 @@
                                             Text="{Binding Item.PrintFileName}"
                                             TextTrimming="CharacterEllipsis"
                                             ToolTip.Tip="{Binding Item.PrintFileName}" />
-                                        <StackPanel Classes="inline">
-                                            <TextBlock Classes="display" Text="{Binding Item.Progress, StringFormat='{}{0:P0}'}" />
-                                            <TextBlock VerticalAlignment="Bottom" Classes="small secondary">
-                                                <Run Text="{Binding Item.PrintTime, StringFormat='{}{0:HH:mm:ss}'}" />
-                                                <Run Text="/" />
-                                                <Run Text="{Binding Item.PrintTimeTotal, StringFormat='{}{0:HH:mm:ss}'}" />
-                                            </TextBlock>
-                                            <PathIcon Data="{StaticResource layer-regular}" />
-                                            <TextBlock VerticalAlignment="Center" Classes="caption secondary">
-                                                <Run Text="{Binding Item.CurrentLayer, TargetNullValue='---'}" />
-                                                <Run Text="/" />
-                                                <Run Text="{Binding Item.TotalLayerCount, TargetNullValue='---'}" />
-                                            </TextBlock>
-                                        </StackPanel>
+                                        <!--  Progress with its times, and the layers: the layers move to the next line when there is no room  -->
+                                        <WrapPanel ItemSpacing="{DynamicResource Gap.CardGrid}" LineSpacing="{DynamicResource Gap.CardContent}">
+                                            <StackPanel Classes="inline">
+                                                <TextBlock Classes="display" Text="{Binding Item.Progress, StringFormat='{}{0:P0}'}" />
+                                                <TextBlock VerticalAlignment="Bottom" Classes="small secondary">
+                                                    <Run Text="{Binding Item.PrintTime, StringFormat='{}{0:HH:mm:ss}'}" />
+                                                    <Run Text="/" />
+                                                    <Run Text="{Binding Item.PrintTimeTotal, StringFormat='{}{0:HH:mm:ss}'}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <StackPanel VerticalAlignment="Center" Classes="inline">
+                                                <PathIcon Data="{StaticResource layer-regular}" />
+                                                <TextBlock VerticalAlignment="Center" Classes="caption secondary">
+                                                    <Run Text="{Binding Item.CurrentLayer, TargetNullValue='---'}" />
+                                                    <Run Text="/" />
+                                                    <Run Text="{Binding Item.TotalLayerCount, TargetNullValue='---'}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </WrapPanel>
                                         <ProgressBar
                                             Height="4"
                                             Background="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Background}}"
@@ -170,14 +233,17 @@
 
                                 <!--  Temperatures  -->
                                 <Border
-                                    Grid.Column="1"
+                                    x:Name="TemperaturesCard"
                                     Background="{DynamicResource CardBackground}"
                                     BorderBrush="{DynamicResource CardBorderBrush}"
                                     BorderThickness="1"
                                     Classes="card">
                                     <StackPanel Classes="card-content">
                                         <TextBlock Classes="overline" Text="TEMPERATURES" />
-                                        <UniformGrid ColumnSpacing="{DynamicResource Gap.CardContent}" Rows="1">
+                                        <UniformGrid
+                                            x:Name="TemperatureTiles"
+                                            ColumnSpacing="{DynamicResource Gap.CardContent}"
+                                            RowSpacing="{DynamicResource Gap.CardContent}">
                                             <Border Background="{DynamicResource TileBackground}" Classes="tile">
                                                 <StackPanel Classes="gap-0_5">
                                                     <TextBlock
@@ -222,9 +288,13 @@
                                 BorderThickness="1"
                                 Classes="card">
                                 <StackPanel Classes="card-content">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Classes="overline" Text="TEMPERATURE HISTORY" />
-                                        <StackPanel Grid.Column="1" Classes="inline">
+                                    <!--  The legend follows the title and moves below it when there is no room  -->
+                                    <WrapPanel ItemSpacing="{DynamicResource Gap.CardGrid}" LineSpacing="{DynamicResource Gap.CardContent}">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Classes="overline"
+                                            Text="TEMPERATURE HISTORY" />
+                                        <StackPanel VerticalAlignment="Center" Classes="inline">
                                             <Ellipse
                                                 Width="8"
                                                 Height="8"
@@ -239,7 +309,7 @@
                                             <TextBlock Classes="small secondary" Text="Bed" />
                                             <TextBlock Classes="small secondary" Text="(dashed: target)" />
                                         </StackPanel>
-                                    </Grid>
+                                    </WrapPanel>
                                     <controls:TemperatureChart
                                         Height="240"
                                         AutomationProperties.Name="Temperature history of the hotend and bed over the last 10 minutes"
@@ -263,21 +333,6 @@
                                     Classes="overline"
                                     Text="FILES ON THE PRINTER" />
                                 <StackPanel Grid.Column="1" Classes="inline">
-                                    <Button
-                                        AutomationProperties.Name="Print selected file"
-                                        Classes="icon"
-                                        Command="{Binding PrintSelectedFileCommand}"
-                                        ToolTip.Tip="Print selected file">
-                                        <PathIcon Data="{StaticResource play-regular}" />
-                                    </Button>
-                                    <Button
-                                        AutomationProperties.Name="Delete selected file"
-                                        Classes="icon"
-                                        Command="{Binding Files.DeleteFileCommand}"
-                                        IsEnabled="{Binding Files.SelectedItem, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                        ToolTip.Tip="Delete selected file">
-                                        <PathIcon Data="{StaticResource delete-regular}" />
-                                    </Button>
                                     <Button
                                         AutomationProperties.Name="Upload a file"
                                         Classes="icon"
@@ -307,16 +362,18 @@
                                 Classes="body secondary"
                                 IsVisible="{Binding Files.IsEmpty}"
                                 Text="There are no files on this printer." />
-                            <ListBox
-                                MaxHeight="480"
-                                ItemsSource="{Binding Files.Files}"
-                                SelectedItem="{Binding Files.SelectedItem, Mode=TwoWay}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:PrintMetadataListItem">
-                                        <controls:PrintFileListItem />
+                            <ItemsControl ItemsSource="{Binding FileRows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="{DynamicResource Gap.CardContent}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PrinterFileRowViewModel">
+                                        <controls:PrinterFileRow />
                                     </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </TabItem>
 

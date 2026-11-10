@@ -31,10 +31,11 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
         ILoggerFactory? loggerFactory = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        TemperatureHistory? temperatureHistory = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
-        TemperatureHistory = new TemperatureHistory(_timeProvider);
+        TemperatureHistory = temperatureHistory ?? new TemperatureHistory(_timeProvider);
         Item = item;
         _agentCommands = agentCommands;
         _imageCache = imageCache;
@@ -48,7 +49,10 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     [ObservableProperty]
     public partial PrinterStatusWidget Item { get; private set; }
 
-    /// <summary>The recent temperatures, collected while the dashboard is open so the printer page opens with a history.</summary>
+    /// <summary>
+    /// The recent temperatures of this printer. They are collected from telemetry by the app and handed to the card, because
+    /// the card itself is created again whenever the dashboard is shown again.
+    /// </summary>
     public TemperatureHistory TemperatureHistory { get; }
 
     private void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
@@ -71,12 +75,6 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         if (message.Value.BedTargetTemperature.HasValue)
         {
             Item.BedTargetTemperature = message.Value.BedTargetTemperature.Value;
-        }
-
-        if (message.Value.NozzleTemperature.HasValue || message.Value.BedTemperature.HasValue)
-        {
-            TemperatureHistory.Add(
-                Item.NozzleTemperature, Item.NozzleTargetTemperature, Item.BedTemperature, Item.BedTargetTemperature);
         }
 
         ResolveStartedFileName(message.Value.State);
@@ -151,13 +149,18 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         ?? Item.ConnectorId;
 
     /// <summary>True when the printer's connector can report a console. Printers without one show no Console tab.</summary>
-    internal bool SupportsConsole =>
-        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))
-            ?.Capabilities.HasFlag(ConnectorCapabilities.Console) == true;
+    internal bool SupportsConsole => Supports(ConnectorCapabilities.Console);
+
+    /// <summary>True when the printer's connector can take commands typed in its console (the console must report as well).</summary>
+    internal bool SupportsConsoleCommands => Supports(ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands);
 
     /// <summary>The console of this printer, for the printer page. Loads nothing until asked.</summary>
     internal PrinterConsoleViewModel CreateConsoleViewModel() =>
-        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>());
+        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>(), SupportsConsoleCommands);
+
+    private bool Supports(ConnectorCapabilities capabilities) =>
+        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))
+            ?.Capabilities.HasFlag(capabilities) == true;
 
     [RelayCommand]
     private async Task ShowEvents()

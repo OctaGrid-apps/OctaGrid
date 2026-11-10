@@ -1,32 +1,80 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Controls.PrinterConsolePanel"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:printers="using:OctaGrid.Protocol.Printers"
+    xmlns:services="using:OctaGrid.Client.Services"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
+    services:DialogManager.Register="{Binding}"
     x:DataType="vm:PrinterConsoleViewModel">
     <StackPanel Spacing="{DynamicResource Gap.CardContent}">
         <Grid ColumnDefinitions="*,Auto">
-            <TextBlock
-                VerticalAlignment="Center"
-                Classes="overline"
-                Text="CONSOLE" />
-            <Button
-                Grid.Column="1"
-                AutomationProperties.Name="Clear console"
-                Classes="icon"
-                Command="{Binding ClearCommand}"
-                ToolTip.Tip="Clear the list">
-                <PathIcon Data="{StaticResource delete-regular}" />
-            </Button>
+            <StackPanel VerticalAlignment="Center" Classes="inline">
+                <PathIcon Data="{StaticResource window-console-regular}" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Classes="overline"
+                    Text="CONSOLE" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Classes="inline">
+                <!--
+                    Only where commands would be possible if Expert mode were on, and only as a quiet icon: the
+                    explanation is there for whoever hovers over it and costs everyone else no space.
+                -->
+                <PathIcon
+                    x:Name="ExpertModeHint"
+                    AutomationProperties.Name="Sending commands needs Expert mode (Settings, Advanced)"
+                    Data="{StaticResource error-circle-hint-regular}"
+                    Foreground="{DynamicResource Brush.TextSecondary}"
+                    IsVisible="{Binding ShowExpertModeHint}"
+                    ToolTip.Tip="Sending commands needs Expert mode (Settings &gt; Advanced)" />
+                <Button
+                    AutomationProperties.Name="Copy console text"
+                    Classes="icon"
+                    Click="CopyButton_Click"
+                    ToolTip.Tip="Copy all lines, oldest first">
+                    <PathIcon Data="{StaticResource copy-regular}" />
+                </Button>
+                <Button
+                    AutomationProperties.Name="Clear console"
+                    Classes="icon"
+                    Command="{Binding ClearCommand}"
+                    ToolTip.Tip="Clear the list">
+                    <PathIcon Data="{StaticResource delete-regular}" />
+                </Button>
+            </StackPanel>
         </Grid>
 
-        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
+        <!--  Commands exist only for connectors that take them, and only in Expert mode. They come first, above the log.  -->
+        <StackPanel IsVisible="{Binding CanSend}" Spacing="{DynamicResource Gap.CardContent}">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Gap.CardContent}">
+                <TextBox
+                    AutomationProperties.Name="Command to send to the printer"
+                    IsEnabled="{Binding !IsSending}"
+                    MaxLength="{x:Static printers:ConsoleCommandRules.MaxLength}"
+                    PlaceholderText="Send a G-code command, for example M105"
+                    Text="{Binding CommandText, Mode=TwoWay}">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Command="{Binding SendCommand}" Gesture="Enter" />
+                        <KeyBinding Command="{Binding RecallPreviousCommand}" Gesture="Up" />
+                        <KeyBinding Command="{Binding RecallNextCommand}" Gesture="Down" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <Button
+                    Grid.Column="1"
+                    Classes="primary"
+                    Command="{Binding SendCommand}"
+                    Content="Send" />
+            </Grid>
+            <TextBlock
+                Classes="small"
+                Foreground="{DynamicResource State.Error.Foreground}"
+                IsVisible="{Binding HasSendError}"
+                Text="{Binding SendError}"
+                TextWrapping="Wrap" />
+        </StackPanel>
 
-        <TextBlock
-            Classes="small secondary"
-            IsVisible="{Binding IsIncomplete}"
-            Text="Older lines are not shown."
-            TextWrapping="Wrap" />
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
 
         <StackPanel Classes="inline" IsVisible="{Binding HasError}">
             <TextBlock
@@ -56,7 +104,8 @@
                         <DataTemplate x:DataType="vm:ConsoleLineItem">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource Gap.IconLabel}">
                                 <TextBlock Classes="caption mono secondary" Text="{Binding TimeText}" />
-                                <TextBlock
+                                <!--  Selectable, so a line or a part of it can be copied with Ctrl+C  -->
+                                <SelectableTextBlock
                                     Grid.Column="1"
                                     Classes="caption mono"
                                     Text="{Binding Text}"
@@ -67,5 +116,12 @@
                 </ItemsControl>
             </ScrollViewer>
         </Border>
+
+        <!--  Newest lines are at the top, so the lines that are no longer kept are the ones below the list  -->
+        <TextBlock
+            Classes="small secondary"
+            IsVisible="{Binding IsIncomplete}"
+            Text="Older lines are not shown."
+            TextWrapping="Wrap" />
     </StackPanel>
 </UserControl>

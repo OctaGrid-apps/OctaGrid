@@ -53,7 +53,7 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 
         WeakReferenceMessenger.Default.Register<WorkspaceEntityChanged>(this, HandleWorkspaceChanged);
         WeakReferenceMessenger.Default.Register<OpenPrinterPageRequested>(this, (_, message) =>
-            PrinterPage = new PrinterPageViewModel(message.Card, () => PrinterPage = null));
+            PrinterPage = new PrinterPageViewModel(message.Card, () => PrinterPage = null, _appSettings));
 
         AppStateService.PropertyChanged += (s, e) =>
         {
