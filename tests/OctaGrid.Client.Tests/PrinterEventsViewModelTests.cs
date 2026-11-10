@@ -50,6 +50,8 @@ public class PrinterEventsViewModelTests
 
         public IReadOnlyList<ConnectorDescriptor> Connectors => [];
 
+        public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();

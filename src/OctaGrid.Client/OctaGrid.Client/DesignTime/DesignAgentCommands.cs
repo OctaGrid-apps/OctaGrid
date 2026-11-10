@@ -14,6 +14,18 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
+    public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.Now;
+        ConsoleLine[] lines =
+        [
+            new(1, now.AddSeconds(-12), "ok"),
+            new(2, now.AddSeconds(-8), "T:215.3 /215.0 B:59.8 /60.0"),
+            new(3, now.AddSeconds(-4), "// Klipper state: Ready"),
+        ];
+        return Task.FromResult(new ConsolePage(lines.Where(l => l.Sequence > (afterSequence ?? 0)).ToList(), 3, false, DesignHistoryId));
+    }
+
     public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.Now;

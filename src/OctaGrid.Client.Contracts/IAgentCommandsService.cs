@@ -16,6 +16,13 @@ public interface IAgentCommandsService
     /// </summary>
     Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// What a printer wrote to its console, oldest first. Pass the sequence of the last line already shown as
+    /// <paramref name="afterSequence"/> to get only what came after it, or null for the newest lines. Only printers whose
+    /// connector declares <see cref="ConnectorCapabilities.Console"/> have any.
+    /// </summary>
+    Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken);
+
     Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken);
 
     Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken);

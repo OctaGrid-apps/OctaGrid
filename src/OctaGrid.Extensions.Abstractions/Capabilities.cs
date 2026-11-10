@@ -40,6 +40,28 @@ public interface IThumbnails
 }
 
 /// <summary>
+/// Optional capability: report what the printer writes to its console, such as G-code responses and messages. Declare
+/// <see cref="ConnectorCapabilities.Console"/>. The host gives the session a <see cref="IConsoleSink"/> before
+/// <see cref="IPrinterSession.RunAsync"/> starts; write each line the printer reports to it. Read-only: this does not
+/// let the user send anything to the printer.
+/// </summary>
+public interface IConsoleOutput
+{
+    /// <summary>Called once, before the session runs. Lines written to the sink are shown in the printer's console.</summary>
+    void SetConsoleSink(IConsoleSink sink);
+}
+
+/// <summary>Where a connector writes the lines the printer reports to its console. Safe to call from any thread.</summary>
+public interface IConsoleSink
+{
+    /// <summary>
+    /// Adds text to the console. Text with several lines is split into separate lines, empty lines are skipped, and very
+    /// long lines are shortened, so a connector can pass on whatever the printer sent.
+    /// </summary>
+    void WriteLine(string text);
+}
+
+/// <summary>
 /// Optional capability: custom commands for Expert mode. Declare
 /// <see cref="ConnectorCapabilities.CustomCommands"/> and list the commands in
 /// <see cref="ConnectorDescriptor.CustomCommands"/>. The host only runs declared commands.

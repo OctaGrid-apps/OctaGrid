@@ -33,6 +33,39 @@ public class MoonrakerConditionTests
         Assert.Empty(sink.Sent);
     }
 
+    private sealed class RecordingConsole : IConsoleSink
+    {
+        public List<string> Lines { get; } = [];
+
+        public void WriteLine(string text) => Lines.Add(text);
+    }
+
+    [Fact]
+    public void Gcode_console_output_goes_to_the_console_when_the_host_keeps_one()
+    {
+        var console = new RecordingConsole();
+        var sink = new RecordingSink();
+        var listener = new MoonrakerListener(Guid.NewGuid(), sink, console: console);
+
+        listener.OnGcodeResponse(Json("\"ok\""));
+        listener.OnGcodeResponse(Json("\"// Unknown command\""));
+
+        Assert.Equal(["ok", "// Unknown command"], console.Lines);
+        Assert.Empty(sink.Sent);
+    }
+
+    [Fact]
+    public void A_gcode_response_that_is_not_text_is_ignored_by_the_console()
+    {
+        var console = new RecordingConsole();
+        var listener = new MoonrakerListener(Guid.NewGuid(), new RecordingSink(), console: console);
+
+        listener.OnGcodeResponse(Json("{\"not\":\"text\"}"));
+        listener.OnGcodeResponse(Json("null"));
+
+        Assert.Empty(console.Lines);
+    }
+
     [Fact]
     public void A_shutdown_reason_is_an_error_condition()
     {

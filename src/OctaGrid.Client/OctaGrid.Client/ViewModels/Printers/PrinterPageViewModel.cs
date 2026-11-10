@@ -10,6 +10,9 @@ public enum PrinterPageTab
     Overview,
     Files,
     Events,
+
+    /// <summary>Only shown for printers whose connector reports a console.</summary>
+    Console,
 }
 
 /// <summary>
@@ -20,6 +23,7 @@ public enum PrinterPageTab
 public partial class PrinterPageViewModel : ViewModelBase
 {
     private readonly Action _close;
+    private bool _consoleRequested;
     private bool _eventsRequested;
     private bool _stopped;
 
@@ -29,6 +33,8 @@ public partial class PrinterPageViewModel : ViewModelBase
         _close = close;
         Files = card.CreateFilesViewModel();
         PrinterEvents = card.CreateEventsViewModel();
+        PrinterConsole = card.CreateConsoleViewModel();
+        HasConsole = card.SupportsConsole;
 
         Item.PropertyChanged += OnItemPropertyChanged;
         Files.PropertyChanged += OnFilesPropertyChanged;
@@ -39,6 +45,14 @@ public partial class PrinterPageViewModel : ViewModelBase
 
     /// <summary>The files on the printer.</summary>
     public FilePickerViewModel Files { get; }
+
+    /// <summary>
+    /// Whether the Console tab is shown: the printer's connector has to report a console. Decided when the page opens.
+    /// </summary>
+    public bool HasConsole { get; }
+
+    /// <summary>What the printer wrote to its console, newest last. Only read; nothing can be sent from here.</summary>
+    public PrinterConsoleViewModel PrinterConsole { get; }
 
     /// <summary>What happened to the printer (state changes, warnings), newest first.</summary>
     public PrinterEventsViewModel PrinterEvents { get; }
@@ -65,6 +79,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         Item.PropertyChanged -= OnItemPropertyChanged;
         Files.PropertyChanged -= OnFilesPropertyChanged;
         PrinterEvents.Stop();
+        PrinterConsole.Stop();
     }
 
     partial void OnSelectedTabIndexChanged(int value)
@@ -80,6 +95,11 @@ public partial class PrinterPageViewModel : ViewModelBase
                 // Once is enough: the list keeps itself up to date from the live events.
                 _eventsRequested = true;
                 _ = PrinterEvents.LoadCommand.ExecuteAsync(null).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                break;
+
+            case PrinterPageTab.Console when HasConsole && !_consoleRequested && !_stopped:
+                _consoleRequested = true;
+                _ = PrinterConsole.LoadCommand.ExecuteAsync(null).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                 break;
         }
     }

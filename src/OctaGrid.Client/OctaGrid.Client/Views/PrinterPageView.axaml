@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Views.PrinterPageView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -323,6 +323,11 @@
                     <!--  What happened to the printer  -->
                     <TabItem Header="Events">
                         <controls:PrinterEventsPanel DataContext="{Binding PrinterEvents}" />
+                    </TabItem>
+
+                    <!--  What the printer writes to its console; only for connectors that report one  -->
+                    <TabItem Header="Console" IsVisible="{Binding HasConsole}">
+                        <controls:PrinterConsolePanel DataContext="{Binding PrinterConsole}" />
                     </TabItem>
                 </TabControl>
             </StackPanel>

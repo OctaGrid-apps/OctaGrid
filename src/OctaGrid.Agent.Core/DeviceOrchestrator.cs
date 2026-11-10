@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Events;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
@@ -22,6 +23,7 @@ public class DeviceOrchestrator : IAsyncDisposable
         Task ExecutionTask
     );
 
+    private readonly PrinterConsoleLog? _console;
     private readonly string _dataRoot;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DeviceOrchestrator> _logger;
@@ -31,13 +33,16 @@ public class DeviceOrchestrator : IAsyncDisposable
     private readonly ITelemetrySink _telemetry;
 
     /// <param name="stopTimeout">How long to wait for a session to end after it is told to stop. Defaults to ten seconds.</param>
+    /// <param name="console">Where the console output of sessions that report it is kept. Without it, that output is dropped.</param>
     public DeviceOrchestrator(
         ConnectorRegistry registry,
         ITelemetrySink telemetry,
         ILoggerFactory? loggerFactory = null,
         string? dataRoot = null,
-        TimeSpan? stopTimeout = null)
+        TimeSpan? stopTimeout = null,
+        PrinterConsoleLog? console = null)
     {
+        _console = console;
         _stopTimeout = stopTimeout ?? TimeSpan.FromSeconds(10);
         _registry = registry;
         _telemetry = telemetry;
@@ -226,6 +231,13 @@ public class DeviceOrchestrator : IAsyncDisposable
             Path.Combine(_dataRoot, connector.Descriptor.Id, profile.PrinterId.ToString("N")));
 
         var session = connector.CreateSession(profile, context);
+
+        // Before the session runs, so its first lines are not lost.
+        if (_console is not null && session is IConsoleOutput consoleOutput)
+        {
+            consoleOutput.SetConsoleSink(_console.CreateSink(profile.PrinterId));
+        }
+
         var cts = new CancellationTokenSource();
 
         var task = Task.Run(async () =>

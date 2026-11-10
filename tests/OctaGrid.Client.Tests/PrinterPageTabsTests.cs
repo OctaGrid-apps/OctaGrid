@@ -26,7 +26,9 @@ public class PrinterPageTabsTests
 
         public Exception? FilesFailure { get; set; }
 
-        public IReadOnlyList<ConnectorDescriptor> Connectors => [];
+        public List<ConnectorDescriptor> ConnectorList { get; } = [];
+
+        public IReadOnlyList<ConnectorDescriptor> Connectors => ConnectorList;
 
         public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken)
         {
@@ -34,6 +36,14 @@ public class PrinterPageTabsTests
             return FilesFailure is { } failure
                 ? Task.FromException<IEnumerable<PrintMetadata>>(failure)
                 : Task.FromResult<IEnumerable<PrintMetadata>>(Files.ToList());
+        }
+
+        public int ConsoleRequests { get; private set; }
+
+        public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
+        {
+            ConsoleRequests++;
+            return Task.FromResult(new ConsolePage([], 0, false, Guid.NewGuid()));
         }
 
         public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
@@ -69,10 +79,14 @@ public class PrinterPageTabsTests
         public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private static (PrinterPageViewModel Page, FakeCommands Commands, PrinterStatusWidget Item) Create()
+    private const string ConnectorId = "acme.printer";
+
+    private static (PrinterPageViewModel Page, FakeCommands Commands, PrinterStatusWidget Item) Create(
+        ConnectorCapabilities capabilities = ConnectorCapabilities.None)
     {
         var commands = new FakeCommands();
-        var item = new PrinterStatusWidget { Id = Guid.NewGuid(), Name = "Voron", State = UniversalPrinterState.Idle };
+        commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", capabilities, [], []));
+        var item = new PrinterStatusWidget { Id = Guid.NewGuid(), Name = "Voron", State = UniversalPrinterState.Idle, ConnectorId = ConnectorId };
         var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache());
         return (new PrinterPageViewModel(card, () => { }), commands, item);
     }
@@ -134,6 +148,47 @@ public class PrinterPageTabsTests
         item.ConnectorId = "some.connector";
 
         Assert.Equal("some.connector", page.ConnectorName);
+    }
+
+    [Fact]
+    public void The_console_tab_is_offered_only_for_a_connector_that_reports_a_console()
+    {
+        Assert.True(Create(ConnectorCapabilities.PrintControl | ConnectorCapabilities.Console).Page.HasConsole);
+        Assert.False(Create(ConnectorCapabilities.PrintControl).Page.HasConsole);
+    }
+
+    [Fact]
+    public void Showing_the_Console_tab_loads_the_console_only_once()
+    {
+        var (page, commands, _) = Create(ConnectorCapabilities.Console);
+
+        page.SelectedTabIndex = (int)PrinterPageTab.Console;
+        page.SelectedTabIndex = (int)PrinterPageTab.Overview;
+        page.SelectedTabIndex = (int)PrinterPageTab.Console;
+
+        Assert.Equal(1, commands.ConsoleRequests);
+        Assert.True(page.PrinterConsole.IsLoaded);
+    }
+
+    [Fact]
+    public void A_printer_without_a_console_is_never_asked_for_one()
+    {
+        var (page, commands, _) = Create(ConnectorCapabilities.PrintControl);
+
+        page.SelectedTabIndex = (int)PrinterPageTab.Console;
+
+        Assert.Equal(0, commands.ConsoleRequests);
+    }
+
+    [Fact]
+    public void Stopping_the_page_stops_the_console_too()
+    {
+        var (page, _, item) = Create(ConnectorCapabilities.Console);
+        Assert.True(WeakReferenceMessenger.Default.IsRegistered<PrinterConsoleData, Guid>(page.PrinterConsole, item.Id));
+
+        page.Stop();
+
+        Assert.False(WeakReferenceMessenger.Default.IsRegistered<PrinterConsoleData, Guid>(page.PrinterConsole, item.Id));
     }
 
     [Fact]

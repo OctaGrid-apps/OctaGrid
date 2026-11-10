@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.ViewModels;
@@ -148,6 +149,15 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     internal string ConnectorName =>
         _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))?.DisplayName
         ?? Item.ConnectorId;
+
+    /// <summary>True when the printer's connector can report a console. Printers without one show no Console tab.</summary>
+    internal bool SupportsConsole =>
+        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))
+            ?.Capabilities.HasFlag(ConnectorCapabilities.Console) == true;
+
+    /// <summary>The console of this printer, for the printer page. Loads nothing until asked.</summary>
+    internal PrinterConsoleViewModel CreateConsoleViewModel() =>
+        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>());
 
     [RelayCommand]
     private async Task ShowEvents()

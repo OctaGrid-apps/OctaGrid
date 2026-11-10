@@ -164,7 +164,21 @@ While the state is `Offline`, a condition that is missing from a snapshot counts
 that cannot reach the printer cannot know that a problem went away. The "resolved" event is recorded once the printer
 reports again without it.
 
-Raw console output (for example G-code responses) is not state and does not belong in a snapshot.
+## Reporting the console
+
+Raw console output (for example G-code responses such as `ok` or a temperature report) is not state and does not belong in
+a snapshot. A connector that can read it implements `IConsoleOutput` and declares `ConnectorCapabilities.Console`. Before
+the session runs, OctaGrid calls `SetConsoleSink` with an `IConsoleSink`; write each line the printer reports to its
+`WriteLine`, from any thread. Printers of that connector then get a **Console** tab on their page, and printers of other
+connectors do not.
+
+You can pass on whatever the printer sends. OctaGrid splits text into lines, skips empty ones, replaces control
+characters, cuts very long lines and rate limits a printer that floods the console (it then records how many lines were
+skipped). It keeps the last 500 lines per printer in memory, and they are gone when OctaGrid restarts.
+
+The console is read-only: this capability does not let anyone send a command to the printer.
+
+## Not available yet
 
 ## Not available yet
 
@@ -176,7 +190,7 @@ Raw console output (for example G-code responses) is not state and does not belo
 
 `samples/OctaGrid.Extensions.Sample` is a connector for a simulated printer. It needs no hardware, so it is the quickest
 way to try installing, trusting and removing an extension. It also shows what a small connector looks like (settings,
-print control, files and a custom command).
+print control, files, a custom command and a console).
 
 1. Build it:
    ```bash
@@ -189,7 +203,8 @@ print control, files and a custom command).
 3. Choose **Review…**, read the prompt and **Trust and turn on**. *Demo printer (simulated)* is now active.
 4. Add a printer (Printers > add) and pick *Demo printer (simulated)* as its connector. Set *Simulation speed* to **Fast**
    to see a whole print in seconds. Start a file such as `benchy.gcode`, then pause, resume or stop it. The *Say hello*
-   custom command answers with a message.
+   custom command answers with a message. Open the printer's page (the open icon on its card) and choose the **Console**
+   tab to see the lines the simulated printer writes.
 5. Choose **Remove** to take it out again. It is turned off at once and its folder is deleted at the next start.
 
 To see the other states, edit the installed copy of `octagrid-extension.json` (in `extensions/octagrid-samples.demo-printer/1.0.0/`)

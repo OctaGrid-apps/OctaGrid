@@ -58,6 +58,67 @@ public class DeviceOrchestratorTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    /// <summary>A session that reports a console and writes one line as soon as it runs.</summary>
+    private sealed class ConsoleSession : IPrinterSession, IConsoleOutput
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private IConsoleSink? _sink;
+
+        public bool SinkWasSetBeforeRun { get; private set; }
+
+        public Task Started => _started.Task;
+
+        public void SetConsoleSink(IConsoleSink sink) => _sink = sink;
+
+        public async Task RunAsync(ITelemetrySink telemetry, CancellationToken cancellationToken)
+        {
+            SinkWasSetBeforeRun = _sink is not null;
+            _sink?.WriteLine("hello from the printer");
+            _started.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+
+        public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ConnectionTestResult.Ok());
+
+        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task A_session_that_reports_a_console_gets_its_sink_before_it_runs_and_its_lines_are_kept()
+    {
+        var session = new ConsoleSession();
+        var log = new Events.PrinterConsoleLog();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
+        var profile = Profile();
+
+        await orchestrator.ApplyProfilesAsync([profile]);
+        await session.Started;
+
+        Assert.True(session.SinkWasSetBeforeRun);
+        Assert.Equal(["hello from the printer"], log.Get(profile.PrinterId, null, 10).Lines.Select(l => l.Text));
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Console_output_is_dropped_when_the_host_keeps_no_console()
+    {
+        var session = new ConsoleSession();
+        var orchestrator = new DeviceOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
+
+        await orchestrator.ApplyProfilesAsync([Profile()]);
+        await session.Started;
+
+        Assert.False(session.SinkWasSetBeforeRun);
+        await orchestrator.DisposeAsync();
+    }
+
     [Fact]
     public async Task A_session_that_ignores_the_stop_does_not_hold_up_the_change_of_printers()
     {

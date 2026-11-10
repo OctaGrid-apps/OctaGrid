@@ -36,6 +36,13 @@ internal sealed class MessageHandler : IClientMessageHandler
         Dispatcher.UIThread.Post(() => WeakReferenceMessenger.Default.Send(message, recorded.PrinterId));
     }
 
+    public void Handle(PrinterConsoleLineRecorded recorded)
+    {
+        // Printers write from their own threads, and the console changes a collection that is bound to the UI.
+        var message = new PrinterConsoleData(recorded);
+        Dispatcher.UIThread.Post(() => WeakReferenceMessenger.Default.Send(message, recorded.PrinterId));
+    }
+
     public void Handle(PrinterTelemetry telemetryMessage)
     {
         WeakReferenceMessenger.Default.Send(new PrinterTelemetryData(telemetryMessage), telemetryMessage.PrinterId);

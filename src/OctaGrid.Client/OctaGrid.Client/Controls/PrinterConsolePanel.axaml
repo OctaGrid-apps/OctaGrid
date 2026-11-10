@@ -1,0 +1,71 @@
+﻿<UserControl
+    x:Class="OctaGrid.Client.Controls.PrinterConsolePanel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    x:DataType="vm:PrinterConsoleViewModel">
+    <StackPanel Spacing="{DynamicResource Gap.CardContent}">
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock
+                VerticalAlignment="Center"
+                Classes="overline"
+                Text="CONSOLE" />
+            <Button
+                Grid.Column="1"
+                AutomationProperties.Name="Clear console"
+                Classes="icon"
+                Command="{Binding ClearCommand}"
+                ToolTip.Tip="Clear the list">
+                <PathIcon Data="{StaticResource delete-regular}" />
+            </Button>
+        </Grid>
+
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
+
+        <TextBlock
+            Classes="small secondary"
+            IsVisible="{Binding IsIncomplete}"
+            Text="Older lines are not shown."
+            TextWrapping="Wrap" />
+
+        <StackPanel Classes="inline" IsVisible="{Binding HasError}">
+            <TextBlock
+                VerticalAlignment="Center"
+                Classes="body"
+                Text="{Binding ErrorMessage}"
+                TextWrapping="Wrap" />
+            <Button Command="{Binding LoadCommand}" Content="Try again" />
+        </StackPanel>
+
+        <TextBlock
+            Classes="body secondary"
+            IsVisible="{Binding IsEmpty}"
+            Text="The printer has not written anything to its console yet."
+            TextWrapping="Wrap" />
+
+        <Border
+            Height="400"
+            Background="{DynamicResource TileBackground}"
+            Classes="tile">
+            <ScrollViewer
+                x:Name="LinesScroller"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Lines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ConsoleLineItem">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource Gap.IconLabel}">
+                                <TextBlock Classes="caption mono secondary" Text="{Binding TimeText}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Classes="caption mono"
+                                    Text="{Binding Text}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+    </StackPanel>
+</UserControl>

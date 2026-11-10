@@ -12,6 +12,9 @@ internal sealed class LocalAgentCommands(AgentWorker agentWorker) : IAgentComman
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
         => agentWorker.DeleteFileAsync(deviceId, fileName, cancellationToken);
 
+    public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult(agentWorker.GetPrinterConsole(printerId, afterSequence, limit));
+
     public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
         Task.FromResult(agentWorker.GetPrinterEvents(printerId, afterSequence, limit));
 

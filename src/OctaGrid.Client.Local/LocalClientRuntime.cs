@@ -10,6 +10,7 @@ internal sealed class LocalClientRuntime(
     {
         // Registered before the agent starts, so no event recorded while printers connect is missed.
         agentWorker.EventRecorded += messageHandler.Handle;
+        agentWorker.ConsoleLineRecorded += messageHandler.Handle;
         try
         {
             await agentWorker.ExecuteAsync(cancellationToken);
@@ -19,6 +20,7 @@ internal sealed class LocalClientRuntime(
         finally
         {
             agentWorker.EventRecorded -= messageHandler.Handle;
+            agentWorker.ConsoleLineRecorded -= messageHandler.Handle;
             await agentWorker.DisposeAsync();
         }
     }
