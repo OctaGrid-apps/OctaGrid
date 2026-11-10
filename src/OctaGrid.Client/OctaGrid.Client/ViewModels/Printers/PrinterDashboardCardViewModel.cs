@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -88,8 +87,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.PrintTimeTotal = message.Value.PrintStatus.PrintTimeTotal;
         Item.State = message.Value.State;
 
-        Item.ConditionMessages = new ObservableCollection<string>(
-            message.Value.Conditions.OrderByDescending(c => c.Severity).Select(c => c.Message));
+        Item.SetConditions(message.Value.Conditions);
     }
 
     /// <summary>

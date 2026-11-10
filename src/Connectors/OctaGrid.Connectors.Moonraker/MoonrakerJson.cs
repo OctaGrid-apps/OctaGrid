@@ -77,7 +77,9 @@ internal static class MoonrakerJson
 
     public static bool Update(this JsonElement element, string name, double? current, Action<double> apply, int digits = 1)
     {
-        if (element.TryGetRoundDouble(digits, name, out var value) || value == current)
+        // Only a reported value that differs is a change. (This used to also fire when the property was missing and the
+        // current value was 0, and for every reported value, so almost every update was sent on.)
+        if (element.TryGetRoundDouble(digits, name, out var value) && value != current)
         {
             apply(value);
             return true;
@@ -116,8 +118,11 @@ internal static class MoonrakerJson
     {
         if (element.TryGetString(name, out var value))
         {
-            apply(value);
-            return true;
+            if (value != current)
+            {
+                apply(value);
+                return true;
+            }
         }
 
         return false;

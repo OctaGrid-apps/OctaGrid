@@ -13,6 +13,7 @@ public class MoonrakerListener
     private readonly ILogger<MoonrakerListener> _logger;
     private readonly PrinterTelemetry _printerTelemetry;
     private readonly ITelemetrySink _telemetry;
+    private string? _printMessage;
     private string? _printState;
     private string? _webhooksMessage;
     private string? _webhooksState;
@@ -84,31 +85,47 @@ public class MoonrakerListener
     {
     }
 
+    /// <summary>A change reported by Moonraker. Sent on only when something is different from what was last sent.</summary>
     [JsonRpcMethod("notify_status_update")]
     public void OnStatusUpdate(JsonElement payload, double eventTime)
     {
-        var status = payload.TryGetProperty("status", out var inner) ? inner : payload;
+        if (TryApply(payload, out var changed) && changed)
+        {
+            _telemetry.Send(Snapshot());
+        }
+    }
+
+    /// <summary>
+    /// The full status Moonraker answered a subscribe or query with. Always sent on, even when nothing changed: the
+    /// caller asked for the state, so a client that has not seen it yet must get it.
+    /// </summary>
+    public void OnStatusQueried(JsonElement payload)
+    {
+        if (TryApply(payload, out _))
+        {
+            _telemetry.Send(Snapshot());
+        }
+    }
+
+    // Returns false when the payload is not a status object at all.
+    private bool TryApply(JsonElement payload, out bool changed)
+    {
+        changed = false;
+        var status = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("status", out var inner) ? inner : payload;
         if (status.ValueKind != JsonValueKind.Object)
         {
-            return;
+            return false;
         }
 
         var t = _printerTelemetry;
-        var changed = false;
         var stateChanged = false;
+        var reasonsReported = false;
 
         if (status.TryGetProperty("webhooks", out var webhooks))
         {
             stateChanged |= webhooks.Update("state", _webhooksState, v => _webhooksState = v);
             webhooks.Update("state_message", _webhooksMessage, v => _webhooksMessage = v);
-
-            // Update() reports "present", not "different", so compare before announcing a change.
-            var conditions = ToConditions(_webhooksState, _webhooksMessage);
-            if (!conditions.SequenceEqual(t.Conditions))
-            {
-                t.Conditions = conditions;
-                changed = true;
-            }
+            reasonsReported = true;
         }
 
         if (status.TryGetProperty("extruder", out var extruder))
@@ -135,10 +152,30 @@ public class MoonrakerListener
             changed |= print.Update("total_duration", t.PrintStatus.PrintTimeTotal, v => t.PrintStatus.PrintTimeTotal = v);
             stateChanged |= print.Update("state", _printState, v => _printState = v);
 
+            // Klipper clears it with an empty string, but a null must not leave an old reason behind.
+            if (print.TryGetProperty("message", out var message))
+            {
+                _printMessage = message.ValueKind == JsonValueKind.String ? message.GetString() : null;
+            }
+
+            reasonsReported = true;
+
             if (print.TryGetProperty("info", out var info))
             {
                 changed |= info.Update("total_layer", t.PrintStatus.LayersCount, v => t.PrintStatus.LayersCount = v);
                 changed |= info.Update("current_layer", t.PrintStatus.CurrentLayer, v => t.PrintStatus.CurrentLayer = v);
+            }
+        }
+
+        // Both objects feed the conditions, so they are worked out once after both were read, and only when one of them
+        // was part of this update: most updates carry temperatures only.
+        if (reasonsReported)
+        {
+            var conditions = ToConditions(_webhooksState, _webhooksMessage, _printState, _printMessage);
+            if (!conditions.SequenceEqual(t.Conditions))
+            {
+                t.Conditions = conditions;
+                changed = true;
             }
         }
 
@@ -154,25 +191,31 @@ public class MoonrakerListener
             }
         }
 
-        if (changed)
-        {
-            _telemetry.Send(Snapshot());
-        }
+        return true;
     }
 
-    // Klippy reports "Printer is ready" as its message while healthy; only a not-ready state with a
-    // message is something the user has to act on.
-    private static IReadOnlyList<PrinterCondition> ToConditions(string? klippyState, string? message)
+    // Two separate reasons. webhooks.state_message explains Klipper itself; Klippy reports "Printer is ready" while healthy,
+    // so only a not-ready state with a message is something the user has to act on. print_stats.message explains a
+    // print that failed (state "error") while Klipper is fine, for example "Must home axis first".
+    private static List<PrinterCondition> ToConditions(
+        string? klippyState, string? klippyMessage, string? printState, string? printMessage)
     {
-        if (string.IsNullOrWhiteSpace(message) || string.Equals(klippyState, "ready", StringComparison.OrdinalIgnoreCase))
+        List<PrinterCondition> conditions = [];
+
+        if (!string.IsNullOrWhiteSpace(klippyMessage) && !string.Equals(klippyState, "ready", StringComparison.OrdinalIgnoreCase))
         {
-            return [];
+            var severity = string.Equals(klippyState, "startup", StringComparison.OrdinalIgnoreCase)
+                ? PrinterSeverity.Warning
+                : PrinterSeverity.Error;
+            conditions.Add(new PrinterCondition("klippy.state", severity, klippyMessage.Trim()));
         }
 
-        var severity = string.Equals(klippyState, "startup", StringComparison.OrdinalIgnoreCase)
-            ? PrinterSeverity.Warning
-            : PrinterSeverity.Error;
-        return [new PrinterCondition("klippy.state", severity, message.Trim())];
+        if (string.Equals(printState, "error", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(printMessage))
+        {
+            conditions.Add(new PrinterCondition("print.failed", PrinterSeverity.Warning, printMessage.Trim()));
+        }
+
+        return conditions;
     }
 
     // Subscribers get a copy: this listener keeps updating its own instance from another thread.

@@ -64,7 +64,7 @@ public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, 
     private const double NozzleTarget = 210;
     private const double BedTarget = 60;
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly PrinterProfile _profile;
     private readonly IConnectorContext _context;
     private readonly TimeSpan _tick;

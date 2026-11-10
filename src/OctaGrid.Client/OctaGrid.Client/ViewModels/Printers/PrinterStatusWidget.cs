@@ -219,6 +219,24 @@ public class PrinterStatusWidget : INotifyPropertyChanged
         }
     } = [];
 
+    /// <summary>
+    /// Shows the given conditions, most serious first. Snapshots arrive about once a second and almost always repeat
+    /// the same conditions, so the list is replaced (and bindings notified) only when the messages differ.
+    /// </summary>
+    public void SetConditions(IReadOnlyList<PrinterCondition> conditions)
+    {
+        if (conditions.Count == 0 && ConditionMessages.Count == 0)
+        {
+            return;
+        }
+
+        var messages = conditions.OrderByDescending(c => c.Severity).Select(c => c.Message).ToList();
+        if (!messages.SequenceEqual(ConditionMessages))
+        {
+            ConditionMessages = new ObservableCollection<string>(messages);
+        }
+    }
+
     /// <summary>The most serious condition, or null when nothing is wrong.</summary>
     public string? ConditionMessage => ConditionMessages.FirstOrDefault();
 
