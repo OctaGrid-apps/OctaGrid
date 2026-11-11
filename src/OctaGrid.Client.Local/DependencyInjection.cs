@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Client.Contracts;
@@ -41,6 +42,9 @@ public static class DependencyInjection
             .AddScoped<PrintersService>()
             .AddScoped<DashboardsService>()
             .AddScoped<WorkspacesService>();
+
+        // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
+        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
 
         services.AddSingleton<EntityChangeFeed>();
         services.AddSingleton<LocalAgentSynchronizer>();

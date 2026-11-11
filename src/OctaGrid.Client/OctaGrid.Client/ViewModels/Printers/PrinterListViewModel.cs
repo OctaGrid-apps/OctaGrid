@@ -121,7 +121,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             Settings = new Dictionary<string, string>(printer.Settings),
             ConnectorId = printer.ConnectorId,
             Enabled = printer.Enabled,
-            Secrets = new Dictionary<string, string>(printer.Secrets),
+            SavedSecretKeys = printer.SecretKeys,
         }), _agentCommands, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Edit printer", printerViewModel);

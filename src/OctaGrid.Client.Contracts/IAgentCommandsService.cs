@@ -47,7 +47,11 @@ public interface IAgentCommandsService
     IReadOnlyList<ConnectorDescriptor> Connectors { get; }
 
     /// <param name="settings">The settings entered for the printer, including secrets, by the keys the connector declared.</param>
-    Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken);
+    /// <param name="printerId">
+    /// The saved printer being edited, or null for a new one. Saved secrets cannot be read by a client, so for a
+    /// saved printer the secrets the user left empty are filled in from what is saved.
+    /// </param>
+    Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken);
 
     Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken);
 

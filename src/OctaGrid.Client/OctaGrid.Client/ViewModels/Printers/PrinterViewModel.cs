@@ -57,18 +57,36 @@ public partial class PrinterViewModel : ViewModelValidatorBase
         RebuildFields();
     }
 
+    /// <summary>
+    /// The saved printer whose secrets still apply to this form, or null: a new printer has none, and after
+    /// switching to another connector the saved ones belong to the previous connector.
+    /// </summary>
+    public Guid? SavedPrinterId =>
+        Id is { } id && id != Guid.Empty && string.Equals(ConnectorId, _original.ConnectorId, StringComparison.OrdinalIgnoreCase) ? id : null;
+
     /// <summary>True when the connection can be tested: a connector is chosen and its required fields are filled in.</summary>
     public bool CanTestConnection() =>
         Connector is not null
-        && Fields.All(f => !f.Required || f.Field.Type == SettingFieldType.Boolean || !string.IsNullOrWhiteSpace(f.Value));
+        && Fields.All(f => !f.Required || f.Field.Type == SettingFieldType.Boolean || f.HasSavedValue || !string.IsNullOrWhiteSpace(f.Value));
 
-    /// <summary>All entered values, secrets included, by key; used to test the connection.</summary>
+    /// <summary>
+    /// All entered values, secrets included, by key; used to test the connection. A saved secret the user did
+    /// not retype is not in here: the backend fills it in for <see cref="SavedPrinterId"/>. A saved secret the
+    /// user is removing is in here with an empty value, which tells the backend not to fill it in.
+    /// </summary>
     public Dictionary<string, string> CollectSettings()
     {
         var all = new Dictionary<string, string>();
-        foreach (var field in Fields.Where(f => !string.IsNullOrWhiteSpace(f.Value)))
+        foreach (var field in Fields)
         {
-            all[field.Key] = field.Value.Trim();
+            if (!string.IsNullOrWhiteSpace(field.Value))
+            {
+                all[field.Key] = field.Value.Trim();
+            }
+            else if (field.IsSavedValueRemoved)
+            {
+                all[field.Key] = string.Empty;
+            }
         }
 
         return all;
@@ -95,15 +113,23 @@ public partial class PrinterViewModel : ViewModelValidatorBase
 
         if (Connector is null)
         {
-            // The connector is not available, so its fields are unknown: keep what was saved.
+            // The connector is not available, so its fields are unknown: keep what was saved. Saved secrets
+            // stay as they are when none are sent.
             settings = new Dictionary<string, string>(_original.Settings);
-            secrets = new Dictionary<string, string>(_original.Secrets);
         }
         else
         {
-            foreach (var field in Fields.Where(f => !string.IsNullOrWhiteSpace(f.Value)))
+            foreach (var field in Fields)
             {
-                (field.IsSecret ? secrets : settings)[field.Key] = field.Value.Trim();
+                if (!string.IsNullOrWhiteSpace(field.Value))
+                {
+                    (field.IsSecret ? secrets : settings)[field.Key] = field.Value.Trim();
+                }
+                else if (field.IsSavedValueRemoved)
+                {
+                    // An empty value asks the backend to remove the saved secret; leaving the key out keeps it.
+                    secrets[field.Key] = string.Empty;
+                }
             }
         }
 
@@ -144,15 +170,20 @@ public partial class PrinterViewModel : ViewModelValidatorBase
             return;
         }
 
+        // Saved secrets belong to the saved connector; after switching to another one they no longer apply.
+        var connectorIsSaved = string.Equals(connector.Id, _original.ConnectorId, StringComparison.OrdinalIgnoreCase);
+
         foreach (var setting in connector.Settings)
         {
             var value = typed.GetValueOrDefault(setting.Key)
-                        ?? _original.Secrets.GetValueOrDefault(setting.Key)
+                        ?? (setting.Secret ? string.Empty : null)
                         ?? _original.Settings.GetValueOrDefault(setting.Key)
                         ?? setting.DefaultValue
                         ?? (setting.Type == SettingFieldType.Boolean ? "false" : string.Empty);
 
-            var field = new SettingFieldViewModel(setting, value);
+            // A saved secret is never sent to the client, so its input starts empty and means "keep it".
+            var hasSavedValue = setting.Secret && connectorIsSaved && _original.SavedSecretKeys.Contains(setting.Key);
+            var field = new SettingFieldViewModel(setting, value, hasSavedValue);
             field.PropertyChanged += OnFieldPropertyChanged;
             Fields.Add(field);
         }

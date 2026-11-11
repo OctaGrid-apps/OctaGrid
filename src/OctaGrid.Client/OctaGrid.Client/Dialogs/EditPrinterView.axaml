@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="OctaGrid.Client.Dialogs.EditPrinterView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -57,7 +57,14 @@
                             <TextBox
                                 IsVisible="{Binding IsSecretInput}"
                                 PasswordChar="•"
+                                PlaceholderText="{Binding SecretPlaceholder}"
                                 Text="{Binding Value}" />
+                            <Button
+                                HorizontalAlignment="Left"
+                                Classes="small"
+                                Command="{Binding ToggleRemoveSavedValueCommand}"
+                                Content="{Binding RemoveSavedValueLabel}"
+                                IsVisible="{Binding CanRemoveSavedValue}" />
                             <ToggleSwitch
                                 IsChecked="{Binding BoolValue}"
                                 IsVisible="{Binding IsToggle}"

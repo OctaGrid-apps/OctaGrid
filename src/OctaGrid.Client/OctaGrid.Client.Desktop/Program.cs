@@ -1,5 +1,6 @@
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
+using OctaGrid.Application.Secrets;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Desktop.Services;
 using OctaGrid.Client.Services;
@@ -35,6 +36,7 @@ internal sealed class Program
             services.AddDesktopLogging();
             services.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
             services.AddSingleton<IAppSettingsStore, JsonClientSettingsStore>();
+            services.AddSingleton<ISecretKeySource, WindowsSecretKeySource>();
             services.AddSingleton<IBackdropCapabilities, WindowsBackdropCapabilities>();
             services
                 .AddWebRtc();

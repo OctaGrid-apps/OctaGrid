@@ -9,9 +9,11 @@ public sealed class Printer : Entity
     public string ConnectorId { get; set; } = string.Empty;
     /// <summary>Values for the connector's non-secret settings (address, serial number, ...), by key.</summary>
     public Dictionary<string, string> Settings { get; set; } = [];
-    /// <summary>Values for the connector's secret settings (API keys, access codes, ...), by key.</summary>
-    // ToDo: stored as-is for now; encrypt before they leave the local machine.
-    public Dictionary<string, string> Secrets { get; set; } = [];
+    /// <summary>
+    /// The secret settings (API keys, access codes, ...) by key, as encrypted text, or null when there are none.
+    /// The key is kept outside the database, so this column alone does not reveal them.
+    /// </summary>
+    public string? ProtectedSecrets { get; set; }
 
     // Navigation props
     public Workspace? Workspace { get; set; }

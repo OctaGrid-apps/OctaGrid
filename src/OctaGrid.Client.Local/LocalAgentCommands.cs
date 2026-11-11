@@ -1,13 +1,17 @@
+using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core;
+using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Local;
 
-internal sealed class LocalAgentCommands(AgentWorker agentWorker) : IAgentCommandsService, ICommandService
+internal sealed class LocalAgentCommands(AgentWorker agentWorker, IServiceScopeFactory scopes, ICurrentUserAccessor currentUser)
+    : IAgentCommandsService, ICommandService
 {
     public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken)
         => agentWorker.DeleteFileAsync(deviceId, fileName, cancellationToken);
@@ -41,8 +45,21 @@ internal sealed class LocalAgentCommands(AgentWorker agentWorker) : IAgentComman
 
     public IReadOnlyList<ConnectorDescriptor> Connectors => agentWorker.ConnectorDescriptors;
 
-    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken) =>
-        agentWorker.TestConnectionAsync(connectorId, settings, cancellationToken);
+    public async Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken)
+    {
+        if (printerId is { } id)
+        {
+            var userId = currentUser.GetCurrentUserId()
+                ?? throw new AuthenticationException("No user is signed in.");
+
+            // The service is scoped (it uses the DbContext), so it gets its own scope for this call.
+            await using var scope = scopes.CreateAsyncScope();
+            settings = await scope.ServiceProvider.GetRequiredService<PrintersService>()
+                .AddSavedSecrets(userId, id, settings, cancellationToken);
+        }
+
+        return await agentWorker.TestConnectionAsync(connectorId, settings, cancellationToken);
+    }
 
     public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>
                                         agentWorker.TriggerInitialStateAsync(printerId, cancellationToken);
