@@ -19,23 +19,28 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddOctoGridClientLocal(this IServiceCollection services)
     {
-        var connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = GetDatabasePath(),
-            Pooling = true,
-            DefaultTimeout = 30
-        }.ToString();
-
+        // The path is read when the first context is created, not here, so registering Local mode touches no files.
         services.AddDbContext<OctaGridContext>(options =>
-                options.UseSqlite(connectionString, b => b.MigrationsAssembly("OctaGrid.Client.Local")));
+        {
+            var connectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = GetDatabasePath(),
+                Pooling = true,
+                DefaultTimeout = 30
+            }.ToString();
 
+            options.UseSqlite(connectionString, b => b.MigrationsAssembly("OctaGrid.Client.Local"));
+        });
+
+        // Scoped, like the context they use: a DbContext is not thread-safe and must not live for the whole
+        // process. The Local adapters below are singletons and open one scope per call, as a server does per request.
         services
             .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
-            .AddSingleton<AgentsService>()
-            .AddSingleton<UsersService>()
-            .AddSingleton<PrintersService>()
-            .AddSingleton<DashboardsService>()
-            .AddSingleton<WorkspacesService>();
+            .AddScoped<AgentsService>()
+            .AddScoped<UsersService>()
+            .AddScoped<PrintersService>()
+            .AddScoped<DashboardsService>()
+            .AddScoped<WorkspacesService>();
 
         services.AddSingleton<EntityChangeFeed>();
         services.AddSingleton<LocalAgentSynchronizer>();
@@ -79,7 +84,8 @@ public static class DependencyInjection
     public static void ApplyMigrations(this IServiceProvider provider)
     {
         var logger = provider.GetRequiredService<ILogger<OctaGridContext>>();
-        var context = provider.GetRequiredService<OctaGridContext>();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OctaGridContext>();
 
         try
         {
@@ -90,7 +96,7 @@ public static class DependencyInjection
 
             logger.LogInformation("Database migrations applied successfully.");
 
-            EnsureLocalDefaults(provider, context, logger);
+            EnsureLocalDefaults(scope.ServiceProvider, context, logger);
         }
         catch (Exception ex)
         {
