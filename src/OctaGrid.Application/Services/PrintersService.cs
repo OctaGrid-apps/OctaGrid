@@ -161,17 +161,17 @@ public sealed class PrintersService
             .AsNoTracking()
             .Where(p => p.WorkspaceId == workspaceId && p.Id == printerId)
             .Select(p =>
-                new PrinterResponse(p.Id,
+                new PrinterRow(p.Id,
                     p.Name,
                     p.ConnectorId,
                     p.Settings,
-                    p.SecretKeys,
+                    p.ProtectedSecrets,
                     p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
                     p.Enabled,
                     p.Version))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
-        return response;
+        return MapToResponse(response);
     }
 
     public async Task<List<PrinterResponse>> GetPrintersList(Guid userId, Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken)
@@ -183,17 +183,17 @@ public sealed class PrintersService
             .WhereIf(query.Enabled.HasValue, p => p.Enabled == query.Enabled!.Value)
             .Where(p => p.WorkspaceId == workspaceId)
             .Select(p =>
-                new PrinterResponse(p.Id,
+                new PrinterRow(p.Id,
                     p.Name,
                     p.ConnectorId,
                     p.Settings,
-                    p.SecretKeys,
+                    p.ProtectedSecrets,
                     p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
                     p.Enabled,
                     p.Version))
             .ToListAsync(cancellationToken);
 
-        return response;
+        return response.Select(MapToResponse).ToList();
     }
 
     public async Task SetEnabled(Guid userId, Guid printerId, bool state, CancellationToken cancellationToken)
@@ -303,10 +303,9 @@ public sealed class PrintersService
         return result;
     }
 
-    /// <summary>Encrypts the secrets into the printer row and records which keys have a value.</summary>
+    /// <summary>Encrypts the secrets, key names included, into the printer row.</summary>
     private void WriteSecrets(Printer printer, Dictionary<string, string> secrets)
     {
-        printer.SecretKeys = secrets.Keys.Order(StringComparer.Ordinal).ToList();
         printer.ProtectedSecrets = secrets.Count == 0
             ? null
             : _protector.Protect(JsonSerializer.Serialize(secrets), printer.Id.ToString("N"));
@@ -337,6 +336,27 @@ public sealed class PrintersService
         }
     }
 
-    private static PrinterResponse MapToResponse(Printer printer) =>
-        new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, printer.SecretKeys, printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.Enabled, printer.Version);
+    /// <summary>
+    /// The names of the secrets that have a saved value, never the values. They are read from the encrypted
+    /// text, so secrets that can no longer be decrypted are reported as not saved.
+    /// </summary>
+    private IReadOnlyList<string> SecretKeys(Guid printerId, string? protectedSecrets) =>
+        ReadSecrets(printerId, protectedSecrets).Keys.Order(StringComparer.Ordinal).ToList();
+
+    private PrinterResponse MapToResponse(Printer printer) =>
+        new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, SecretKeys(printer.Id, printer.ProtectedSecrets), printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.Enabled, printer.Version);
+
+    private PrinterResponse MapToResponse(PrinterRow row) =>
+        new(row.Id, row.Name, row.ConnectorId, row.Settings, SecretKeys(row.Id, row.ProtectedSecrets), row.ConnectionState, row.Enabled, row.Version);
+
+    /// <summary>What a read query selects; the secret names are worked out after it, by decrypting.</summary>
+    private sealed record PrinterRow(
+        Guid Id,
+        string Name,
+        string ConnectorId,
+        Dictionary<string, string> Settings,
+        string? ProtectedSecrets,
+        string ConnectionState,
+        bool Enabled,
+        long Version);
 }

@@ -130,7 +130,8 @@ public sealed class PrintersServiceTests : IDisposable
         var row = string.Join("|", Enumerable.Range(0, reader.FieldCount).Select(i => reader.GetValue(i).ToString()));
 
         Assert.Contains(created.Id.ToString(), row, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("apiKey", row);
+        // The names of the secrets are encrypted together with the values.
+        Assert.DoesNotContain("apiKey", row);
         Assert.DoesNotContain("s3cret-value", row);
     }
 
@@ -235,6 +236,8 @@ public sealed class PrintersServiceTests : IDisposable
         var service = NewService(context);
         var profile = Assert.Single(await service.GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None));
         Assert.Null(profile.Get("apiKey"));
+        // The form must not claim a secret is saved when it can no longer be read.
+        Assert.Empty((await service.GetPrinter(_userId, _workspaceId, created.Id, CancellationToken.None)).SecretKeys);
 
         var updated = await service.Update(
             _userId,

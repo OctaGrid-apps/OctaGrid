@@ -10,13 +10,7 @@ public sealed class Printer : Entity
     /// <summary>Values for the connector's non-secret settings (address, serial number, ...), by key.</summary>
     public Dictionary<string, string> Settings { get; set; } = [];
     /// <summary>
-    /// The keys of the secret settings that have a saved value, readable without the encryption key. The values
-    /// are in <see cref="ProtectedSecrets"/>.
-    /// </summary>
-    public List<string> SecretKeys { get; set; } = [];
-
-    /// <summary>
-    /// The secret settings (API keys, access codes, ...) as encrypted text, or null when there are none.
+    /// The secret settings (API keys, access codes, ...) by key, as encrypted text, or null when there are none.
     /// The key is kept outside the database, so this column alone does not reveal them.
     /// </summary>
     public string? ProtectedSecrets { get; set; }

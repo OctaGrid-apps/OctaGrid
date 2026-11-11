@@ -11,7 +11,7 @@ using OctaGrid.Data.Abstractions;
 namespace OctaGrid.Client.Local.Migrations
 {
     [DbContext(typeof(OctaGridContext))]
-    [Migration("20261111180634_InitialCreate")]
+    [Migration("20261111183952_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -250,10 +250,6 @@ namespace OctaGrid.Client.Local.Migrations
 
                     b.Property<string>("ReportedModel")
                         .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SecretKeys")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Settings")
