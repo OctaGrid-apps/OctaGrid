@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core;
@@ -7,10 +8,9 @@ using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.Local;
 
+// A singleton (the agent holds it for its lifetime), so each read opens its own scope for the scoped services.
 internal sealed class LocalPrinterProfileSource(
-    PrintersService printers,
-    WorkspacesService workspaces,
-    UsersService users,
+    IServiceScopeFactory scopes,
     ICurrentUserAccessor currentUser,
     ILogger<LocalPrinterProfileSource>? logger = null)
     : IPrinterProfileSource
@@ -19,6 +19,11 @@ internal sealed class LocalPrinterProfileSource(
 
     public async Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken)
     {
+        await using var scope = scopes.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UsersService>();
+        var workspaces = scope.ServiceProvider.GetRequiredService<WorkspacesService>();
+        var printers = scope.ServiceProvider.GetRequiredService<PrintersService>();
+
         var rawUserId = currentUser.GetCurrentUserId();
         Guid userId;
         if (rawUserId.HasValue)

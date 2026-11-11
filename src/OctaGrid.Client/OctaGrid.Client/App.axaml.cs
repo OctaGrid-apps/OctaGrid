@@ -49,7 +49,9 @@ public partial class App : Application
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<SafetyDisclaimerViewModel>();
 
-            var provider = services.BuildServiceProvider();
+            // A scoped service (the Local mode database context and the services over it) resolved from the
+            // root would silently live for the whole process; this makes that an error instead.
+            var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
             Services = provider;
 
             var logger = provider.GetService<ILogger<App>>() ?? NullLogger<App>.Instance;
