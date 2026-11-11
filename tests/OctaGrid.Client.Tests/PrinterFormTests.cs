@@ -63,14 +63,82 @@ public class PrinterFormTests
         {
             Name = "P",
             Settings = new Dictionary<string, string> { ["url"] = "10.0.0.2" },
-            Secrets = new Dictionary<string, string> { ["apiKey"] = "999" },
+            SavedSecretKeys = ["apiKey"],
         };
 
         var form = Form("octagrid.bambu-mqtt", saved);
 
         Assert.Equal("10.0.0.2", Field(form, "url").Value);
-        Assert.Equal("999", Field(form, "apiKey").Value);
         Assert.Equal(string.Empty, Field(form, "serialNumber").Value);
+    }
+
+    [Fact]
+    public void A_saved_secret_starts_empty_and_is_kept_when_left_empty()
+    {
+        var saved = new Printer
+        {
+            Id = Guid.NewGuid(),
+            Name = "My printer",
+            Settings = new Dictionary<string, string> { ["url"] = "10.0.0.2" },
+            SavedSecretKeys = ["apiKey"],
+        };
+
+        var form = Form("octagrid.bambu-mqtt", saved);
+        var secret = Field(form, "apiKey");
+
+        Assert.Equal(string.Empty, secret.Value);
+        Assert.True(secret.HasSavedValue);
+        Assert.NotNull(secret.SecretPlaceholder);
+        Assert.True(form.ValidateAll());
+        Assert.True(form.CanTestConnection());
+        Assert.Equal(saved.Id, form.SavedPrinterId);
+        Assert.Empty(form.ToPrinter().Secrets);
+    }
+
+    [Fact]
+    public void Typing_over_a_saved_secret_sends_the_new_value()
+    {
+        var saved = new Printer
+        {
+            Id = Guid.NewGuid(),
+            Name = "My printer",
+            Settings = new Dictionary<string, string> { ["url"] = "10.0.0.2" },
+            SavedSecretKeys = ["apiKey"],
+        };
+
+        var form = Form("octagrid.bambu-mqtt", saved);
+        Field(form, "apiKey").Value = "new-code";
+
+        Assert.Equal("new-code", form.ToPrinter().Secrets["apiKey"]);
+    }
+
+    [Fact]
+    public void A_saved_secret_does_not_carry_over_to_another_connector()
+    {
+        var saved = new Printer
+        {
+            Id = Guid.NewGuid(),
+            Name = "My printer",
+            Settings = new Dictionary<string, string> { ["url"] = "10.0.0.2" },
+            SavedSecretKeys = ["apiKey"],
+        };
+        var form = Form("octagrid.bambu-mqtt", saved);
+
+        form.ConnectorId = "octagrid.moonraker";
+
+        Assert.False(Field(form, "apiKey").HasSavedValue);
+        Assert.Null(form.SavedPrinterId);
+    }
+
+    [Fact]
+    public void A_new_printer_has_no_saved_secrets_to_fall_back_on()
+    {
+        var form = Form();
+        Field(form, "url").Value = "192.168.1.9";
+
+        Assert.False(Field(form, "apiKey").HasSavedValue);
+        Assert.Null(form.SavedPrinterId);
+        Assert.False(form.CanTestConnection());
     }
 
     [Fact]
@@ -123,7 +191,7 @@ public class PrinterFormTests
         {
             Name = "P",
             Settings = new Dictionary<string, string> { ["url"] = "10.0.0.2" },
-            Secrets = new Dictionary<string, string> { ["apiKey"] = "999" },
+            SavedSecretKeys = ["apiKey"],
         };
 
         var form = Form("octagrid.moonraker", saved, connectors: Bambu);
@@ -132,7 +200,8 @@ public class PrinterFormTests
         Assert.Empty(form.Fields);
         Assert.Null(form.Connector);
         Assert.Equal("10.0.0.2", printer.Settings["url"]);
-        Assert.Equal("999", printer.Secrets["apiKey"]);
+        // Nothing is sent for the secrets, which leaves the saved ones as they are.
+        Assert.Empty(printer.Secrets);
     }
 
     [Fact]
@@ -243,7 +312,7 @@ public class PrinterFormTests
         var response = new PrinterResponse(
             Guid.NewGuid(), "P", "octagrid.bambu-mqtt",
             new Dictionary<string, string> { ["url"] = "192.168.1.9", ["serialNumber"] = "01P" },
-            new Dictionary<string, string> { ["apiKey"] = "123456" },
+            ["apiKey"],
             "Connected", true, 3);
 
         var item = response.ToPrinterListItem([Bambu]);
@@ -259,7 +328,7 @@ public class PrinterFormTests
         var response = new PrinterResponse(
             Guid.NewGuid(), "P", "acme.gone",
             new Dictionary<string, string> { ["url"] = "10.0.0.1" },
-            new Dictionary<string, string>(),
+            [],
             "Unknown", true, 1);
 
         var item = response.ToPrinterListItem([Bambu]);
@@ -274,7 +343,7 @@ public class PrinterFormTests
     {
         var response = new PrinterResponse(
             Guid.NewGuid(), "P", "octagrid.bambu-mqtt",
-            new Dictionary<string, string>(), new Dictionary<string, string>(), "Connected", true, 1);
+            new Dictionary<string, string>(), [], "Connected", true, 1);
 
         Assert.True(response.ToPrinterListItem([Bambu]).IsConnectorAvailable);
     }

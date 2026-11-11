@@ -114,7 +114,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         try
         {
             var result = await _agentCommands.TestConnectionAsync(
-                Item.ConnectorId, Item.CollectSettings(), cancellationToken);
+                Item.ConnectorId, Item.CollectSettings(), Item.SavedPrinterId, cancellationToken);
             TestSucceeded = result.Success;
             TestResultMessage = result.Success ? "Connected successfully." : result.Error ?? "Connection failed.";
         }

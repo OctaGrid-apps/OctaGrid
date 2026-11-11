@@ -61,7 +61,7 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
 
     public IReadOnlyList<ConnectorDescriptor> Connectors { get; } = [];
 
-    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken) =>
+    public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
         Task.FromResult(new ConnectionTestResult(true, null));
 
     public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>

@@ -68,7 +68,7 @@ public class PrinterEventsViewModelTests
 
         public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 

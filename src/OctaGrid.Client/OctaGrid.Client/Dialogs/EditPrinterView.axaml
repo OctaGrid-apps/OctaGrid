@@ -57,6 +57,7 @@
                             <TextBox
                                 IsVisible="{Binding IsSecretInput}"
                                 PasswordChar="•"
+                                PlaceholderText="{Binding SecretPlaceholder}"
                                 Text="{Binding Value}" />
                             <ToggleSwitch
                                 IsChecked="{Binding BoolValue}"

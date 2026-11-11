@@ -17,7 +17,7 @@ internal static class Extensions
             PrinterDisplay.Address(connector, printer.Settings),
             printer.ConnectionState,
             printer.Settings,
-            printer.Secrets,
+            printer.SecretKeys,
             printer.Enabled,
             printer.Version,
             connector is not null);

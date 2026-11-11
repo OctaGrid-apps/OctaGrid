@@ -246,7 +246,7 @@ namespace OctaGrid.Client.Local.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Secrets")
+                    b.Property<string>("SecretKeys")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

@@ -5,7 +5,10 @@ namespace OctaGrid.Protocol.Printers;
 /// <param name="Name">Name shown to users.</param>
 /// <param name="ConnectorId">Id of the connector that talks to the printer.</param>
 /// <param name="Settings">Values for the connector's non-secret settings, by key.</param>
-/// <param name="Secrets">Values for the connector's secret settings, by key.</param>
+/// <param name="SecretKeys">
+/// The keys of the connector's secret settings that have a saved value. Secret values are write-only:
+/// they are never returned to a client.
+/// </param>
 /// <param name="ConnectionState">Last known connection state.</param>
 /// <param name="Enabled">Whether the agent connects to the printer.</param>
 /// <param name="Version">Version used to ignore out-of-date change notifications.</param>
@@ -14,7 +17,7 @@ public record PrinterResponse(
     string Name,
     string ConnectorId,
     IReadOnlyDictionary<string, string> Settings,
-    IReadOnlyDictionary<string, string> Secrets,
+    IReadOnlyList<string> SecretKeys,
     string ConnectionState,
     bool Enabled,
     long Version);

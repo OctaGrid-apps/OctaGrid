@@ -27,9 +27,9 @@ internal sealed class PrinterConfiguration : EntityConfiguration<Printer>
             .IsRequired()
             .HasConversion(DictionaryJson.Converter, DictionaryJson.Comparer);
 
-        builder.Property(u => u.Secrets)
+        builder.Property(u => u.SecretKeys)
             .IsRequired()
-            .HasConversion(DictionaryJson.Converter, DictionaryJson.Comparer);
+            .HasConversion(StringListJson.Converter, StringListJson.Comparer);
 
         builder.HasOne(s => s.Workspace)
             .WithMany(w => w.Printers)

@@ -11,7 +11,11 @@ public sealed class Printer : Entity
     public Dictionary<string, string> Settings { get; set; } = [];
     /// <summary>Values for the connector's secret settings (API keys, access codes, ...), by key.</summary>
     // ToDo: stored as-is for now; encrypt before they leave the local machine.
-    public Dictionary<string, string> Secrets { get; set; } = [];
+    /// <summary>
+    /// The keys of the secret settings that have a saved value. The values themselves are kept in the
+    /// secret store, never in the database.
+    /// </summary>
+    public List<string> SecretKeys { get; set; } = [];
 
     // Navigation props
     public Workspace? Workspace { get; set; }
