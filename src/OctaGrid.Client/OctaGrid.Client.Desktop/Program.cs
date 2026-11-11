@@ -36,7 +36,7 @@ internal sealed class Program
             services.AddDesktopLogging();
             services.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
             services.AddSingleton<IAppSettingsStore, JsonClientSettingsStore>();
-            services.AddSingleton<IPrinterSecretStore, WindowsPrinterSecretStore>();
+            services.AddSingleton<ISecretKeySource, WindowsSecretKeySource>();
             services.AddSingleton<IBackdropCapabilities, WindowsBackdropCapabilities>();
             services
                 .AddWebRtc();

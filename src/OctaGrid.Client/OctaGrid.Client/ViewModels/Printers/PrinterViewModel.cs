@@ -71,14 +71,22 @@ public partial class PrinterViewModel : ViewModelValidatorBase
 
     /// <summary>
     /// All entered values, secrets included, by key; used to test the connection. A saved secret the user did
-    /// not retype is not in here: the backend fills it in for <see cref="SavedPrinterId"/>.
+    /// not retype is not in here: the backend fills it in for <see cref="SavedPrinterId"/>. A saved secret the
+    /// user is removing is in here with an empty value, which tells the backend not to fill it in.
     /// </summary>
     public Dictionary<string, string> CollectSettings()
     {
         var all = new Dictionary<string, string>();
-        foreach (var field in Fields.Where(f => !string.IsNullOrWhiteSpace(f.Value)))
+        foreach (var field in Fields)
         {
-            all[field.Key] = field.Value.Trim();
+            if (!string.IsNullOrWhiteSpace(field.Value))
+            {
+                all[field.Key] = field.Value.Trim();
+            }
+            else if (field.IsSavedValueRemoved)
+            {
+                all[field.Key] = string.Empty;
+            }
         }
 
         return all;
@@ -111,9 +119,17 @@ public partial class PrinterViewModel : ViewModelValidatorBase
         }
         else
         {
-            foreach (var field in Fields.Where(f => !string.IsNullOrWhiteSpace(f.Value)))
+            foreach (var field in Fields)
             {
-                (field.IsSecret ? secrets : settings)[field.Key] = field.Value.Trim();
+                if (!string.IsNullOrWhiteSpace(field.Value))
+                {
+                    (field.IsSecret ? secrets : settings)[field.Key] = field.Value.Trim();
+                }
+                else if (field.IsSavedValueRemoved)
+                {
+                    // An empty value asks the backend to remove the saved secret; leaving the key out keeps it.
+                    secrets[field.Key] = string.Empty;
+                }
             }
         }
 

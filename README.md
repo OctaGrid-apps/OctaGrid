@@ -46,7 +46,7 @@ Pre-compiled binaries for Windows (`win-x64`) are available on the [Releases](ht
 > [!NOTE]
 > Releases marked **Pre-release** (for example `1.0.17-pre-alpha`) are early builds for testers. The Microsoft Store only receives stable releases. See [Versioning & Releases](docs/VERSIONING.md).
 
-All local data, configuration, and printer profiles are safely stored in `%AppData%\OctaGrid` (`%AppData%\OctaGrid\octagrid.db`). Printer passwords, access codes and API keys are not in that file: they are kept in the Windows Credential Manager.
+All local data, configuration, and printer profiles are safely stored in `%AppData%\OctaGrid` (`%AppData%\OctaGrid\octagrid.db`). Printer passwords, access codes and API keys are encrypted in that file. The encryption key is kept in the Windows Credential Manager, so a copy of the file alone does not reveal them, and they have to be entered again on another machine.
 
 ---
 

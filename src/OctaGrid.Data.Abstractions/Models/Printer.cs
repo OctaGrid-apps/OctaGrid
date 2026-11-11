@@ -9,13 +9,17 @@ public sealed class Printer : Entity
     public string ConnectorId { get; set; } = string.Empty;
     /// <summary>Values for the connector's non-secret settings (address, serial number, ...), by key.</summary>
     public Dictionary<string, string> Settings { get; set; } = [];
-    /// <summary>Values for the connector's secret settings (API keys, access codes, ...), by key.</summary>
-    // ToDo: stored as-is for now; encrypt before they leave the local machine.
     /// <summary>
-    /// The keys of the secret settings that have a saved value. The values themselves are kept in the
-    /// secret store, never in the database.
+    /// The keys of the secret settings that have a saved value, readable without the encryption key. The values
+    /// are in <see cref="ProtectedSecrets"/>.
     /// </summary>
     public List<string> SecretKeys { get; set; } = [];
+
+    /// <summary>
+    /// The secret settings (API keys, access codes, ...) as encrypted text, or null when there are none.
+    /// The key is kept outside the database, so this column alone does not reveal them.
+    /// </summary>
+    public string? ProtectedSecrets { get; set; }
 
     // Navigation props
     public Workspace? Workspace { get; set; }

@@ -242,6 +242,9 @@ namespace OctaGrid.Client.Local.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProtectedSecrets")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ReportedModel")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");

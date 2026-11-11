@@ -123,6 +123,7 @@ namespace OctaGrid.Client.Local.Migrations
                     ConnectorId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     Settings = table.Column<string>(type: "TEXT", nullable: false),
                     SecretKeys = table.Column<string>(type: "TEXT", nullable: false),
+                    ProtectedSecrets = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
                     Version = table.Column<long>(type: "INTEGER", nullable: false)

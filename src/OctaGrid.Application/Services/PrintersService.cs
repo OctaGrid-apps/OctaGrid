@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -20,13 +22,13 @@ public sealed class PrintersService
     private static readonly IReadOnlyDictionary<string, string> NoSecrets = new Dictionary<string, string>();
 
     private readonly IMessagePublisher _publisher;
-    private readonly IPrinterSecretStore _secrets;
+    private readonly ISecretProtector _protector;
 
-    public PrintersService(OctaGridContext context, IMessagePublisher publisher, IPrinterSecretStore secrets, ILogger<PrintersService>? logger = null)
+    public PrintersService(OctaGridContext context, IMessagePublisher publisher, ISecretProtector protector, ILogger<PrintersService>? logger = null)
     {
         _context = context;
         _publisher = publisher;
-        _secrets = secrets;
+        _protector = protector;
         _logger = logger ?? NullLogger<PrintersService>.Instance;
     }
 
@@ -47,12 +49,11 @@ public sealed class PrintersService
 
         var printer = new Printer
         {
-            // Set here, not on save, because the secrets are stored under the printer id first.
+            // Set here, not on save, because the secrets are encrypted for this printer id.
             Id = Guid.CreateVersion7(),
             Name = request.Name,
             Settings = new Dictionary<string, string>(request.Settings),
             ConnectorId = request.ConnectorId,
-            SecretKeys = SecretKeys(secrets),
             Enabled = request.Enabled,
             WorkspaceId = workspaceId,
             Status = new PrinterStatus()
@@ -60,23 +61,11 @@ public sealed class PrintersService
                 State = ConnectionState.Unknown
             }
         };
+        WriteSecrets(printer, secrets);
 
-        if (secrets.Count > 0)
-        {
-            await _secrets.SetAsync(printer.Id, secrets, cancellationToken);
-        }
-
-        try
-        {
-            await _context.Printers.AddAsync(printer, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-        catch
-        {
-            // Do not leave secrets behind for a printer that was never created.
-            await _secrets.SetAsync(printer.Id, NoSecrets, CancellationToken.None);
-            throw;
-        }
+        // The secrets are part of the row, so they are saved or not saved together with the printer.
+        await _context.Printers.AddAsync(printer, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {ConnectorId}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, printer.ConnectorId, printer.Enabled, workspaceId, userId);
@@ -95,7 +84,6 @@ public sealed class PrintersService
 
         _context.Printers.Remove(printer);
         await _context.SaveChangesAsync(cancellationToken);
-        await _secrets.SetAsync(printer.Id, NoSecrets, cancellationToken);
 
         _logger.LogInformation("Deleted printer {PrinterId} ('{PrinterName}') from workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, printer.WorkspaceId, userId);
@@ -110,31 +98,28 @@ public sealed class PrintersService
         var printers = await _context.Printers
             .AsNoTracking()
             .Where(p => p.WorkspaceId == workspaceId && p.Enabled)
-            .Select(p => new { p.Id, p.ConnectorId, p.Settings, p.SecretKeys })
+            .Select(p => new { p.Id, p.ConnectorId, p.Settings, p.ProtectedSecrets })
             .ToListAsync(cancellationToken);
 
         // The connector receives plain settings and secrets together, by the keys it declared.
-        var profiles = new List<PrinterProfile>(printers.Count);
-        foreach (var p in printers)
-        {
-            var settings = new Dictionary<string, string>(p.Settings);
-            if (p.SecretKeys.Count > 0)
+        return printers
+            .Select(p =>
             {
-                foreach (var (key, value) in await _secrets.GetAsync(p.Id, cancellationToken))
+                var settings = new Dictionary<string, string>(p.Settings);
+                foreach (var (key, value) in ReadSecrets(p.Id, p.ProtectedSecrets))
                 {
                     settings[key] = value;
                 }
-            }
 
-            profiles.Add(new PrinterProfile(p.Id, p.ConnectorId, settings));
-        }
-
-        return profiles;
+                return new PrinterProfile(p.Id, p.ConnectorId, settings);
+            })
+            .ToList();
     }
 
     /// <summary>
-    /// The settings to test a connection with while a saved printer is being edited: what the user entered,
-    /// plus the printer's saved secrets for the keys the user left empty (a client cannot read those back).
+    /// The settings to test a connection with while a saved printer is being edited. A client cannot read saved
+    /// secrets back, so a secret that is left out of <paramref name="entered"/> is filled in from what is saved.
+    /// A secret that is present with an empty value is one the user is removing: it stays out.
     /// </summary>
     public async Task<IReadOnlyDictionary<string, string>> AddSavedSecrets(
         Guid userId, Guid printerId, IReadOnlyDictionary<string, string> entered, CancellationToken cancellationToken)
@@ -142,21 +127,24 @@ public sealed class PrintersService
         var printer = await _context.Printers
             .AsNoTracking()
             .Where(p => p.Id == printerId)
-            .Select(p => new { p.WorkspaceId, p.SecretKeys })
+            .Select(p => new { p.WorkspaceId, p.ProtectedSecrets })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
         await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
 
-        if (printer.SecretKeys.Count == 0)
+        var settings = new Dictionary<string, string>();
+        foreach (var (key, value) in ReadSecrets(printerId, printer.ProtectedSecrets))
         {
-            return entered;
+            if (!entered.ContainsKey(key))
+            {
+                settings[key] = value;
+            }
         }
 
-        var settings = new Dictionary<string, string>(entered);
-        foreach (var (key, value) in await _secrets.GetAsync(printerId, cancellationToken))
+        foreach (var (key, value) in entered)
         {
-            if (!settings.TryGetValue(key, out var typed) || string.IsNullOrWhiteSpace(typed))
+            if (!string.IsNullOrEmpty(value))
             {
                 settings[key] = value;
             }
@@ -247,18 +235,15 @@ public sealed class PrintersService
 
         // Saved secrets belong to the connector they were entered for; another connector starts without them.
         var connectorChanged = !string.Equals(printer.ConnectorId, request.ConnectorId, StringComparison.OrdinalIgnoreCase);
-        var saved = connectorChanged || printer.SecretKeys.Count == 0
-            ? NoSecrets
-            : await _secrets.GetAsync(printer.Id, cancellationToken);
-        var secrets = ApplySecretChanges(saved, request.Secrets);
+        var saved = connectorChanged ? NoSecrets : ReadSecrets(printer.Id, printer.ProtectedSecrets);
         if (connectorChanged || request.Secrets is { Count: > 0 })
         {
-            await _secrets.SetAsync(printer.Id, secrets, cancellationToken);
+            // Encrypting again changes the stored text even for equal values, so only do it when something changed.
+            WriteSecrets(printer, ApplySecretChanges(saved, request.Secrets));
         }
 
         printer.Name = request.Name!;
         printer.Settings = new Dictionary<string, string>(request.Settings!);
-        printer.SecretKeys = SecretKeys(secrets);
         printer.ConnectorId = request.ConnectorId!;
         printer.Enabled = request.Enabled;
         await _context.SaveChangesAsync(cancellationToken);
@@ -318,8 +303,39 @@ public sealed class PrintersService
         return result;
     }
 
-    private static List<string> SecretKeys(Dictionary<string, string> secrets) =>
-        secrets.Keys.Order(StringComparer.Ordinal).ToList();
+    /// <summary>Encrypts the secrets into the printer row and records which keys have a value.</summary>
+    private void WriteSecrets(Printer printer, Dictionary<string, string> secrets)
+    {
+        printer.SecretKeys = secrets.Keys.Order(StringComparer.Ordinal).ToList();
+        printer.ProtectedSecrets = secrets.Count == 0
+            ? null
+            : _protector.Protect(JsonSerializer.Serialize(secrets), printer.Id.ToString("N"));
+    }
+
+    /// <summary>
+    /// Decrypts a printer's secrets. When they cannot be read (the key was lost, or the database came from
+    /// another machine) the printer is treated as having none, so it can still be opened and the secrets
+    /// entered again; the connection then fails with the printer's own "not authorised" answer.
+    /// </summary>
+    private IReadOnlyDictionary<string, string> ReadSecrets(Guid printerId, string? protectedSecrets)
+    {
+        if (string.IsNullOrEmpty(protectedSecrets))
+        {
+            return NoSecrets;
+        }
+
+        try
+        {
+            var json = _protector.Unprotect(protectedSecrets, printerId.ToString("N"));
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? NoSecrets;
+        }
+        catch (Exception ex) when (ex is CryptographicException or JsonException)
+        {
+            // The exception carries no secret material, only why decryption failed.
+            _logger.LogWarning(ex, "The saved secrets of printer {PrinterId} cannot be read; they have to be entered again", printerId);
+            return NoSecrets;
+        }
+    }
 
     private static PrinterResponse MapToResponse(Printer printer) =>
         new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, printer.SecretKeys, printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.Enabled, printer.Version);

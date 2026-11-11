@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using OctaGrid.Application.Secrets;
@@ -18,9 +19,16 @@ public sealed class PrintersServiceTests : IDisposable
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _workspaceId = Guid.NewGuid();
     private readonly RecordingPublisher _publisher = new();
-    private readonly InMemorySecretStore _secrets = new();
+    private readonly FixedKeySource _keySource = new();
+    private readonly AesGcmSecretProtector _protector;
 
     public PrintersServiceTests()
+    {
+        _protector = new AesGcmSecretProtector(_keySource);
+        Initialize();
+    }
+
+    private void Initialize()
     {
         _connection.Open();
         using var context = NewContext();
@@ -48,35 +56,27 @@ public sealed class PrintersServiceTests : IDisposable
         public void Publish(EntityChanged entity) => Published.Add(entity);
     }
 
-    private sealed class InMemorySecretStore : IPrinterSecretStore
-    {
-        private readonly Dictionary<Guid, Dictionary<string, string>> _byPrinter = [];
-
-        public IReadOnlyDictionary<string, string> Saved(Guid printerId) =>
-            _byPrinter.TryGetValue(printerId, out var secrets) ? secrets : new Dictionary<string, string>();
-
-        public Task<IReadOnlyDictionary<string, string>> GetAsync(Guid printerId, CancellationToken cancellationToken) =>
-            Task.FromResult(Saved(printerId));
-
-        public Task SetAsync(Guid printerId, IReadOnlyDictionary<string, string> secrets, CancellationToken cancellationToken)
-        {
-            if (secrets.Count == 0)
-            {
-                _byPrinter.Remove(printerId);
-            }
-            else
-            {
-                _byPrinter[printerId] = new Dictionary<string, string>(secrets);
-            }
-
-            return Task.CompletedTask;
-        }
-    }
-
     private OctaGridContext NewContext() =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
 
-    private PrintersService NewService(OctaGridContext context) => new(context, _publisher, _secrets);
+    private PrintersService NewService(OctaGridContext context) => new(context, _publisher, _protector);
+
+    /// <summary>What is saved for a printer, read from its row and decrypted the way the service does it.</summary>
+    private IReadOnlyDictionary<string, string> SavedSecrets(Guid printerId)
+    {
+        using var context = NewContext();
+        var saved = context.Printers.AsNoTracking().SingleOrDefault(p => p.Id == printerId)?.ProtectedSecrets;
+        return saved is null
+            ? new Dictionary<string, string>()
+            : JsonSerializer.Deserialize<Dictionary<string, string>>(_protector.Unprotect(saved, printerId.ToString("N")))!;
+    }
+
+    private sealed class FixedKeySource : ISecretKeySource
+    {
+        public byte[] Key { get; set; } = Enumerable.Range(1, AesGcmSecretProtector.KeySize).Select(i => (byte)i).ToArray();
+
+        public byte[] GetOrCreateKey() => Key;
+    }
 
     private static Dictionary<string, string> Settings(string url = "192.168.1.5", string? serial = null)
     {
@@ -113,7 +113,7 @@ public sealed class PrintersServiceTests : IDisposable
         Assert.Equal("192.168.1.5", created.Settings["url"]);
         Assert.Equal("01P", created.Settings["serialNumber"]);
         Assert.Equal(["apiKey"], created.SecretKeys);
-        Assert.Equal("secret", _secrets.Saved(created.Id)["apiKey"]);
+        Assert.Equal("secret", SavedSecrets(created.Id)["apiKey"]);
         Assert.DoesNotContain("apiKey", created.Settings.Keys);
         Assert.Contains(_publisher.Published, p => p.EntityId == created.Id && p.Kind == ChangeKind.Upserted);
     }
@@ -147,7 +147,7 @@ public sealed class PrintersServiceTests : IDisposable
         Assert.Equal("printer.local:7125", loaded.Settings["url"]);
         Assert.Equal(["token"], loaded.SecretKeys);
         Assert.Equal(["token"], listed.SecretKeys);
-        Assert.Equal("t\"o'k\\en", _secrets.Saved(created.Id)["token"]);
+        Assert.Equal("t\"o'k\\en", SavedSecrets(created.Id)["token"]);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class PrintersServiceTests : IDisposable
         var loaded = await NewService(context).GetPrinter(_userId, _workspaceId, created.Id, CancellationToken.None);
 
         Assert.Empty(loaded.SecretKeys);
-        Assert.Empty(_secrets.Saved(created.Id));
+        Assert.Empty(SavedSecrets(created.Id));
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class PrintersServiceTests : IDisposable
         var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "" });
 
         Assert.Empty(created.SecretKeys);
-        Assert.Empty(_secrets.Saved(created.Id));
+        Assert.Empty(SavedSecrets(created.Id));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class PrintersServiceTests : IDisposable
             CancellationToken.None);
 
         Assert.Equal(["apiKey"], updated.SecretKeys);
-        Assert.Equal("old", _secrets.Saved(created.Id)["apiKey"]);
+        Assert.Equal("old", SavedSecrets(created.Id)["apiKey"]);
     }
 
     [Fact]
@@ -201,22 +201,88 @@ public sealed class PrintersServiceTests : IDisposable
             CancellationToken.None);
 
         Assert.Equal(["apiKey"], updated.SecretKeys);
-        Assert.Equal("new", Assert.Single(_secrets.Saved(created.Id)).Value);
+        Assert.Equal("new", Assert.Single(SavedSecrets(created.Id)).Value);
     }
 
     [Fact]
-    public async Task Delete_removes_the_saved_secrets()
+    public async Task Update_without_secret_changes_leaves_the_encrypted_text_as_it_is()
+    {
+        var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "old" });
+        string? Stored()
+        {
+            using var read = NewContext();
+            return read.Printers.AsNoTracking().Single(p => p.Id == created.Id).ProtectedSecrets;
+        }
+
+        var before = Stored();
+        await using var context = NewContext();
+        await NewService(context).Update(
+            _userId, created.Id, new UpdatePrinterRequest("Renamed", "octagrid.bambu-mqtt", Settings(), Secrets: null), CancellationToken.None);
+
+        Assert.NotNull(before);
+        Assert.Equal(before, Stored());
+    }
+
+    [Fact]
+    public async Task Secrets_that_cannot_be_decrypted_count_as_missing_and_can_be_entered_again()
     {
         var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "old" });
 
-        await using var context = NewContext();
-        await NewService(context).Delete(_userId, created.Id, CancellationToken.None);
+        // The database was moved to a machine with another key.
+        _keySource.Key = Enumerable.Repeat((byte)7, AesGcmSecretProtector.KeySize).ToArray();
 
-        Assert.Empty(_secrets.Saved(created.Id));
+        await using var context = NewContext();
+        var service = NewService(context);
+        var profile = Assert.Single(await service.GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None));
+        Assert.Null(profile.Get("apiKey"));
+
+        var updated = await service.Update(
+            _userId,
+            created.Id,
+            new UpdatePrinterRequest("Printer", "octagrid.bambu-mqtt", Settings(), new Dictionary<string, string> { ["apiKey"] = "again" }),
+            CancellationToken.None);
+
+        Assert.Equal(["apiKey"], updated.SecretKeys);
+        Assert.Equal("again", SavedSecrets(created.Id)["apiKey"]);
     }
 
     [Fact]
-    public async Task Saved_secrets_fill_the_ones_left_empty_when_testing_a_connection()
+    public async Task Encrypted_secrets_copied_to_another_printer_cannot_be_read_there()
+    {
+        var source = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "source-secret" });
+        var target = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "target-secret" });
+
+        await using (var context = NewContext())
+        {
+            var stolen = context.Printers.AsNoTracking().Single(p => p.Id == source.Id).ProtectedSecrets;
+            context.Printers.Single(p => p.Id == target.Id).ProtectedSecrets = stolen;
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var verify = NewContext();
+        var profiles = await NewService(verify).GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None);
+
+        Assert.Null(profiles.Single(p => p.PrinterId == target.Id).Get("apiKey"));
+        Assert.Equal("source-secret", profiles.Single(p => p.PrinterId == source.Id).Get("apiKey"));
+    }
+
+    [Fact]
+    public async Task A_connection_test_does_not_fill_in_a_secret_that_is_being_removed()
+    {
+        var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "saved" });
+
+        await using var context = NewContext();
+        var settings = await NewService(context).AddSavedSecrets(
+            _userId,
+            created.Id,
+            new Dictionary<string, string> { ["url"] = "10.0.0.9", ["apiKey"] = "" },
+            CancellationToken.None);
+
+        Assert.Equal(["url"], settings.Keys);
+    }
+
+    [Fact]
+    public async Task Saved_secrets_fill_the_ones_left_out_when_testing_a_connection()
     {
         var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "saved", ["token"] = "saved-token" });
 
@@ -224,7 +290,7 @@ public sealed class PrintersServiceTests : IDisposable
         var settings = await NewService(context).AddSavedSecrets(
             _userId,
             created.Id,
-            new Dictionary<string, string> { ["url"] = "10.0.0.9", ["apiKey"] = "", ["token"] = "typed" },
+            new Dictionary<string, string> { ["url"] = "10.0.0.9", ["token"] = "typed" },
             CancellationToken.None);
 
         Assert.Equal("10.0.0.9", settings["url"]);
@@ -263,7 +329,7 @@ public sealed class PrintersServiceTests : IDisposable
         Assert.Equal("10.0.0.9", loaded.Settings["url"]);
         Assert.DoesNotContain("serialNumber", loaded.Settings.Keys);
         Assert.Empty(loaded.SecretKeys);
-        Assert.Empty(_secrets.Saved(created.Id));
+        Assert.Empty(SavedSecrets(created.Id));
     }
 
     [Fact]

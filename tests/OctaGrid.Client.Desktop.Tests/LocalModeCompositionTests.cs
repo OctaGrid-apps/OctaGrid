@@ -19,7 +19,7 @@ public sealed class LocalModeCompositionTests
         services.AddLogging();
         services.AddSingleton<ICurrentUserAccessor, FakeCurrentUser>();
         services.AddSingleton<IClientMessageHandler, FakeMessageHandler>();
-        services.AddSingleton<IPrinterSecretStore, FakeSecretStore>();
+        services.AddSingleton<ISecretKeySource, FakeKeySource>();
         services.AddOctoGridClientLocal();
 
         // Fails when a singleton takes the scoped DbContext (or a service that uses it) in its constructor.
@@ -43,13 +43,9 @@ public sealed class LocalModeCompositionTests
         public void SetCurrentUserId(Guid userId) => _userId = userId;
     }
 
-    private sealed class FakeSecretStore : IPrinterSecretStore
+    private sealed class FakeKeySource : ISecretKeySource
     {
-        public Task<IReadOnlyDictionary<string, string>> GetAsync(Guid printerId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
-
-        public Task SetAsync(Guid printerId, IReadOnlyDictionary<string, string> secrets, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public byte[] GetOrCreateKey() => new byte[AesGcmSecretProtector.KeySize];
     }
 
     private sealed class FakeMessageHandler : IClientMessageHandler
