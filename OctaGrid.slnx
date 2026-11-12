@@ -26,7 +26,8 @@
   </Folder>
   <Folder Name="/OctaGrid.Shared/">
     <Project Path="src/OctaGrid.Application/OctaGrid.Application.csproj" Id="93bebeb9-9414-4254-a1b7-be3e45b0bd0d" />
-    <Project Path="src/OctaGrid.Data.Abstractions/OctaGrid.Data.Abstractions.csproj" Id="ebc25056-0332-42fa-a9b6-1e78a0049461" />
+    <Project Path="src/OctaGrid.Data.Sqlite/OctaGrid.Data.Sqlite.csproj" />
+    <Project Path="src/OctaGrid.Data/OctaGrid.Data.csproj" Id="ebc25056-0332-42fa-a9b6-1e78a0049461" />
     <Project Path="src/OctaGrid.Protocol/OctaGrid.Protocol.csproj" Id="4473a0fa-df2f-4022-b7cc-39255c4f889d" />
   </Folder>
   <Folder Name="/Solution Items/">

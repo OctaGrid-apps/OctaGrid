@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -9,8 +8,9 @@ using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Data.Abstractions;
-using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Data;
+using OctaGrid.Data.Models;
+using OctaGrid.Data.Sqlite;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Dashboards;
 
@@ -21,17 +21,7 @@ public static class DependencyInjection
     public static IServiceCollection AddOctoGridClientLocal(this IServiceCollection services)
     {
         // The path is read when the first context is created, not here, so registering Local mode touches no files.
-        services.AddDbContext<OctaGridContext>(options =>
-        {
-            var connectionString = new SqliteConnectionStringBuilder
-            {
-                DataSource = GetDatabasePath(),
-                Pooling = true,
-                DefaultTimeout = 30
-            }.ToString();
-
-            options.UseSqlite(connectionString, b => b.MigrationsAssembly("OctaGrid.Client.Local"));
-        });
+        services.AddOctaGridSqlite(GetDatabasePath);
 
         // Scoped, like the context they use: a DbContext is not thread-safe and must not live for the whole
         // process. The Local adapters below are singletons and open one scope per call, as a server does per request.
@@ -94,9 +84,7 @@ public static class DependencyInjection
         try
         {
             logger.LogInformation("Applying database migrations for OctaGridContext...");
-            context.Database.Migrate();
-
-            context.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;");
+            context.MigrateSqlite();
 
             logger.LogInformation("Database migrations applied successfully.");
 

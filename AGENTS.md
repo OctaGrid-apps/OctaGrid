@@ -15,7 +15,8 @@ OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printer
 ```text
 Client.Desktop ──► Client ──► Client.Contracts ──► Protocol
       │                              ▲
-      └────────► Client.Local ───────┘      Client.Local ──► Application ──► Data.Abstractions ──► Protocol
+      └────────► Client.Local ───────┘      Client.Local ──► Application ──► Data ──► Protocol
+                      │                     Client.Local ──► Data.Sqlite ──► Data
                       │                                      └──► Agent.Core ──► Extensions.Abstractions ──► Protocol
                       └──► Connectors.* (bundled)             Connectors.* ──► Extensions.Abstractions only
 ```
@@ -24,17 +25,18 @@ Client.Desktop ──► Client ──► Client.Contracts ──► Protocol
 |---|---|
 | `OctaGrid.Protocol` | Wire contract: request/response DTOs, messages, exceptions (`AppException` family), connector descriptors. **Dependency-free and WASM-safe.** Packable SDK package. |
 | `OctaGrid.Extensions.Abstractions` | Connector runtime interfaces (`IConnector`, `IPrinterSession`, capabilities). Agent-side only. Packable SDK package. |
-| `OctaGrid.Data.Abstractions` | EF Core entities (`Models/`), `IEntityTypeConfiguration` classes (`Configurations/`), `OctaGridContext`. Provider-neutral. |
+| `OctaGrid.Data` | EF Core entities (`Models/`), `IEntityTypeConfiguration` classes (`Configurations/`), `OctaGridContext`. Provider-neutral. |
+| `OctaGrid.Data.Sqlite` | SQLite provider for `OctaGridContext`: registration, pragmas, migrations. Referenced by `Client.Local` only. |
 | `OctaGrid.Application` | Business logic (`Services/`), FluentValidation validators (`Validation/`). Transport-agnostic. |
 | `OctaGrid.Agent.Core` | Connector registry/loader/manager, `DeviceOrchestrator`, `AgentWorker`. No UI, no EF. |
 | `OctaGrid.Client.Contracts` | `I*Client` interfaces the UI talks to. The seam between UI and "where the backend lives". |
-| `OctaGrid.Client.Local` | In-process implementation of the contracts: SQLite, DI wiring, migrations, bundled connectors. |
+| `OctaGrid.Client.Local` | In-process implementation of the contracts: DI wiring, the in-process agent, bundled connectors. Uses `Data.Sqlite`. |
 | `OctaGrid.Client` | Avalonia UI: views, ViewModels, controls, styles, design-time data. Platform-neutral. |
 | `OctaGrid.Client.Desktop` | Windows host: `Program.cs`, logging, settings file, updates, credential manager, MSIX. |
 | `src/Connectors/*` | Bundled connectors (BambuLab MQTT/FTPS, Moonraker). Reference only Abstractions (+ Protocol). |
 
 Rules:
-- **Never** let `Client`/`Client.Contracts` reference `Application`, `Data.Abstractions` or `Agent.Core`. The UI sees only Contracts + Protocol, so a Remote implementation (`Client.Remote`) can replace `Client.Local` without touching views.
+- **Never** let `Client`/`Client.Contracts` reference `Application`, `Data` or `Agent.Core`. The UI sees only Contracts + Protocol, so a Remote implementation (`Client.Remote`) can replace `Client.Local` without touching views.
 - Never hard-code connector types or in-process assumptions in shared code; go through `ConnectorRegistry` and descriptors.
 - Platform-specific code (Mica, file pickers, launchers, WebView, credential storage) lives behind an interface in `Client` and is implemented in a host project. No `#if` in shared code.
 - New cross-boundary types go in `Protocol`, never EF entities.
@@ -78,7 +80,7 @@ CI (`.github/workflows/ci.yml`) restores, builds Release and tests the solution 
 - Services in `Application/Services` take the acting `userId` and **authorize inside the service** (for example `ValidateUserAccess`), because the same service will back a server. Validate input with a FluentValidation validator, then act.
 - Failures are `AppException` subclasses from `Protocol/Exceptions` (`NotFound`, `Validation`, `Authentication`). They carry `TypeUri`/`Title` so the future server can map them to RFC 9457 `application/problem+json` without a rewrite. Do not return error codes or `null` for failures, and do not throw bare `Exception`/`InvalidOperationException` for expected conditions.
 - Entities derive from `Entity` (`Id`, `CreatedAt`, `UpdatedAt`, `Version` optimistic-concurrency token rotated in `OctaGridContext`). Configure them in `IEntityTypeConfiguration` classes, not attributes. Keep queries provider-neutral (SQLite today, PostgreSQL later): no raw SQL in services; use `AsNoTracking()` for reads, project to DTOs, avoid N+1 (`Include`/projection), pass the `CancellationToken`.
-- **Pre-alpha DB policy:** do **not** add new EF migrations. When entities/configurations change, delete and regenerate the single `InitialCreate` migration and snapshot in `Client.Local/Migrations` (`dotnet ef migrations ...` with `--project src/OctaGrid.Client.Local`). Do not add detection, backup or auto-recreate code; the developer deletes the old `octagrid.db` manually. From the first stable release on, use normal additive migrations.
+- **Pre-alpha DB policy:** do **not** add new EF migrations. When entities/configurations change, delete and regenerate the single `InitialCreate` migration and snapshot in `Data.Sqlite/Migrations` (`dotnet ef migrations ...` with `--project src/OctaGrid.Data.Sqlite`). Do not add detection, backup or auto-recreate code; the developer deletes the old `octagrid.db` manually. From the first stable release on, use normal additive migrations.
 - Secrets (passwords, access codes, API keys) are never stored in plain text or logged; passwords use `IPasswordHasher`. Printer credentials are encrypted in the database (`ISecretProtector`); the key comes from the host (`ISecretKeySource`) and lives in the OS credential store where available, never in the database.
 
 ## Future server and REST API (when `OctaGrid.Server` is added)

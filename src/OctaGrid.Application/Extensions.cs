@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
-using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Data.Models;
 using OctaGrid.Protocol.Exceptions;
 
 namespace OctaGrid.Application;
