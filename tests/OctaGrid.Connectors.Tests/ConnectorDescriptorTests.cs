@@ -2,11 +2,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Connectors.BambuLab;
 using OctaGrid.Connectors.Moonraker;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.Tests;
 
-/// <summary>The bundled connectors are held to the same rules as any third-party connector.</summary>
+/// <summary>The built-in connectors are held to the same rules as any third-party connector.</summary>
 public class ConnectorDescriptorTests
 {
     private sealed class TestContext : IConnectorContext

@@ -1,7 +1,5 @@
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Contracts;
 
@@ -28,7 +26,7 @@ public interface IAgentCommandsService
     /// declares <see cref="ConnectorCapabilities.ConsoleCommands"/>. It can change or stop what the printer is doing, so
     /// clients call it only after the user turned on Expert mode. What the printer answers appears in its console.
     /// </summary>
-    /// <exception cref="OctaGrid.Protocol.Exceptions.ValidationException">The command is not acceptable, or the printer cannot take commands.</exception>
+    /// <exception cref="OctaGrid.Extensions.Models.Exceptions.ValidationException">The command is not acceptable, or the printer cannot take commands.</exception>
     Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken);
 
     Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken);

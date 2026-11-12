@@ -2,11 +2,10 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using OctaGrid.Client.Controls;
 using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Client.Views;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.Tests;
 

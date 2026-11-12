@@ -1,9 +1,6 @@
-using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Agent.Core.Tests;
 

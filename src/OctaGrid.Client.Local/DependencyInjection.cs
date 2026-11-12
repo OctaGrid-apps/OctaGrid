@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
-using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Hosting;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -39,7 +39,6 @@ public static class DependencyInjection
         services.AddSingleton<EntityChangeFeed>();
         services.AddSingleton<LocalAgentSynchronizer>();
         services.AddSingleton<IMessagePublisher, LocalMessageHandler>();
-        services.AddSingleton<IMessageHandler, MessageHandler>();
         services.AddSingleton<ITelemetrySink, LocalTelemetryHandler>();
 
         services.AddSingleton<OctaGridClientLocal>();
@@ -49,25 +48,13 @@ public static class DependencyInjection
         services.AddSingleton<IPrintersClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
         services.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
 
-        services.AddSingleton<IExtensionStateStore>(
-            _ => new FileExtensionStateStore(Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
+        // The in-process agent. Local mode tells it where its files are, where telemetry goes
+        // (ITelemetrySink above) and which printers to run (IPrinterProfileSource below).
+        services.AddOctaGridAgent(() => new AgentHostingOptions(
+            OctaGridDataPaths.ExtensionsFolder,
+            Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
 
-        // The manager owns the registry: it starts with the bundled connectors and adds the ones found in
-        // <data>/extensions before anything can create a session.
-        services.AddSingleton(sp =>
-        {
-            var loggerFactory = sp.GetService<ILoggerFactory>();
-            var manager = new ExtensionManager(
-                BundledConnectors.CreateRegistry(loggerFactory),
-                sp.GetRequiredService<IExtensionStateStore>(),
-                new ExtensionLoader(loggerFactory: loggerFactory),
-                OctaGridDataPaths.ExtensionsFolder);
-            manager.LoadInstalledExtensions();
-            return manager;
-        });
-        services.AddSingleton(sp => sp.GetRequiredService<ExtensionManager>().Registry);
         services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
-        services.AddSingleton<AgentWorker>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();
         services.AddSingleton<IAgentCommandsService, LocalAgentCommands>();
         services.AddSingleton<IPrinterProfileSource, LocalPrinterProfileSource>();

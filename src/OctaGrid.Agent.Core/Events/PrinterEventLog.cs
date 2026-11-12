@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Agent.Core.Events;

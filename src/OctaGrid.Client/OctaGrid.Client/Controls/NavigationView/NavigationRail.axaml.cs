@@ -6,9 +6,9 @@ using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.VisualTree;
 using Avalonia.Media;
 using Avalonia.Metadata;
+using Avalonia.VisualTree;
 
 namespace OctaGrid.Client.Controls;
 

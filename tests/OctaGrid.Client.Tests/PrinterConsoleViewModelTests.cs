@@ -2,10 +2,8 @@ using CommunityToolkit.Mvvm.Messaging;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Tests;
 
@@ -358,7 +356,7 @@ public class PrinterConsoleViewModelTests
     public async Task A_command_that_breaks_the_rules_is_refused_before_it_reaches_the_agent()
     {
         var (viewModel, commands) = CreateWithCommandBox();
-        viewModel.CommandText = new string('x', Protocol.Printers.ConsoleCommandRules.MaxLength + 1);
+        viewModel.CommandText = new string('x', OctaGrid.Extensions.Models.ConsoleCommandRules.MaxLength + 1);
 
         await viewModel.SendCommand.ExecuteAsync(null);
 
@@ -371,7 +369,7 @@ public class PrinterConsoleViewModelTests
     public async Task A_reason_from_the_printer_is_shown_and_the_command_stays_for_a_fix()
     {
         var (viewModel, commands) = CreateWithCommandBox();
-        commands.SendFailure = new Protocol.Exceptions.ValidationException("command", "Unknown command \"FOO\".");
+        commands.SendFailure = new OctaGrid.Extensions.Models.Exceptions.ValidationException("command", "Unknown command \"FOO\".");
         viewModel.CommandText = "FOO";
 
         await viewModel.SendCommand.ExecuteAsync(null);
@@ -397,7 +395,7 @@ public class PrinterConsoleViewModelTests
     public async Task The_next_successful_command_clears_the_earlier_error()
     {
         var (viewModel, commands) = CreateWithCommandBox();
-        commands.SendFailure = new Protocol.Exceptions.ValidationException("command", "nope");
+        commands.SendFailure = new OctaGrid.Extensions.Models.Exceptions.ValidationException("command", "nope");
         viewModel.CommandText = "FOO";
         await viewModel.SendCommand.ExecuteAsync(null);
         Assert.True(viewModel.HasSendError);
@@ -460,7 +458,7 @@ public class PrinterConsoleViewModelTests
         viewModel.CommandText = "M105";
 
         // The printer refuses G28 later, while M105 is already typed: it must not be overwritten.
-        gate.SetException(new Protocol.Exceptions.ValidationException("command", "refused"));
+        gate.SetException(new OctaGrid.Extensions.Models.Exceptions.ValidationException("command", "refused"));
         await pending;
 
         Assert.Equal("refused", viewModel.SendError);
@@ -473,7 +471,7 @@ public class PrinterConsoleViewModelTests
         var (viewModel, commands) = CreateWithCommandBox();
         viewModel.CommandText = "M105";
         await viewModel.SendCommand.ExecuteAsync(null);
-        commands.SendFailure = new Protocol.Exceptions.ValidationException("command", "refused");
+        commands.SendFailure = new OctaGrid.Extensions.Models.Exceptions.ValidationException("command", "refused");
         viewModel.CommandText = "M587 P\"secret\"";
         await viewModel.SendCommand.ExecuteAsync(null);
         viewModel.CommandText = string.Empty;

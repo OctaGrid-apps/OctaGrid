@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -257,7 +257,7 @@ public sealed class DeveloperModeTests : IDisposable
         Reload(manager);
 
         Assert.Contains(manager.GetExtensions(), e => e.State == ExtensionState.Failed && e.Source == ExtensionSource.Development);
-        Assert.Equal(ExtensionSource.Bundled, registry.GetSource(DevConnectorA.Id));
+        Assert.Equal(ExtensionSource.BuiltIn, registry.GetSource(DevConnectorA.Id));
     }
 
     [Fact]

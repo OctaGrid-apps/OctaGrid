@@ -1,8 +1,6 @@
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.DesignTime;
 

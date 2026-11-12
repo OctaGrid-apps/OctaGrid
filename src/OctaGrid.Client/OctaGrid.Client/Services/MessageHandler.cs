@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Messaging;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Services;

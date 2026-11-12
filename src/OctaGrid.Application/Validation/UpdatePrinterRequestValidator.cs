@@ -1,5 +1,5 @@
 using FluentValidation;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Application.Validation;

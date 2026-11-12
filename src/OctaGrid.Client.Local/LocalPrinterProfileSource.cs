@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.Local;
 

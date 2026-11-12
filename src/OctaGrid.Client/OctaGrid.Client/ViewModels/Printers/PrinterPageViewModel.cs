@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
-using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Client.ViewModels;
 

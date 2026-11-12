@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The model types connectors and the app share: connector descriptors and settings, printer
+       telemetry, print files, and the errors a connector reports. Dependency-free and WASM-safe.
+       Extensions get it through OctaGrid.Extensions.Abstractions; the app's own wire contract
+       (OctaGrid.Protocol) builds on it. Versioned with the app; see docs/VERSIONING.md. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>OctaGrid.Extensions.Models</PackageId>
+    <Description>Model types shared by OctaGrid and its extensions: connector descriptors, printer telemetry and print files.</Description>
+    <PackageTags>octagrid;3d-printing;extensions;connector</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

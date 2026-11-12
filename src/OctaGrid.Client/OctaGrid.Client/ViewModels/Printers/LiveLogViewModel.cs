@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Client.ViewModels;
 

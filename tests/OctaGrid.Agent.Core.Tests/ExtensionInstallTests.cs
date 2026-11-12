@@ -1,6 +1,8 @@
 using System.IO.Compression;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Agent.Core.Tests;
@@ -416,10 +418,10 @@ public sealed class ExtensionInstallTests : IDisposable
     [Fact]
     public void Built_in_extensions_cannot_be_removed()
     {
-        var registry = new ConnectorRegistry().Add(new FakeConnector("acme.bundled", _ => new MinimalSession()));
+        var registry = new ConnectorRegistry().Add(new FakeConnector("acme.builtin", _ => new MinimalSession()));
         var (manager, _) = Create(registry: registry);
 
-        var result = manager.Uninstall("acme.bundled");
+        var result = manager.Uninstall("acme.builtin");
 
         Assert.False(result.Success);
         Assert.Contains("Built-in", result.Message);

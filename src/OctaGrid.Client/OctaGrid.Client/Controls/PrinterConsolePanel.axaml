@@ -2,7 +2,7 @@
     x:Class="OctaGrid.Client.Controls.PrinterConsolePanel"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:printers="using:OctaGrid.Protocol.Printers"
+    xmlns:models="using:OctaGrid.Extensions.Models"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     x:DataType="vm:PrinterConsoleViewModel">
     <StackPanel Spacing="{DynamicResource Gap.CardContent}">
@@ -48,7 +48,7 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Gap.CardContent}">
                 <TextBox
                     AutomationProperties.Name="Command to send to the printer"
-                    MaxLength="{x:Static printers:ConsoleCommandRules.MaxLength}"
+                    MaxLength="{x:Static models:ConsoleCommandRules.MaxLength}"
                     PlaceholderText="Send a G-code command, for example M105"
                     Text="{Binding CommandText, Mode=TwoWay}">
                     <TextBox.KeyBindings>

@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
-using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.ViewModels;
 

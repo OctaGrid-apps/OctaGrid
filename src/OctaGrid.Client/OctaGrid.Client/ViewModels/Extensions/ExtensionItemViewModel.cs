@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.ViewModels;
@@ -35,7 +36,7 @@ public partial class ExtensionItemViewModel : ObservableObject
 
     public string SourceText => Info.Source switch
     {
-        ExtensionSource.Bundled => "Built in",
+        ExtensionSource.BuiltIn => "Built in",
         ExtensionSource.Store => "Microsoft Store",
         ExtensionSource.Development => "Developer folder",
         _ => "Installed",

@@ -1,4 +1,5 @@
 using OctaGrid.Agent.Core.Events;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Agent.Core.Tests;

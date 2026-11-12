@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 
