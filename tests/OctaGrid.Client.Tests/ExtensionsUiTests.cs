@@ -6,6 +6,7 @@ using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.Dialogs;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.Tests;
@@ -39,11 +40,11 @@ public class ExtensionsUiTests
     {
         var viewModel = await LoadedViewModel();
 
-        var bundled = viewModel.Items.Single(i => i.Id == "octagrid.moonraker");
+        var builtIn = viewModel.Items.Single(i => i.Id == "octagrid.moonraker");
 
-        Assert.True(bundled.CanToggle);
-        Assert.False(bundled.CanUninstall);
-        Assert.False(bundled.NeedsApproval);
+        Assert.True(builtIn.CanToggle);
+        Assert.False(builtIn.CanUninstall);
+        Assert.False(builtIn.NeedsApproval);
     }
 
     [Fact]

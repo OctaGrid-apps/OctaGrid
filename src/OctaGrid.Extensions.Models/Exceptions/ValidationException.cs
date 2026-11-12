@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Exceptions;
+namespace OctaGrid.Extensions.Models.Exceptions;
 
 public sealed class ValidationException : AppException
 {

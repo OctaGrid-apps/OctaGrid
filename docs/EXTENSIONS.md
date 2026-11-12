@@ -1,7 +1,14 @@
 # Extensions
 
-OctaGrid loads printer connectors from two places: connectors that ship with the app, and extensions that
-users put in the extensions folder. Both appear under **Settings > Extensions**.
+Two words are used throughout OctaGrid, and they mean different things:
+
+- An **extension** is what gets installed: a package with a manifest that the user installs, trusts, turns on or off
+  and removes.
+- A **connector** is what an extension provides today: the code that talks to one family of printers. A printer is
+  assigned a connector. `connector` is the only extension kind for now.
+
+OctaGrid loads extensions from two places: the built-in ones that ship with the app, and the ones users put in the
+extensions folder. Both appear under **Settings > Extensions**.
 
 ## Extensions folder
 
@@ -78,7 +85,7 @@ One extension that is incompatible or fails never stops OctaGrid or the other ex
 ## Isolation
 
 Each extension is loaded into its own `AssemblyLoadContext`. The connector SDK (`OctaGrid.Extensions.Abstractions`),
-`OctaGrid.Protocol`, `Microsoft.Extensions.*` and the .NET libraries come from OctaGrid, so `IConnector` is the same
+its model types (`OctaGrid.Extensions.Models`), `Microsoft.Extensions.*` and the .NET libraries come from OctaGrid, so `IConnector` is the same
 type on both sides. Any other library the extension uses (for example an MQTT client) is loaded from the extension's
 own folder, so it cannot clash with the versions OctaGrid or other extensions use.
 
@@ -118,7 +125,7 @@ it. To get the manifest into your build output, add this to the extension projec
 ```xml
 <ItemGroup>
   <None Include="octagrid-extension.json" CopyToOutputDirectory="PreserveNewest" />
-  <!-- The host provides the SDK and protocol types; do not ship your own copies. -->
+  <!-- The host provides the SDK and its model types; do not ship your own copies. -->
   <ProjectReference Include="..\OctaGrid.Extensions.Abstractions\OctaGrid.Extensions.Abstractions.csproj" Private="false" />
 </ItemGroup>
 ```
@@ -184,7 +191,7 @@ A connector that can also run what the user types (a line of G-code, a Klipper m
 declares `ConnectorCapabilities.ConsoleCommands`, together with `Console` so the user sees the answer. The host calls
 `SendCommandAsync` with one command; return when the printer accepted it, and write what the printer answers to the
 console sink. When the printer rejects the command or cannot be reached, throw an exception whose message tells the
-user what went wrong (an `AppException` such as `ValidationException` for a rejected command).
+user what went wrong (an `AppException` from `OctaGrid.Extensions.Models.Exceptions`, such as `ValidationException` for a rejected command).
 
 Sending a command can change or stop what the printer is doing, so OctaGrid is careful with it:
 

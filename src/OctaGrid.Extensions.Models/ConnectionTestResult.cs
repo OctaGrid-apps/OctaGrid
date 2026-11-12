@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Agents;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>
 /// The result of IPrinterSession.TestConnectionAsync — a one-shot check run before a printer is

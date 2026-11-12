@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace OctaGrid.Protocol.Printers;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>
 /// What a command typed into a printer's console may look like. The same rules are applied where the user types it and

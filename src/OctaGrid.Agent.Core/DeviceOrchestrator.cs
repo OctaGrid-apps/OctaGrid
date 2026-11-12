@@ -4,10 +4,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Events;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Exceptions;
-using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Agent.Core;
 

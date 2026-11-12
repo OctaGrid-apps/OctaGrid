@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
 
-namespace OctaGrid.Agent.Core.Connectors;
+namespace OctaGrid.Agent.Core.Extensions;
 
 /// <summary>
 /// Puts extension packages into the extensions folder and takes them out again. It only moves files: it never

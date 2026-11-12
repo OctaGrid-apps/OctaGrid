@@ -1,5 +1,4 @@
-using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Extensions.Abstractions;
 
@@ -55,7 +54,7 @@ public interface IConsoleOutput
 /// Optional capability: send a command typed by the user to the printer, for example a line of G-code. Declare
 /// <see cref="ConnectorCapabilities.ConsoleCommands"/>, and <see cref="ConnectorCapabilities.Console"/> as well so the user
 /// sees what the printer answers. The host only calls it for a single line of plain text of reasonable length (see
-/// <c>ConsoleCommandRules</c>), after the user turned on Expert mode, and shows the command in the console before it is
+/// <see cref="ConsoleCommandRules"/>), after the user turned on Expert mode, and shows the command in the console before it is
 /// sent.
 /// <para>
 /// Commands can overlap: the host does not wait for one command to finish before it passes on the next, so that an

@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Shared message and model types. Published because OctaGrid.Extensions.Abstractions depends on it. -->
+  <!-- The app's wire contract: requests, responses and messages between client, server and agent.
+       Depends only on OctaGrid.Extensions.Models (the types it shares with connectors). WASM-safe. -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>OctaGrid.Protocol</PackageId>
-    <Description>Shared protocol and model types used by OctaGrid and its extensions.</Description>
+    <Description>Wire contract between OctaGrid clients, server and agents.</Description>
     <PackageTags>octagrid;3d-printing;protocol</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OctaGrid.Extensions.Models\OctaGrid.Extensions.Models.csproj" />
+  </ItemGroup>
 </Project>

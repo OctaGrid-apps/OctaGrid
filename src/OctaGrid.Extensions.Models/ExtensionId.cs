@@ -1,11 +1,12 @@
 using System.Text.RegularExpressions;
 
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>
 /// Rules for extension ids. An id is <c>publisher.name</c>: two lowercase segments of letters,
 /// digits and single hyphens, for example <c>octagrid.moonraker</c> or <c>acme.prusa-link</c>.
-/// Ids never change once published.
+/// Ids never change once published. A connector uses the id of the extension that provides it
+/// (<c>ConnectorDescriptor.Id</c> equals the manifest id), so this one rule covers both.
 /// </summary>
 public static partial class ExtensionId
 {

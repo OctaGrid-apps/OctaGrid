@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Dashboards;
-using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Workspaces;
 

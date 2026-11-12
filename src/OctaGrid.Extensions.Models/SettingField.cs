@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 public enum SettingFieldType
 {

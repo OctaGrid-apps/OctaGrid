@@ -1,12 +1,15 @@
 using System.Diagnostics.CodeAnalysis;
+using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
-namespace OctaGrid.Agent.Core.Connectors;
+namespace OctaGrid.Agent.Core.Extensions;
 
 /// <summary>
 /// Knows which extensions are installed, whether each is enabled and trusted, and remembers the user's choices.
-/// Extensions are bundled connectors or connectors installed in the extensions folder; Store extensions plug in here later.
+/// An extension is the installed unit; today each one provides a connector. Built-in extensions ship with the app,
+/// the others are installed in the extensions folder; Store extensions plug in here later.
 /// </summary>
 /// <remarks>
 /// An extension the user installed is not run until the user approves it: its code is not loaded before that, and the
@@ -30,7 +33,7 @@ public sealed class ExtensionManager
     private readonly ExtensionInstaller? _installer;
     private readonly string? _extensionsRoot;
 
-    /// <param name="registry">The connectors, starting with the bundled ones.</param>
+    /// <param name="registry">The connectors, starting with the built-in ones.</param>
     /// <param name="store">Where the user's choices are saved.</param>
     /// <param name="loader">Loads extension code; the default host version is used when null.</param>
     /// <param name="extensionsRoot">The extensions folder. Without it extensions cannot be installed or loaded from a folder.</param>
@@ -216,7 +219,7 @@ public sealed class ExtensionManager
         lock (_gate)
         {
             var isLoaded = _registry.TryGet(id, out var connector);
-            if (isLoaded && _registry.GetSource(connector!.Descriptor.Id) == ExtensionSource.Bundled)
+            if (isLoaded && _registry.GetSource(connector!.Descriptor.Id) == ExtensionSource.BuiltIn)
             {
                 return ExtensionInstallResult.Fail("Built-in extensions cannot be removed. You can turn them off instead.", id);
             }

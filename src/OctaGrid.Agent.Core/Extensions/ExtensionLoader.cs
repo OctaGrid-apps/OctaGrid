@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Extensions;
 
-namespace OctaGrid.Agent.Core.Connectors;
+namespace OctaGrid.Agent.Core.Extensions;
 
 /// <summary>What happened when the host tried to load one extension folder.</summary>
 /// <param name="Folder">The extension's folder.</param>
@@ -388,7 +388,7 @@ public sealed class ExtensionLoader
     }
 
     /// <summary>
-    /// Loads an extension's assemblies from its own folder. The SDK, the protocol types, the framework and the
+    /// Loads an extension's assemblies from its own folder. The SDK, its model types, the framework and the
     /// logging abstractions come from the host so that <see cref="IConnector"/> is the same type on both sides.
     /// </summary>
     private sealed class ExtensionLoadContext : AssemblyLoadContext
@@ -396,6 +396,8 @@ public sealed class ExtensionLoader
         private static readonly string[] SharedPrefixes =
         [
             "OctaGrid.Extensions.Abstractions",
+            "OctaGrid.Extensions.Models",
+            // The SDK no longer needs it, but an extension that references it must still get the host's copy.
             "OctaGrid.Protocol",
             "Microsoft.Extensions.",
             "System.",

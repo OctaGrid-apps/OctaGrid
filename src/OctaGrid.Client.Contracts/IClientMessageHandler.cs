@@ -1,3 +1,4 @@
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Contracts;

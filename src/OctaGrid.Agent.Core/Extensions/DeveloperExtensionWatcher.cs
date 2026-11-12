@@ -1,4 +1,4 @@
-namespace OctaGrid.Agent.Core.Connectors;
+namespace OctaGrid.Agent.Core.Extensions;
 
 /// <summary>
 /// Watches the developer folder and calls back once a build has finished writing: changes are collected until the

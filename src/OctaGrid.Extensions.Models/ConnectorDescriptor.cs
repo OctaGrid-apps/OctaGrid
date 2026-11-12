@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>
 /// Plain-data description of a connector. It travels from the Agent to every client (including a

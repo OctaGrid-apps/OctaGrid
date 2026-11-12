@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Messaging;
+namespace OctaGrid.Extensions.Models;
 
 public record PrintStatus
 {

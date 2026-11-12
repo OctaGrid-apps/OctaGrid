@@ -1,4 +1,4 @@
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Extensions.Abstractions.Tests;
 

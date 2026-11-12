@@ -1,10 +1,12 @@
+using OctaGrid.Extensions.Models;
+
 namespace OctaGrid.Protocol.Extensions;
 
 /// <summary>Where an extension came from.</summary>
 public enum ExtensionSource
 {
     /// <summary>Ships inside OctaGrid. Can be disabled but not removed.</summary>
-    Bundled,
+    BuiltIn,
 
     /// <summary>Installed by the user into the extensions folder.</summary>
     UserFolder,

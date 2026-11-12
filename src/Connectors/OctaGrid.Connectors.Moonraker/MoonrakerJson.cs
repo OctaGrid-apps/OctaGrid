@@ -1,5 +1,5 @@
 using System.Text.Json;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.Moonraker;
 

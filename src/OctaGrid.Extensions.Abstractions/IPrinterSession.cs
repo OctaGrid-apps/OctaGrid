@@ -1,4 +1,5 @@
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Extensions.Models;
+
 
 namespace OctaGrid.Extensions.Abstractions;
 

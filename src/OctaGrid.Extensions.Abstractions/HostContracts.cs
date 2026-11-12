@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Extensions.Abstractions;
 

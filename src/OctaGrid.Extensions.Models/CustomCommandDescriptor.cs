@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>How careful the user must be before running a custom command.</summary>
 public enum CustomCommandRisk

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace OctaGrid.Protocol.Messaging;
+namespace OctaGrid.Extensions.Models;
 
 public enum UniversalPrinterState
 {

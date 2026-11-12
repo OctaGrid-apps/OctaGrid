@@ -1,8 +1,8 @@
-namespace OctaGrid.Protocol.Messaging;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>
 /// A snapshot of one printer's current state. It is sent often, so it carries only what is true now; what
-/// happened over time is a <see cref="PrinterEvent"/>. Connectors must not change a snapshot after sending it.
+/// happened over time is a printer event. Connectors must not change a snapshot after sending it.
 /// </summary>
 public record PrinterTelemetry(Guid PrinterId)
 {

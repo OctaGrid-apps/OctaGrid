@@ -3,10 +3,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Exceptions;
-using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using StreamJsonRpc;
 
 namespace OctaGrid.Connectors.Moonraker;
@@ -207,7 +205,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
             if (!connected)
             {
-                telemetry.Send(new Protocol.Messaging.PrinterTelemetry(DeviceId) { State = Protocol.Messaging.UniversalPrinterState.Offline });
+                telemetry.Send(new PrinterTelemetry(DeviceId) { State = UniversalPrinterState.Offline });
             }
 
             // Reset backoff after a successful connection, otherwise grow it.

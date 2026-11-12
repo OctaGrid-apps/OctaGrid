@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Agent.Core.Connectors;
@@ -21,7 +22,7 @@ public sealed class ConnectorRegistry
     /// <param name="connector">The connector.</param>
     /// <param name="source">Where the connector came from.</param>
     /// <exception cref="ArgumentException">The id is invalid or already registered.</exception>
-    public ConnectorRegistry Add(IConnector connector, ExtensionSource source = ExtensionSource.Bundled)
+    public ConnectorRegistry Add(IConnector connector, ExtensionSource source = ExtensionSource.BuiltIn)
     {
         ArgumentNullException.ThrowIfNull(connector);
 

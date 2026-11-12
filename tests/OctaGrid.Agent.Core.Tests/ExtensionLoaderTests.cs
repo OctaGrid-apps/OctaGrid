@@ -1,6 +1,8 @@
 using System.Runtime.Loader;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Agent.Core.Tests;
@@ -272,7 +274,7 @@ public sealed class ExtensionLoaderTests : IDisposable
     }
 
     [Fact]
-    public void An_extension_with_the_id_of_a_bundled_connector_fails_instead_of_replacing_it()
+    public void An_extension_with_the_id_of_a_built_in_connector_fails_instead_of_replacing_it()
     {
         Install("sample", Manifest());
         var registry = new ConnectorRegistry().Add(new FakeConnector(SampleFolderConnector.Id, _ => new MinimalSession()));
@@ -282,6 +284,6 @@ public sealed class ExtensionLoaderTests : IDisposable
 
         var failed = Assert.Single(manager.GetExtensions(), e => e.State == ExtensionState.Failed);
         Assert.Contains("already registered", failed.StateMessage);
-        Assert.Equal(ExtensionSource.Bundled, registry.GetSource(SampleFolderConnector.Id));
+        Assert.Equal(ExtensionSource.BuiltIn, registry.GetSource(SampleFolderConnector.Id));
     }
 }

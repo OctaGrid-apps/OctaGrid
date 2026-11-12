@@ -6,7 +6,7 @@ using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
-using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Printers;
 

@@ -6,7 +6,7 @@ using System.Xml;
 using System.Xml.Linq;
 using FluentFTP;
 using Microsoft.Extensions.Logging;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.BambuLab;
 

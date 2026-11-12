@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Composes an agent: the bundled connectors, the extension manager and the AgentWorker.
+  <!-- Composes an agent: the built-in connectors, the extension manager and the AgentWorker.
        Shared by every process that runs an agent: the Local-mode client today, the standalone
        agent app later. No UI, no EF, no client assemblies. -->
   <ItemGroup>

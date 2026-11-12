@@ -2,11 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Exceptions;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Local;
 

@@ -1,3 +1,5 @@
+using OctaGrid.Extensions.Models;
+
 namespace OctaGrid.Protocol.Messaging;
 
 /// <summary>

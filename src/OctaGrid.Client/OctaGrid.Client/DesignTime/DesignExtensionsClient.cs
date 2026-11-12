@@ -1,4 +1,5 @@
 using OctaGrid.Client.Contracts;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.DesignTime;
@@ -12,9 +13,9 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
     private readonly List<ExtensionInfo> _extensions =
     [
         new("octagrid.bambu-mqtt", "Bambu Lab (LAN mode)", "1.0.0", "OctaGrid", "connector",
-            ExtensionSource.Bundled, ExtensionState.Loaded, null, All, CanUninstall: false),
+            ExtensionSource.BuiltIn, ExtensionState.Loaded, null, All, CanUninstall: false),
         new("octagrid.moonraker", "Moonraker (Klipper)", "1.0.0", "OctaGrid", "connector",
-            ExtensionSource.Bundled, ExtensionState.Loaded, null, All, CanUninstall: false),
+            ExtensionSource.BuiltIn, ExtensionState.Loaded, null, All, CanUninstall: false),
         new("acme.prusalink", "PrusaLink", "1.2.0", "Acme", "connector",
             ExtensionSource.UserFolder, ExtensionState.NeedsApproval, "Review and approve this extension to run it. Its code has not been loaded.",
             ConnectorCapabilities.None, CanUninstall: true, Permissions: ["network"], ProjectUrl: "https://github.com/acme/octagrid-prusalink"),

@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>A printer found by a connector's network scan.</summary>
 /// <param name="ConnectorId">The connector that can talk to this printer.</param>

@@ -1,6 +1,6 @@
-namespace OctaGrid.Protocol.Messaging;
+namespace OctaGrid.Extensions.Models;
 
-/// <summary>How serious a <see cref="PrinterCondition"/> or <see cref="PrinterEvent"/> is. Ordered from least to most serious.</summary>
+/// <summary>How serious a <see cref="PrinterCondition"/> or printer event is. Ordered from least to most serious.</summary>
 public enum PrinterSeverity
 {
     /// <summary>Informational: something happened or was resolved, and no action is needed.</summary>

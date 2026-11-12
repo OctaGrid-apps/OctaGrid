@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
-using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 
 namespace OctaGrid.Agent.Hosting;
 
@@ -9,7 +9,7 @@ namespace OctaGrid.Agent.Hosting;
 public static class AgentHosting
 {
     /// <summary>
-    /// Registers the agent: the bundled connectors, the extension manager with its state, and the
+    /// Registers the agent: the built-in connectors, the extension manager with its state, and the
     /// <see cref="AgentWorker"/>. The host supplies what differs per deployment by registering an
     /// <c>ITelemetrySink</c> (where telemetry goes) and an <see cref="IPrinterProfileSource"/> (which printers
     /// to run).
@@ -25,13 +25,13 @@ public static class AgentHosting
 
         services.AddSingleton<IExtensionStateStore>(_ => new FileExtensionStateStore(options().ExtensionStatePath));
 
-        // The manager owns the registry: it starts with the bundled connectors and adds the installed
+        // The manager owns the registry: it starts with the built-in connectors and adds the installed
         // extensions before anything can create a session.
         services.AddSingleton(sp =>
         {
             var loggerFactory = sp.GetService<ILoggerFactory>();
             var manager = new ExtensionManager(
-                BundledConnectors.CreateRegistry(loggerFactory),
+                BuiltInConnectors.CreateRegistry(loggerFactory),
                 sp.GetRequiredService<IExtensionStateStore>(),
                 new ExtensionLoader(loggerFactory: loggerFactory),
                 options().ExtensionsFolder);

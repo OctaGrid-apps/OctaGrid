@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol;
-using OctaGrid.Protocol.Exceptions;
 using OctaGrid.Protocol.Users;
 
 namespace OctaGrid.Application.Services;

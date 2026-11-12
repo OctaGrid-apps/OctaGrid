@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>A printer's saved configuration, handed to the connector when a session is created.</summary>
 /// <param name="PrinterId">Id of the printer; use it for <c>PrinterTelemetry.PrinterId</c>.</param>

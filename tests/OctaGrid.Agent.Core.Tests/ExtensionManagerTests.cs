@@ -1,4 +1,5 @@
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Agent.Core.Tests;
@@ -36,13 +37,13 @@ public class ExtensionManagerTests
     }
 
     [Fact]
-    public void Bundled_extensions_cannot_be_uninstalled()
+    public void Built_in_extensions_cannot_be_uninstalled()
     {
         var (manager, _) = Create("acme.one");
 
         var info = Assert.Single(manager.GetExtensions());
 
-        Assert.Equal(ExtensionSource.Bundled, info.Source);
+        Assert.Equal(ExtensionSource.BuiltIn, info.Source);
         Assert.False(info.CanUninstall);
     }
 

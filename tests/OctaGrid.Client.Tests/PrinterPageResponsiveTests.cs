@@ -5,7 +5,7 @@ using Avalonia.VisualTree;
 using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Client.Views;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.Tests;
 

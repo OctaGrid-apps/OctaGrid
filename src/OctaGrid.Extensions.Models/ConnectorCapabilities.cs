@@ -1,4 +1,4 @@
-namespace OctaGrid.Protocol.Extensions;
+namespace OctaGrid.Extensions.Models;
 
 /// <summary>
 /// What a connector can do. Declared in the <see cref="ConnectorDescriptor"/> so a client can enable

@@ -1,8 +1,7 @@
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -173,7 +172,7 @@ public class DeviceOrchestratorTests
     {
         var (orchestrator, session, log, printerId) = await StartCommandSession();
 
-        await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(
+        await Assert.ThrowsAsync<OctaGrid.Extensions.Models.Exceptions.ValidationException>(
             () => orchestrator.SendConsoleCommandAsync(printerId, command, CancellationToken.None));
 
         Assert.Empty(session.Received);
@@ -186,8 +185,8 @@ public class DeviceOrchestratorTests
     {
         var (orchestrator, session, _, printerId) = await StartCommandSession();
 
-        await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(() => orchestrator.SendConsoleCommandAsync(
-            printerId, new string('x', Protocol.Printers.ConsoleCommandRules.MaxLength + 1), CancellationToken.None));
+        await Assert.ThrowsAsync<OctaGrid.Extensions.Models.Exceptions.ValidationException>(() => orchestrator.SendConsoleCommandAsync(
+            printerId, new string('x', OctaGrid.Extensions.Models.ConsoleCommandRules.MaxLength + 1), CancellationToken.None));
 
         Assert.Empty(session.Received);
         await orchestrator.DisposeAsync();
@@ -273,7 +272,7 @@ public class DeviceOrchestratorTests
     {
         var (orchestrator, _, _, _) = await StartCommandSession();
 
-        await Assert.ThrowsAsync<Protocol.Exceptions.NotFoundException>(
+        await Assert.ThrowsAsync<OctaGrid.Extensions.Models.Exceptions.NotFoundException>(
             () => orchestrator.SendConsoleCommandAsync(Guid.NewGuid(), "M105", CancellationToken.None));
         await orchestrator.DisposeAsync();
     }
@@ -289,7 +288,7 @@ public class DeviceOrchestratorTests
         var profile = Profile();
         await orchestrator.ApplyProfilesAsync([profile]);
 
-        var error = await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(
+        var error = await Assert.ThrowsAsync<OctaGrid.Extensions.Models.Exceptions.ValidationException>(
             () => orchestrator.SendConsoleCommandAsync(profile.PrinterId, "M105", CancellationToken.None));
 
         Assert.Equal("This printer's connector cannot send commands.", error.Message);
@@ -301,9 +300,9 @@ public class DeviceOrchestratorTests
     public async Task A_printer_that_rejects_a_command_passes_the_reason_on()
     {
         var (orchestrator, session, _, printerId) = await StartCommandSession();
-        session.Failure = new Protocol.Exceptions.ValidationException("command", "Unknown command \"FOO\".");
+        session.Failure = new OctaGrid.Extensions.Models.Exceptions.ValidationException("command", "Unknown command \"FOO\".");
 
-        var error = await Assert.ThrowsAsync<Protocol.Exceptions.ValidationException>(
+        var error = await Assert.ThrowsAsync<OctaGrid.Extensions.Models.Exceptions.ValidationException>(
             () => orchestrator.SendConsoleCommandAsync(printerId, "FOO", CancellationToken.None));
 
         Assert.Equal("Unknown command \"FOO\".", error.Message);
@@ -493,7 +492,7 @@ public class DeviceOrchestratorTests
 
         var offline = Assert.Single(telemetry.Sent);
         Assert.Equal(profile.PrinterId, offline.PrinterId);
-        Assert.Equal(OctaGrid.Protocol.Messaging.UniversalPrinterState.Offline, offline.State);
+        Assert.Equal(OctaGrid.Extensions.Models.UniversalPrinterState.Offline, offline.State);
     }
 
     [Fact]

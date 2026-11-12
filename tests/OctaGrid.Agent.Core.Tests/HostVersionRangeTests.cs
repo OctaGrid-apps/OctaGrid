@@ -1,4 +1,4 @@
-using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 
 namespace OctaGrid.Agent.Core.Tests;
 

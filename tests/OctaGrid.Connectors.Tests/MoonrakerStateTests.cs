@@ -1,5 +1,5 @@
 using OctaGrid.Connectors.Moonraker;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.Tests;
 

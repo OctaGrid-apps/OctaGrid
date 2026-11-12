@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace OctaGrid.Agent.Core.Connectors;
+namespace OctaGrid.Agent.Core.Extensions;
 
 /// <summary>Remembers which extensions the user turned off and which installed extensions the user trusts.</summary>
 public interface IExtensionStateStore

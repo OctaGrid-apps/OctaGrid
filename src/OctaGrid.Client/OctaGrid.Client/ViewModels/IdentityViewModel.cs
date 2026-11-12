@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.Exceptions;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Users;
 
 namespace OctaGrid.Client.ViewModels;

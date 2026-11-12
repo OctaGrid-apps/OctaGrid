@@ -1,7 +1,7 @@
 using System.Text.Json;
 using OctaGrid.Connectors.Moonraker;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.Tests;
 

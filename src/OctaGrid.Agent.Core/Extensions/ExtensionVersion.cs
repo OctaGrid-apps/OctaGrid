@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-namespace OctaGrid.Agent.Core.Connectors;
+namespace OctaGrid.Agent.Core.Extensions;
 
 /// <summary>A SemVer 2.0 version with the precedence rules the host needs to check <see cref="HostVersionRange"/>s.</summary>
 public sealed partial class ExtensionVersion : IComparable<ExtensionVersion>, IEquatable<ExtensionVersion>

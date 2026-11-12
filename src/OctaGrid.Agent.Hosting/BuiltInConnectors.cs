@@ -6,7 +6,7 @@ using OctaGrid.Connectors.Moonraker;
 namespace OctaGrid.Agent.Hosting;
 
 /// <summary>The connectors that ship inside OctaGrid.</summary>
-internal static class BundledConnectors
+internal static class BuiltInConnectors
 {
     public static ConnectorRegistry CreateRegistry(ILoggerFactory? loggerFactory = null) =>
         new ConnectorRegistry()

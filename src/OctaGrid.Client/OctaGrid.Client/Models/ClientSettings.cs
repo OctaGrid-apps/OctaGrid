@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.Models;
 
