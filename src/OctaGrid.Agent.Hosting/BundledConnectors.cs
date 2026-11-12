@@ -3,7 +3,7 @@ using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Connectors.BambuLab;
 using OctaGrid.Connectors.Moonraker;
 
-namespace OctaGrid.Client.Local;
+namespace OctaGrid.Agent.Hosting;
 
 /// <summary>The connectors that ship inside OctaGrid.</summary>
 internal static class BundledConnectors

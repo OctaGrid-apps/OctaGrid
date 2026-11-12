@@ -16,9 +16,9 @@ OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printer
 Client.Desktop ──► Client ──► Client.Contracts ──► Protocol
       │                              ▲
       └────────► Client.Local ───────┘      Client.Local ──► Application ──► Data ──► Protocol
-                      │                     Client.Local ──► Data.Sqlite ──► Data
-                      │                                      └──► Agent.Core ──► Extensions.Abstractions ──► Protocol
-                      └──► Connectors.* (bundled)             Connectors.* ──► Extensions.Abstractions only
+                                            Client.Local ──► Data.Sqlite ──► Data
+                                            Client.Local ──► Agent.Hosting ──► Agent.Core ──► Extensions.Abstractions ──► Protocol
+                                                                   └──► Connectors.* (bundled) ──► Extensions.Abstractions only
 ```
 
 | Project | Owns |
@@ -29,8 +29,9 @@ Client.Desktop ──► Client ──► Client.Contracts ──► Protocol
 | `OctaGrid.Data.Sqlite` | SQLite provider for `OctaGridContext`: registration, pragmas, migrations. Referenced by `Client.Local` only. |
 | `OctaGrid.Application` | Business logic (`Services/`), FluentValidation validators (`Validation/`). Transport-agnostic. |
 | `OctaGrid.Agent.Core` | Connector registry/loader/manager, `DeviceOrchestrator`, `AgentWorker`. No UI, no EF. |
+| `OctaGrid.Agent.Hosting` | Agent composition (`AddOctaGridAgent`): bundled connectors, extension manager, `AgentWorker`. Shared by every process that runs an agent. No UI, no EF, no client assemblies. |
 | `OctaGrid.Client.Contracts` | `I*Client` interfaces the UI talks to. The seam between UI and "where the backend lives". |
-| `OctaGrid.Client.Local` | In-process implementation of the contracts: DI wiring, the in-process agent, bundled connectors. Uses `Data.Sqlite`. |
+| `OctaGrid.Client.Local` | In-process implementation of the contracts: DI wiring and the adapters between the UI contracts, `Application` and the in-process agent. Uses `Data.Sqlite` and `Agent.Hosting`. |
 | `OctaGrid.Client` | Avalonia UI: views, ViewModels, controls, styles, design-time data. Platform-neutral. |
 | `OctaGrid.Client.Desktop` | Windows host: `Program.cs`, logging, settings file, updates, credential manager, MSIX. |
 | `src/Connectors/*` | Bundled connectors (BambuLab MQTT/FTPS, Moonraker). Reference only Abstractions (+ Protocol). |
@@ -95,7 +96,7 @@ Not present today; design new contracts so this is a thin layer, not a rewrite.
 
 ## Connectors and extensions
 
-- Bundled connectors stay in `src/Connectors/*` and may reference only `Extensions.Abstractions` (and `Protocol`). Descriptor/settings-schema types live in `Protocol`; runtime interfaces in `Extensions.Abstractions`. Connector code never runs in the client.
+- Bundled connectors stay in `src/Connectors/*` and may reference only `Extensions.Abstractions` (and `Protocol`). Only `Agent.Hosting` references them. Descriptor/settings-schema types live in `Protocol`; runtime interfaces in `Extensions.Abstractions`. Connector code never runs in the client.
 - One version line: the SDK is released with the app (single `version.json`). Extension manifests declare a host version range. See [docs/EXTENSIONS.md](docs/EXTENSIONS.md) and [docs/VERSIONING.md](docs/VERSIONING.md).
 - Printer commands are physical actions. Anything destructive or user-scripted (custom commands) must be gated (Expert mode, confirmation) and respect the safety disclaimer. Validate and bound every value sent to a printer.
 - NuGet publishing of the SDK packages is on hold; do not run or modify the publish workflow without being asked.

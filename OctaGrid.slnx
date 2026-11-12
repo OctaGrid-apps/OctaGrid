@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/OctaGrid.Agent/">
     <Project Path="src/OctaGrid.Agent.Core/OctaGrid.Agent.Core.csproj" Id="8f6a0461-fa6d-49f3-961c-e129921dde52" />
+    <Project Path="src/OctaGrid.Agent.Hosting/OctaGrid.Agent.Hosting.csproj" />
   </Folder>
   <Folder Name="/OctaGrid.Client.UI/">
     <Project Path="src/OctaGrid.Client.Contracts/OctaGrid.Client.Contracts.csproj" Id="f014e502-9374-43f6-ab9d-d98ff9129f9e" />
