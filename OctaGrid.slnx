@@ -25,6 +25,7 @@
     <Project Path="tests/OctaGrid.Client.Tests/OctaGrid.Client.Tests.csproj" />
     <Project Path="tests/OctaGrid.Connectors.Tests/OctaGrid.Connectors.Tests.csproj" />
     <Project Path="tests/OctaGrid.Extensions.Abstractions.Tests/OctaGrid.Extensions.Abstractions.Tests.csproj" />
+    <Project Path="tests/OctaGrid.Protocol.Tests/OctaGrid.Protocol.Tests.csproj" />
   </Folder>
   <Folder Name="/OctaGrid.Shared/">
     <Project Path="src/OctaGrid.Application/OctaGrid.Application.csproj" Id="93bebeb9-9414-4254-a1b7-be3e45b0bd0d" />
