@@ -17,6 +17,7 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Meziantou.Framework.Win32.CredentialManager" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" GeneratePathProperty="true" PrivateAssets="all" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
