@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The SQLite provider for OctaGridContext: registration, pragmas and the migrations.
+       Another provider (PostgreSQL for the server) gets its own project with its own migrations. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- dotnet ef needs the design-time services in the project it is pointed at. This is a class
+         library with no Main, so OctaGridSqliteDesignTimeFactory stands in for a running host. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OctaGrid.Data\OctaGrid.Data.csproj" />
+  </ItemGroup>
+
+</Project>
