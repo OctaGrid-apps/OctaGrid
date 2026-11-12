@@ -24,7 +24,7 @@ Client.Desktop ──► Client ──► Client.Contracts ──► Protocol �
 | Project | Owns |
 |---|---|
 | `OctaGrid.Extensions.Models` | Model types connectors and the app share: connector descriptors and settings, printer telemetry, print files, `ConsoleCommandRules`, and the `AppException` family. **Dependency-free and WASM-safe.** Packable SDK package. |
-| `OctaGrid.Protocol` | The app's wire contract: request/response DTOs and messages between client, server and agent. Depends only on `Extensions.Models`. WASM-safe. Not needed by extensions. |
+| `OctaGrid.Protocol` | The app's wire contract: request/response DTOs and messages between client, server and agent, including the agent message set (`AgentLink/`: requests, replies, notifications, envelopes, handshake). Depends only on `Extensions.Models`. WASM-safe. Not needed by extensions. |
 | `OctaGrid.Extensions.Abstractions` | Connector runtime interfaces (`IConnector`, `IPrinterSession`, capabilities). Agent-side only. References `Extensions.Models`, not `Protocol`. Packable SDK package. |
 | `OctaGrid.Data` | EF Core entities (`Models/`), `IEntityTypeConfiguration` classes (`Configurations/`), `OctaGridContext`. Provider-neutral. |
 | `OctaGrid.Data.Sqlite` | SQLite provider for `OctaGridContext`: registration, pragmas, migrations. Referenced by `Client.Local` only. |
@@ -92,6 +92,7 @@ Not present today; design new contracts so this is a thin layer, not a rewrite.
 - REST: plural-noun resources (`/api/v1/workspaces/{id}/dashboards`), correct verbs and status codes (`201` + `Location`, `204`, `404`, `409`, `422`), `application/problem+json` errors, URL-segment API versioning, cursor/offset pagination with `GetXxxQuery` objects, optimistic concurrency via `ETag`/`If-Match` backed by `Entity.Version`, idempotency for retried commands.
 - AuthN/Z: tenant (workspace) scoping enforced server-side on every request; device-code style one-time **pairing code** for headless agents; HTTPS only; rate limits; per-account limits (printers/agents/workspaces) must be enforceable but disabled in self-hosted builds, and billing code stays separable from the open-source core.
 - Real-time: strongly typed SignalR hubs for client↔agent messages, WebRTC for telemetry. Keep message types transport-agnostic in `Protocol`.
+- Agent messages (`Protocol/AgentLink`): every request derives from `AgentRequest<TReply>`, and every request, reply and notification is listed on its base type with a `JsonDerivedType` wire name. Wire names never change or get reused. A new message needs its wire name, a sample in `AgentMessageSamples` and its name in the expected list in `AgentMessageSetTests`. Messages that carry secrets (`ApplyPrinterProfilesRequest`, `TestConnectionRequest`) are never logged.
 - Version compatibility: client, agent and extensions update independently. Connect with a version handshake and show an "update required" state instead of failing; disable incompatible extensions rather than crashing.
 - Observability: structured logs, OpenTelemetry, health checks (`/health/live`, `/health/ready`).
 
@@ -106,7 +107,7 @@ Not present today; design new contracts so this is a thin layer, not a rewrite.
 ## Testing
 
 - xunit v3; test projects mirror source projects in `tests/`. Add or update tests with every behaviour change; fix bugs by writing the failing test first.
-- `Application.Tests`: real `OctaGridContext` on in-memory SQLite, no mocks of EF. `Agent.Core.Tests`: hand-written fakes in `Fakes.cs`. `Client.Tests`: headless Avalonia via `HeadlessUi`; tests touching `App.Services` belong to the `Ui` collection (no parallelism). `Connectors.Tests`: parse/state logic with recorded payloads, no live printers.
+- `Application.Tests`: real `OctaGridContext` on in-memory SQLite, no mocks of EF. `Agent.Core.Tests`: hand-written fakes in `Fakes.cs`. `Client.Tests`: headless Avalonia via `HeadlessUi`; tests touching `App.Services` belong to the `Ui` collection (no parallelism). `Connectors.Tests`: parse/state logic with recorded payloads, no live printers. `Protocol.Tests`: wire-contract tests (wire names, JSON round trips).
 - Tests are deterministic: no real network, no sleeps (use fakes/`TimeProvider`/awaitable signals), no dependence on the developer's `%AppData%`.
 - Naming: `Method_Scenario_ExpectedResult` or a descriptive sentence; one behaviour per test; arrange/act/assert.
 
