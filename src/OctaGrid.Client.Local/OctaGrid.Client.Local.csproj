@@ -1,6 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-
   <ItemGroup>
     <ProjectReference Include="..\OctaGrid.Agent.Hosting\OctaGrid.Agent.Hosting.csproj" />
     <ProjectReference Include="..\OctaGrid.Client.Contracts\OctaGrid.Client.Contracts.csproj" />
