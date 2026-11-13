@@ -90,7 +90,8 @@ public static class DependencyInjection
     {
         try
         {
-            var user = context.Users.FirstOrDefault();
+            // Local mode has a single user; the order only makes the pick deterministic.
+            var user = context.Users.OrderBy(u => u.Id).FirstOrDefault();
             if (user is null)
             {
                 logger.LogInformation("Provisioning default local user...");
