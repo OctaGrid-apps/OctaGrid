@@ -10,7 +10,11 @@ public sealed class ByteArrayImageCache : IByteArrayImageCache, IDisposable
     {
         _cache = new MemoryCache(new MemoryCacheOptions
         {
-            SizeLimit = maxCacheSizeBytes
+            SizeLimit = maxCacheSizeBytes,
+            // Publishes hit/miss, eviction and size metrics on the built-in MemoryCache meter (.NET 11),
+            // so an OpenTelemetry listener can see how well the image cache works.
+            TrackStatistics = true,
+            Name = "image-bytes"
         });
     }
 

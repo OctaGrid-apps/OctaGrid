@@ -1,10 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\OctaGrid.Agent.Hosting\OctaGrid.Agent.Hosting.csproj" />
     <ProjectReference Include="..\OctaGrid.Client.Contracts\OctaGrid.Client.Contracts.csproj" />
     <ProjectReference Include="..\OctaGrid.Application\OctaGrid.Application.csproj" />

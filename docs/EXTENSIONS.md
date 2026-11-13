@@ -146,7 +146,7 @@ What developer mode does:
 A developer extension cannot have the same id as a built-in or installed extension; remove or rename the other one. It
 cannot be removed with **Remove**: choose **Turn off** under *Developer mode* instead.
 
-To try it with the sample, run OctaGrid with `--extensions-dev samples/OctaGrid.Extensions.Sample/bin/Debug/net10.0/package/octagrid-samples.demo-printer`,
+To try it with the sample, run OctaGrid with `--extensions-dev samples/OctaGrid.Extensions.Sample/bin/Debug/net11.0/package/octagrid-samples.demo-printer`,
 change `DemoPrinterConnector.cs` (for example the display name) and run `dotnet build samples/OctaGrid.Extensions.Sample`:
 the list in Settings > Extensions shows the new name a moment later.
 
@@ -225,7 +225,7 @@ print control, files, a custom command and a console that takes commands).
    ```bash
    dotnet build samples/OctaGrid.Extensions.Sample
    ```
-   This writes the manifest and creates the package in `samples/OctaGrid.Extensions.Sample/bin/Debug/net10.0/package/`:
+   This writes the manifest and creates the package in `samples/OctaGrid.Extensions.Sample/bin/Debug/net11.0/package/`:
    the folder `octagrid-samples.demo-printer` and the same thing zipped as `OctaGrid.Extensions.Sample.octaext`.
 2. In OctaGrid open **Settings > Extensions** and choose **Install from file…** (the `.octaext`) or **Install from
    folder…** (the `octagrid-samples.demo-printer` folder). The extension appears as *Needs approval*.
