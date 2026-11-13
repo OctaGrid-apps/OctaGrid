@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
 using OctaGrid.Agent.Core.Extensions;
+using OctaGrid.Agent.Core.Link;
+using OctaGrid.Extensions.Abstractions;
 
 namespace OctaGrid.Agent.Hosting;
 
@@ -9,10 +11,10 @@ namespace OctaGrid.Agent.Hosting;
 public static class AgentHosting
 {
     /// <summary>
-    /// Registers the agent: the built-in connectors, the extension manager with its state, and the
-    /// <see cref="AgentWorker"/>. The host supplies what differs per deployment by registering an
-    /// <c>ITelemetrySink</c> (where telemetry goes) and an <see cref="IPrinterProfileSource"/> (which printers
-    /// to run).
+    /// Registers the agent: the built-in connectors, the extension manager with its state, the
+    /// <see cref="AgentWorker"/> and the agent's side of the link to a backend
+    /// (<see cref="AgentRequestDispatcher"/> for requests, <see cref="AgentNotificationHub"/> for what the agent
+    /// reports). The host connects those two to its transport; the agent itself needs nothing else.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="options">
@@ -40,7 +42,15 @@ public static class AgentHosting
         });
         services.AddSingleton(sp => sp.GetRequiredService<ExtensionManager>().Registry);
         services.AddSingleton<IMessageHandler, MessageHandler>();
+
+        // Telemetry from the printer sessions goes to the hub, where the host's transport picks it up.
+        services.AddSingleton<AgentNotificationHub>();
+        services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<AgentNotificationHub>());
+        services.AddSingleton(sp => new AgentUploads(
+            options().UploadsFolder ?? Path.Combine(Path.GetTempPath(), "OctaGrid", "uploads"),
+            logger: sp.GetService<ILogger<AgentUploads>>()));
         services.AddSingleton<AgentWorker>();
+        services.AddSingleton<AgentRequestDispatcher>();
 
         return services;
     }
