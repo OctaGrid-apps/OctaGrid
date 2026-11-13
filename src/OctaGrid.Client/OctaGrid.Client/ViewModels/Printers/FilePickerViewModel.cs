@@ -35,17 +35,34 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
+    [NotifyPropertyChangedFor(nameof(IsErrorVisible))]
     [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial string? ErrorMessage { get; set; }
 
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
-    /// <summary>The printer answered and has no files; never true while loading or after a failure.</summary>
-    public bool IsEmpty => !IsFilesLoading && !HasError && Files.Count == 0;
+    /// <summary>
+    /// The load failure with its Try again button. Hidden while the printer is offline: asking again cannot succeed then,
+    /// and <see cref="IsOffline" /> already says why there are no files.
+    /// </summary>
+    public bool IsErrorVisible => HasError && !IsOffline;
+
+    /// <summary>The printer answered and has no files; never true while loading, after a failure or while offline.</summary>
+    public bool IsEmpty => !IsFilesLoading && !HasError && !IsOffline && Files.Count == 0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial bool IsFilesLoading { get; set; }
+
+    /// <summary>
+    /// The printer is not connected, so its files cannot be asked for. Set by whoever follows the printer's state; while
+    /// it is true the list cannot be loaded.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsErrorVisible))]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
+    [NotifyCanExecuteChangedFor(nameof(LoadDataCommand))]
+    public partial bool IsOffline { get; set; }
 
     [ObservableProperty]
     public partial PrintMetadataListItem? SelectedItem { get; set; }
@@ -95,7 +112,11 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
     }
 
-    [RelayCommand]
+    private bool CanLoadData() => !IsOffline;
+
+    // A failure is shown in the list (ErrorMessage) and not rethrown: this runs from buttons (Refresh, Try again), and an
+    // exception escaping a button's command ends the app.
+    [RelayCommand(CanExecute = nameof(CanLoadData))]
     private async Task LoadData(CancellationToken cancellationToken)
     {
         try
@@ -120,7 +141,6 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         {
             _logger.LogError(ex, "Failed to load printer files for device {DeviceId}", _deviceId);
             ErrorMessage = ex is AppException ? ex.Message : "The files could not be loaded.";
-            throw;
         }
         finally
         {

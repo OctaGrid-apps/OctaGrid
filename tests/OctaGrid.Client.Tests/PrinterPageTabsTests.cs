@@ -319,11 +319,69 @@ public class PrinterPageTabsTests
         var (page, commands, _) = Create();
         commands.FilesFailure = new InvalidOperationException("boom");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => page.Files.LoadDataCommand.ExecuteAsync(null));
+        // Not rethrown: the command runs from the Try again button, where an escaping exception would end the app.
+        await page.Files.LoadDataCommand.ExecuteAsync(null);
 
         Assert.True(page.Files.HasError);
+        Assert.True(page.Files.IsErrorVisible);
         Assert.Equal("The files could not be loaded.", page.Files.ErrorMessage);
         Assert.False(page.Files.IsEmpty);
+    }
+
+    [Fact]
+    public void An_offline_printer_is_not_asked_for_its_files_and_offers_no_retry()
+    {
+        var (page, commands, item) = Create();
+        item.State = UniversalPrinterState.Offline;
+
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        Assert.Equal(0, commands.FileRequests);
+        Assert.True(page.Files.IsOffline);
+        Assert.False(page.Files.LoadDataCommand.CanExecute(null));
+        Assert.False(page.Files.IsErrorVisible);
+        Assert.False(page.Files.IsEmpty);
+    }
+
+    [Fact]
+    public void A_failure_shown_before_the_printer_went_offline_no_longer_offers_a_retry()
+    {
+        var (page, commands, item) = Create();
+        commands.FilesFailure = new NotFoundException("The printer is not connected.");
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+        Assert.True(page.Files.IsErrorVisible);
+
+        item.State = UniversalPrinterState.Offline;
+
+        Assert.False(page.Files.IsErrorVisible);
+        Assert.True(page.Files.IsOffline);
+    }
+
+    [Fact]
+    public void The_files_are_loaded_when_the_printer_comes_back_while_their_tab_is_shown()
+    {
+        var (page, commands, item) = Create();
+        item.State = UniversalPrinterState.Offline;
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+        commands.Files.Add(File("benchy.gcode"));
+
+        item.State = UniversalPrinterState.Idle;
+
+        Assert.Equal(1, commands.FileRequests);
+        Assert.False(page.Files.IsOffline);
+        Assert.Equal(["benchy.gcode"], page.FileRows.Select(r => r.File.Metadata.FileName));
+    }
+
+    [Fact]
+    public void A_printer_whose_connector_is_unavailable_is_treated_as_offline()
+    {
+        var (page, commands, item) = Create();
+        item.IsConnectorAvailable = false;
+
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        Assert.True(page.Files.IsOffline);
+        Assert.Equal(0, commands.FileRequests);
     }
 
     [Fact]

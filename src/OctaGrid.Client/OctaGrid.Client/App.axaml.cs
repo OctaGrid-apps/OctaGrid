@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,6 +33,7 @@ public partial class App : Application
             services.AddLogging();
             services.AddSingleton<IClientMessageHandler, MessageHandler>();
             services.AddSingleton<INotificationService, NotificationService>();
+            services.AddSingleton<UnhandledErrorReporter>();
             services.AddSingleton<IByteArrayImageCache, ByteArrayImageCache>();
             services.AddSingleton<ITemperatureHistoryStore, TemperatureHistoryStore>();
             services.AddSingleton<ApplicationState>();
@@ -154,6 +156,10 @@ public partial class App : Application
 
         var logger = Logger;
         logger.LogInformation("Framework initialization started with lifetime: {Lifetime}", ApplicationLifetime?.GetType().Name);
+
+        // An exception that escapes a command or a handler would otherwise end the app without a word to the user.
+        var errorReporter = services.GetRequiredService<UnhandledErrorReporter>();
+        Dispatcher.UIThread.UnhandledException += (_, e) => e.Handled = errorReporter.Report(e.Exception);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
