@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Views.PrinterPageView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -350,7 +350,12 @@
                                 </StackPanel>
                             </Grid>
                             <ProgressBar IsIndeterminate="True" IsVisible="{Binding Files.IsFilesLoading}" />
-                            <StackPanel Classes="inline" IsVisible="{Binding Files.HasError}">
+                            <TextBlock
+                                Classes="body secondary"
+                                IsVisible="{Binding Files.IsOffline}"
+                                Text="The printer is offline. Its files are shown when it connects again."
+                                TextWrapping="Wrap" />
+                            <StackPanel Classes="inline" IsVisible="{Binding Files.IsErrorVisible}">
                                 <TextBlock
                                     VerticalAlignment="Center"
                                     Classes="body"
@@ -362,7 +367,7 @@
                                 Classes="body secondary"
                                 IsVisible="{Binding Files.IsEmpty}"
                                 Text="There are no files on this printer." />
-                            <ItemsControl ItemsSource="{Binding FileRows}">
+                            <ItemsControl IsVisible="{Binding !Files.IsOffline}" ItemsSource="{Binding FileRows}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel Spacing="{DynamicResource Gap.CardContent}" />

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Client.ViewModels;
@@ -48,6 +49,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         PrinterConsole = card.CreateConsoleViewModel();
         HasConsole = card.SupportsConsole;
         PrinterConsole.IsExpertMode = appSettings.ClientSettings.IsExpertMode;
+        Files.IsOffline = IsPrinterOffline;
 
         Item.PropertyChanged += OnItemPropertyChanged;
         Files.PropertyChanged += OnFilesPropertyChanged;
@@ -106,7 +108,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         {
             case PrinterPageTab.Files:
                 // The files can change on the printer at any time, so they are asked for each time the tab is shown.
-                _ = Files.LoadDataCommand.ExecuteAsync(null).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                LoadFiles();
                 break;
 
             case PrinterPageTab.Events when !_eventsRequested && !_stopped:
@@ -119,6 +121,20 @@ public partial class PrinterPageViewModel : ViewModelBase
                 _consoleRequested = true;
                 _ = PrinterConsole.LoadCommand.ExecuteAsync(null).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
                 break;
+        }
+    }
+
+    // A state is only trusted once the printer reported one: until then the default (Offline) means "not known yet", and
+    // asking for the files is still worth a try.
+    private bool IsPrinterOffline =>
+        !Item.IsConnectorAvailable || (Item.IsStateKnown && Item.State == UniversalPrinterState.Offline);
+
+    // ExecuteAsync does not check CanExecute, so the offline check is made here; asking an offline printer only fails.
+    private void LoadFiles()
+    {
+        if (!_stopped && Files.LoadDataCommand.CanExecute(null))
+        {
+            _ = Files.LoadDataCommand.ExecuteAsync(null).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
     }
 
@@ -191,6 +207,18 @@ public partial class PrinterPageViewModel : ViewModelBase
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(PrinterStatusWidget.State) or nameof(PrinterStatusWidget.IsConnectorAvailable))
+        {
+            var wasOffline = Files.IsOffline;
+            Files.IsOffline = IsPrinterOffline;
+
+            // The printer came back while its files are on screen: show them without making the user ask.
+            if (wasOffline && !Files.IsOffline && SelectedTabIndex == (int)PrinterPageTab.Files)
+            {
+                LoadFiles();
+            }
+        }
+
         if (e.PropertyName is nameof(PrinterStatusWidget.CanStartNewPrint))
         {
             foreach (var row in FileRows)

@@ -62,8 +62,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task DeleteFileAsync(string fileName, CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         _logger.LogInformation("Deleting file '{FileName}' on Moonraker device {DeviceId}", fileName, DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.delete_file", new { path = $"{DefaultGCodeRoot}/{fileName}" }, cancellationToken: cancellationToken);
@@ -77,8 +76,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task<IReadOnlyList<PrintMetadata>> ListFilesAsync(CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         _logger.LogDebug("Listing files on Moonraker device {DeviceId}", DeviceId);
         var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
@@ -130,8 +128,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task PausePrintAsync(CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         _logger.LogInformation("Pausing print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.pause", cancellationToken: cancellationToken);
@@ -139,8 +136,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task SendCommandAsync(string command, CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         try
         {
@@ -158,8 +154,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task ResumePrintAsync(CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         _logger.LogInformation("Resuming print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.resume", cancellationToken: cancellationToken);
@@ -227,8 +222,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task StartPrintAsync(string fileName, CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         _logger.LogInformation("Starting print job '{FileName}' on Moonraker device {DeviceId}", fileName, DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.start", new { filename = fileName }, cancellationToken: cancellationToken);
@@ -236,8 +230,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     public async Task StopPrintAsync(CancellationToken cancellationToken)
     {
-        var rpc = _jsonRpc
-            ?? throw new InvalidOperationException("Not connected to the printer.");
+        var rpc = RequireRpc();
 
         _logger.LogInformation("Stopping print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.cancel", cancellationToken: cancellationToken);
@@ -331,6 +324,11 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     }
 
     private static Uri BuildUri(string connectionString) => new($"ws://{connectionString}/websocket");
+
+    // An expected condition (the printer is off or still reconnecting), not a bug: an AppException carries a message the
+    // user can be shown as is, where a bare InvalidOperationException would only say that something went wrong.
+    private JsonRpc RequireRpc() =>
+        _jsonRpc ?? throw new NotFoundException("The printer is not connected.");
 
     private static async Task CloseQuietlyAsync(ClientWebSocket ws)
     {
