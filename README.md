@@ -41,7 +41,7 @@ Get the latest version directly from the Microsoft Store for seamless background
 
 Pre-compiled binaries for Windows (`win-x64`) are available on the [Releases](https://github.com/OctaGrid-apps/OctaGrid/releases) page:
 - **Installer**: Download and run the `*-Setup.exe` file (includes built-in auto-updates).
-- **Portable**: Download `OctaGrid-win-x64-portable.zip`, extract the archive, and launch `OctaGrid.Client.Desktop.exe`.
+- **Portable**: Download `OctaGrid-win-Portable.zip`, extract the archive, and launch `OctaGrid.exe`. The portable copy updates itself like the installed one.
 
 > [!NOTE]
 > Releases marked **Pre-release** (for example `1.0.17-pre-alpha`) are early builds for testers. The Microsoft Store only receives stable releases. See [Versioning & Releases](docs/VERSIONING.md).

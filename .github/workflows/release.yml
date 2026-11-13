@@ -235,28 +235,41 @@ jobs:
             --outputDir "artifacts" `
             --releaseNotes "$notesPath"
 
-          Write-Host "--> Creating portable .zip archive..."
-          Compress-Archive -Path "$publishDir\*" -DestinationPath "artifacts/OctaGrid-win-x64-portable.zip" -Force
-
           Write-Host "==> Artifacts directory contents:"
           Get-ChildItem artifacts | Format-Table Name, Length
 
+      # vpk uploads only this version's Velopack files (setup, portable zip, packages, feed), never the previous
+      # release downloaded for the delta. --merge lets a manual re-run add to a release that already exists.
       - name: Publish to GitHub Releases
         if: ${{ github.event_name == 'push' || inputs.create_github_release != false }}
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ steps.version_info.outputs.tag }}
-          name: OctaGrid ${{ steps.version_info.outputs.version }}${{ steps.version_info.outputs.prerelease == 'true' && format(' ({0})', steps.version_info.outputs.channel) || '' }}
-          body_path: artifacts/RELEASE_NOTES_GH.md
-          draft: false
-          prerelease: ${{ steps.version_info.outputs.prerelease == 'true' }}
-          make_latest: ${{ steps.version_info.outputs.prerelease != 'true' }}
-          files: |
-            artifacts/*-Setup.exe
-            artifacts/OctaGrid-win-x64-portable.zip
-            artifacts/releases.win.json
-            artifacts/OctaGrid-${{ steps.version_info.outputs.version }}-full.nupkg
-            artifacts/OctaGrid-${{ steps.version_info.outputs.version }}-delta.nupkg
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "${{ steps.version_info.outputs.tag }}"
+          $name = "OctaGrid ${{ steps.version_info.outputs.version }}"
+          $vpkArgs = @(
+              'upload', 'github',
+              '--repoUrl', "https://github.com/$env:GITHUB_REPOSITORY",
+              '--token', $env:GH_TOKEN,
+              '--outputDir', 'artifacts',
+              '--tag', $tag,
+              '--targetCommitish', $env:GITHUB_SHA,
+              '--publish', '--merge')
+          if ("${{ steps.version_info.outputs.prerelease }}" -eq "true") {
+              $name += " (${{ steps.version_info.outputs.channel }})"
+              $vpkArgs += '--pre'
+          }
+          $vpkArgs += @('--releaseName', $name)
+
+          dotnet vpk @vpkArgs
+          if ($LASTEXITCODE -ne 0) { throw "vpk upload github failed." }
+
+          # vpk uses the notes packed into the release; the GitHub page gets the version with the pre-release
+          # warning and the link to the full changelog.
+          gh release edit $tag --repo $env:GITHUB_REPOSITORY --notes-file artifacts/RELEASE_NOTES_GH.md
+          if ($LASTEXITCODE -ne 0) { throw "Could not set the GitHub release notes." }
 
       - name: Setup Microsoft Store CLI
         if: ${{ steps.version_info.outputs.prerelease != 'true' && (github.event_name == 'push' || inputs.publish_to_store != false) }}

@@ -83,7 +83,8 @@ tag matching `publicReleaseRefSpec` get the clean version.
    - downloads the previous Velopack release (the newest stable one for a stable release, the
      newest of any kind for a pre-release) so `vpk pack` also builds a delta package, which
      installed apps download instead of the full package when they are on that version;
-   - publishes the GitHub release (pre-release flag, "Latest" only for stable);
+   - publishes the GitHub release with `vpk upload github` (pre-release flag, "Latest" only
+     for stable) and then sets its notes;
    - submits to the Microsoft Store — **stable releases only**.
 
 The workflow can also be started manually (*Actions → Release & Publish → Run workflow*) to
@@ -120,7 +121,8 @@ expected and may ship in a `MINOR` or `PATCH` bump.
   closes (or right away with *Restart to apply*). If the updater could not start on exit,
   Velopack installs the downloaded update on the next start.
 - Microsoft Store installs are updated by the Store (stable only).
-- Portable / dev runs do not auto-update.
+- The portable zip (`OctaGrid-win-Portable.zip`, built by Velopack) updates itself like an
+  install. Dev runs and copies of a build folder do not auto-update.
 
 ## Rules of thumb
 

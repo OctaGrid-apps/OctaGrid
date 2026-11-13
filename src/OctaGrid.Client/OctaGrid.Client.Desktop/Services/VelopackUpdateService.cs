@@ -44,7 +44,8 @@ public sealed class VelopackUpdateService : IUpdateService
 
     public UpdateChannel Channel => UpdateChannel.Velopack;
 
-    // A run from the IDE or a portable copy is not installed by Velopack, so there is nothing to update.
+    // A run from the IDE or a copied build folder is not installed by Velopack, so there is nothing to update. Velopack's
+    // own portable zip is, and updates like an install.
     public bool CheckOnStartup => IsUpdateSupported;
 
     public bool IsUpdateSupported => _installed?.IsInstalled == true;
