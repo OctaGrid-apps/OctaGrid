@@ -67,7 +67,8 @@ public sealed class UsersService
     /// </summary>
     public async Task<UserResponse> GetOrCreate(CancellationToken cancellationToken)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(cancellationToken);
+        // Local mode has a single user; the order only makes the pick deterministic.
+        var user = await _context.Users.OrderBy(u => u.Id).FirstOrDefaultAsync(cancellationToken);
         if (user is null)
         {
             user = new User()
