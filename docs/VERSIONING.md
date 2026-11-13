@@ -110,9 +110,15 @@ expected and may ship in a `MINOR` or `PATCH` bump.
 
 ## Auto-update behaviour
 
-- **Stable builds** only see stable releases.
-- **Pre-release builds** (any version containing `-`) also see pre-release GitHub releases,
-  so testers are moved along the channel and onto the stable release when it ships.
+- **Stable installs** only see stable releases.
+- **Pre-release installs** (an installed Velopack version containing `-`) also see pre-release
+  GitHub releases, so testers are moved along the channel and onto the stable release when it ships.
+- **Settings > Updates > Pre-release updates** overrides both. Turning it off never downgrades:
+  the app stays on its version until a newer stable release ships, because an older version
+  cannot undo database changes a newer one made.
+- A Velopack update downloads while the app keeps running and is installed when the app
+  closes (or right away with *Restart to apply*). If the updater could not start on exit,
+  Velopack installs the downloaded update on the next start.
 - Microsoft Store installs are updated by the Store (stable only).
 - Portable / dev runs do not auto-update.
 
