@@ -2,7 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Xml.Linq;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.BambuLab;
 

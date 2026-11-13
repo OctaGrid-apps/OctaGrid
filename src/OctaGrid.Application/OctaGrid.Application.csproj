@@ -6,7 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OctaGrid.Data.Abstractions\OctaGrid.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\OctaGrid.Data\OctaGrid.Data.csproj" />
     <ProjectReference Include="..\OctaGrid.Protocol\OctaGrid.Protocol.csproj" />
   </ItemGroup>
 

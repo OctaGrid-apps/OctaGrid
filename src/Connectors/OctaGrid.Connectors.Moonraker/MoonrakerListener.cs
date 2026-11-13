@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 using StreamJsonRpc;
 
 namespace OctaGrid.Connectors.Moonraker;

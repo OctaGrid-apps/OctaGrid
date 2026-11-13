@@ -1,9 +1,6 @@
-using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -150,4 +147,21 @@ internal sealed class InMemoryStateStore : IExtensionStateStore
 
     public void SaveTrusted(IReadOnlyDictionary<string, string> trusted) =>
         _trusted = new Dictionary<string, string>(trusted, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// An agent worker together with the printers the test's "backend" assigns to it. <see cref="PushProfilesAsync"/>
+/// does what the backend does when the agent starts or a printer changes: it sends the current set.
+/// </summary>
+internal sealed class TestWorker : AgentWorker
+{
+    private readonly Func<IReadOnlyList<PrinterProfile>> _printers;
+
+    public TestWorker(ITelemetrySink telemetry, Func<IReadOnlyList<PrinterProfile>> printers, ExtensionManager extensions)
+        : base(telemetry, extensions)
+    {
+        _printers = printers;
+    }
+
+    public Task PushProfilesAsync(CancellationToken cancellationToken) => ApplyProfilesAsync(_printers(), cancellationToken);
 }

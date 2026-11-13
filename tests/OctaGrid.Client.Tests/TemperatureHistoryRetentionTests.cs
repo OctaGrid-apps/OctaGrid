@@ -2,6 +2,7 @@ using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Tests;

@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -62,11 +62,6 @@ public sealed class DeveloperModeTests : IDisposable
         }
     }
 
-    private sealed class FixedProfiles(params PrinterProfile[] profiles) : IPrinterProfileSource
-    {
-        public Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PrinterProfile>>(profiles);
-    }
 
     /// <summary>Writes what a build leaves behind: the manifest and a copy of this test assembly, which holds the connectors.</summary>
     private void Build(Type entryType, string? hostRange = null)
@@ -257,7 +252,7 @@ public sealed class DeveloperModeTests : IDisposable
         Reload(manager);
 
         Assert.Contains(manager.GetExtensions(), e => e.State == ExtensionState.Failed && e.Source == ExtensionSource.Development);
-        Assert.Equal(ExtensionSource.Bundled, registry.GetSource(DevConnectorA.Id));
+        Assert.Equal(ExtensionSource.BuiltIn, registry.GetSource(DevConnectorA.Id));
     }
 
     [Fact]
@@ -324,12 +319,12 @@ public sealed class DeveloperModeTests : IDisposable
 
     // ---- The worker: sessions and the file watcher ----
 
-    private static (AgentWorker Worker, FakeTelemetry Telemetry, PrinterProfile Printer) NewWorker()
+    private static (TestWorker Worker, FakeTelemetry Telemetry, PrinterProfile Printer) NewWorker()
     {
         var printer = new PrinterProfile(Guid.NewGuid(), DevConnectorA.Id, new Dictionary<string, string>());
         var telemetry = new FakeTelemetry();
         var manager = NewManager();
-        return (new AgentWorker(telemetry, new FixedProfiles(printer), manager), telemetry, printer);
+        return (new TestWorker(telemetry, () => [printer], manager), telemetry, printer);
     }
 
     private static async Task Eventually(Func<bool> condition, string because)
@@ -353,7 +348,7 @@ public sealed class DeveloperModeTests : IDisposable
     {
         Build(typeof(DevConnectorA));
         var (worker, telemetry, printer) = NewWorker();
-        await worker.ExecuteAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
         Assert.DoesNotContain(telemetry.Sent, t => t.PrinterId == printer.PrinterId && t.State == UniversalPrinterState.Idle);
 
         var result = await worker.SetDeveloperFolderAsync(DevFolder, CancellationToken.None);
@@ -369,6 +364,7 @@ public sealed class DeveloperModeTests : IDisposable
     {
         Build(typeof(DevConnectorA));
         var (worker, telemetry, printer) = NewWorker();
+        await worker.PushProfilesAsync(CancellationToken.None);
         await worker.SetDeveloperFolderAsync(DevFolder, CancellationToken.None);
         await Eventually(() => telemetry.Sent.Any(t => t.PrinterId == printer.PrinterId), "The printer never started.");
         var starts = telemetry.Sent.Count(t => t.PrinterId == printer.PrinterId && t.State == UniversalPrinterState.Idle);

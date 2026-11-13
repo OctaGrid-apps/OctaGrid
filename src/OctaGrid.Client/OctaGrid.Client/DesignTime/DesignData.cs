@@ -52,7 +52,7 @@ internal static class DesignData
                 Progress = 0.42,
                 CurrentLayer = 84,
                 TotalLayerCount = 200,
-                State = OctaGrid.Protocol.Messaging.UniversalPrinterState.Printing,
+                State = OctaGrid.Extensions.Models.UniversalPrinterState.Printing,
             },
             AgentCommands, Images),
         () => { },

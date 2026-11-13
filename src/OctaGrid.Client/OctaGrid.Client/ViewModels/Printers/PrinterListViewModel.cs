@@ -8,7 +8,7 @@ using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Controls.Dialogs;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.ViewModels;

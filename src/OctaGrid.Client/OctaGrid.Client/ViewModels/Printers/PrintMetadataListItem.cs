@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.ViewModels;
 

@@ -2,11 +2,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Events;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Agents;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Agent.Core;
 
@@ -17,7 +17,7 @@ public class AgentWorker : IAsyncDisposable
     private readonly ExtensionManager _extensions;
     private readonly ILogger<AgentWorker> _logger;
     private readonly DeviceOrchestrator _orchestrator;
-    private readonly IPrinterProfileSource _profileSource;
+    private IReadOnlyList<PrinterProfile> _profiles = [];
     private readonly SemaphoreSlim _applyGate = new(1, 1);
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private DeveloperExtensionWatcher? _developerWatcher;
@@ -25,14 +25,12 @@ public class AgentWorker : IAsyncDisposable
     /// <param name="extensions">The installed extensions and which of them are enabled.</param>
     public AgentWorker(
         ITelemetrySink telemetry,
-        IPrinterProfileSource profileSource,
         ExtensionManager extensions,
         ILoggerFactory? loggerFactory = null,
         TimeProvider? timeProvider = null)
     {
         var factory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = factory.CreateLogger<AgentWorker>();
-        _profileSource = profileSource;
         _extensions = extensions;
         _events = new PrinterEventLog(timeProvider, logger: factory.CreateLogger<PrinterEventLog>());
         _console = new PrinterConsoleLog(timeProvider, logger: factory.CreateLogger<PrinterConsoleLog>());
@@ -94,7 +92,8 @@ public class AgentWorker : IAsyncDisposable
         }
 
         _logger.LogInformation("Extension '{ExtensionId}' {State}", extensionId, enabled ? "enabled" : "disabled");
-        await RefreshProfilesAsync(cancellationToken);
+        await ReapplyProfilesAsync(cancellationToken);
+        ConnectorsChanged?.Invoke();
     }
 
     /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
@@ -112,7 +111,8 @@ public class AgentWorker : IAsyncDisposable
         _logger.LogInformation("Approval of extension '{ExtensionId}': {Success} {Message}", extensionId, result.Success, result.Message);
         if (result.Success)
         {
-            await RefreshProfilesAsync(cancellationToken);
+            await ReapplyProfilesAsync(cancellationToken);
+            ConnectorsChanged?.Invoke();
         }
 
         return result;
@@ -125,7 +125,8 @@ public class AgentWorker : IAsyncDisposable
         _logger.LogInformation("Removal of extension '{ExtensionId}': {Success} {Message}", extensionId, result.Success, result.Message);
         if (result.Success)
         {
-            await RefreshProfilesAsync(cancellationToken);
+            await ReapplyProfilesAsync(cancellationToken);
+            ConnectorsChanged?.Invoke();
         }
 
         return result;
@@ -174,9 +175,10 @@ public class AgentWorker : IAsyncDisposable
         try
         {
             _extensions.BeginDeveloperReload();
-            await RefreshProfilesAsync(cancellationToken);    // stops the sessions that use the old version
+            await ReapplyProfilesAsync(cancellationToken);    // stops the sessions that use the old version
             _extensions.CompleteDeveloperReload();
-            await RefreshProfilesAsync(cancellationToken);    // starts them again with the new one
+            await ReapplyProfilesAsync(cancellationToken);    // starts them again with the new one
+            ConnectorsChanged?.Invoke();
             return ExtensionInstallResult.Ok(null, "Developer extensions reloaded.");
         }
         finally
@@ -214,10 +216,23 @@ public class AgentWorker : IAsyncDisposable
         return _orchestrator.DisposeAsync();
     }
 
-    public Task ExecuteAsync(CancellationToken stoppingToken)
+    /// <summary>
+    /// Raised when the connectors this agent offers may have changed: an extension was turned on or off,
+    /// approved, removed or reloaded. Read <see cref="ConnectorDescriptors"/> for the new set.
+    /// </summary>
+    public event Action? ConnectorsChanged;
+
+    /// <summary>
+    /// Tells the agent which printers it runs. The backend sends the complete set when the agent starts and
+    /// whenever a printer is added, changed or removed. The agent keeps it, so it can start the same printers
+    /// again after an extension is turned on or reloaded.
+    /// </summary>
+    /// <param name="profiles">Every printer the agent has to run, with settings and secrets.</param>
+    /// <param name="cancellationToken">Cancels waiting for an earlier change to finish.</param>
+    public Task ApplyProfilesAsync(IReadOnlyList<PrinterProfile> profiles, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("AgentWorker starting initial profile load");
-        return LoadAndApplyProfilesAsync(stoppingToken);
+        ArgumentNullException.ThrowIfNull(profiles);
+        return ApplyAsync(profiles.ToList(), cancellationToken);
     }
 
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
@@ -229,20 +244,23 @@ public class AgentWorker : IAsyncDisposable
     public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
         _orchestrator.PausePrintJobAsync(deviceId, cancellationToken);
 
-    public Task RefreshProfilesAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogDebug("Refreshing printer profiles from source");
-        return LoadAndApplyProfilesAsync(cancellationToken);
-    }
+    // Applies the printers the agent already has again, after the set of usable connectors changed.
+    private Task ReapplyProfilesAsync(CancellationToken cancellationToken) => ApplyAsync(null, cancellationToken);
 
-    // One at a time, and the profiles are read inside the gate: otherwise a refresh that read the list earlier could
-    // finish last, stop the session of a printer added in between, and forget its history.
-    private async Task LoadAndApplyProfilesAsync(CancellationToken cancellationToken)
+    // One at a time, and the set is replaced and read inside the gate: otherwise a re-apply that read the old set
+    // could finish last, stop the session of a printer added in between, and forget its history.
+    private async Task ApplyAsync(IReadOnlyList<PrinterProfile>? replacement, CancellationToken cancellationToken)
     {
         await _applyGate.WaitAsync(cancellationToken);
         try
         {
-            var profiles = await _profileSource.GetProfilesAsync(cancellationToken);
+            if (replacement is not null)
+            {
+                _profiles = replacement;
+            }
+
+            var profiles = _profiles;
+            // Profiles carry secrets, so only their number is logged.
             _logger.LogInformation("Applying {ProfileCount} printer profile(s)", profiles.Count);
             await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
 

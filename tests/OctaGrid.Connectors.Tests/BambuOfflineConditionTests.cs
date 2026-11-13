@@ -1,7 +1,6 @@
 using OctaGrid.Connectors.BambuLab;
 using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Protocol.Extensions;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.Tests;
 

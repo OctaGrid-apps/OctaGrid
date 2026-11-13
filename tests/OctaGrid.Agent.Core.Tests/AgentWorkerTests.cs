@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 
@@ -8,13 +10,8 @@ namespace OctaGrid.Agent.Core.Tests;
 
 public class AgentWorkerTests
 {
-    private sealed class FixedProfiles(params PrinterProfile[] profiles) : IPrinterProfileSource
-    {
-        public Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PrinterProfile>>(profiles);
-    }
 
-    private static (AgentWorker Worker, FakeConnector Connector, List<FakeSession> Sessions, InMemoryStateStore Store) Create(
+    private static (TestWorker Worker, FakeConnector Connector, List<FakeSession> Sessions, InMemoryStateStore Store) Create(
         params PrinterProfile[] profiles)
     {
         var sessions = new List<FakeSession>();
@@ -26,7 +23,7 @@ public class AgentWorkerTests
         });
         var store = new InMemoryStateStore();
         var extensions = new ExtensionManager(new ConnectorRegistry().Add(connector), store);
-        return (new AgentWorker(new FakeTelemetry(), new FixedProfiles(profiles), extensions), connector, sessions, store);
+        return (new TestWorker(new FakeTelemetry(), () => profiles, extensions), connector, sessions, store);
     }
 
     private static Dictionary<string, string> Settings(string url, string? apiKey = null)
@@ -43,12 +40,9 @@ public class AgentWorkerTests
     private static PrinterProfile Printer(string connectorId = "acme.fake") =>
         new(Guid.NewGuid(), connectorId, new Dictionary<string, string> { ["url"] = "10.0.0.1" });
 
-    private sealed class MutableProfiles : IPrinterProfileSource
+    private sealed class MutableProfiles
     {
         public List<PrinterProfile> Profiles { get; } = [];
-
-        public Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PrinterProfile>>(Profiles.ToList());
     }
 
     [Fact]
@@ -63,10 +57,10 @@ public class AgentWorkerTests
         });
         var printer = Printer();
         var profiles = new MutableProfiles { Profiles = { printer } };
-        var worker = new AgentWorker(
-            new FakeTelemetry(), profiles, new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore()));
+        var worker = new TestWorker(
+            new FakeTelemetry(), () => profiles.Profiles.ToList(), new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore()));
 
-        await worker.ExecuteAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
         await sessions[0].Started;
         sessions[0].Telemetry!.Send(new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Printing });
 
@@ -74,7 +68,7 @@ public class AgentWorkerTests
         Assert.Equal("State changed to Printing.", Assert.Single(page.Events).Message);
 
         profiles.Profiles.Clear();
-        await worker.RefreshProfilesAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
 
         Assert.Empty(worker.GetPrinterEvents(printer.PrinterId, null, 10).Events);
         await worker.DisposeAsync();
@@ -91,12 +85,12 @@ public class AgentWorkerTests
             return session;
         });
         var printer = Printer();
-        var worker = new AgentWorker(
-            new FakeTelemetry(), new FixedProfiles(printer), new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore()));
+        var worker = new TestWorker(
+            new FakeTelemetry(), () => [printer], new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore()));
         var announced = new List<PrinterEventRecorded>();
         worker.EventRecorded += announced.Add;
 
-        await worker.ExecuteAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
         await sessions[0].Started;
         sessions[0].Telemetry!.Send(new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Paused });
 
@@ -117,7 +111,6 @@ public class AgentWorkerTests
         var connector = new FakeConnector("acme.fake", _ => new MinimalSession());
         var services = new ServiceCollection();
         services.AddSingleton<ITelemetrySink, FakeTelemetry>();
-        services.AddSingleton<IPrinterProfileSource>(new FixedProfiles());
         services.AddSingleton(new ConnectorRegistry().Add(connector));
         services.AddSingleton<IExtensionStateStore, InMemoryStateStore>();
         services.AddSingleton<ExtensionManager>();
@@ -167,7 +160,7 @@ public class AgentWorkerTests
     public async Task Disabling_an_extension_stops_its_printers_and_hides_it_from_clients()
     {
         var (worker, _, sessions, _) = Create(Printer());
-        await worker.ExecuteAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
         Assert.Single(sessions);
 
         await worker.SetExtensionEnabledAsync("acme.fake", false, CancellationToken.None);
@@ -181,7 +174,7 @@ public class AgentWorkerTests
     public async Task Enabling_an_extension_again_restarts_its_printers()
     {
         var (worker, connector, sessions, _) = Create(Printer());
-        await worker.ExecuteAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
         await worker.SetExtensionEnabledAsync("acme.fake", false, CancellationToken.None);
 
         await worker.SetExtensionEnabledAsync("acme.fake", true, CancellationToken.None);
@@ -197,12 +190,12 @@ public class AgentWorkerTests
     {
         var (worker, connector, _, store) = Create(Printer());
         store.SaveDisabled(["acme.fake"]);
-        var restarted = new AgentWorker(
+        var restarted = new TestWorker(
             new FakeTelemetry(),
-            new FixedProfiles(Printer()),
+            () => [Printer()],
             new ExtensionManager(new ConnectorRegistry().Add(connector), store));
 
-        await restarted.ExecuteAsync(CancellationToken.None);
+        await restarted.PushProfilesAsync(CancellationToken.None);
 
         Assert.Empty(connector.Created);
         await restarted.DisposeAsync();
@@ -256,7 +249,7 @@ public class AgentWorkerTests
     public async Task Reports_how_many_printers_use_each_extension()
     {
         var (worker, _, _, _) = Create(Printer(), Printer());
-        await worker.ExecuteAsync(CancellationToken.None);
+        await worker.PushProfilesAsync(CancellationToken.None);
 
         Assert.Equal(2, Assert.Single(worker.GetExtensions()).ActivePrinters);
 

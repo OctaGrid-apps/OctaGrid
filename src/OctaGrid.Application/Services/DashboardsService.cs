@@ -2,10 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Validation;
-using OctaGrid.Data.Abstractions;
-using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Data;
+using OctaGrid.Data.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Dashboards;
-using OctaGrid.Protocol.Exceptions;
 
 namespace OctaGrid.Application.Services;
 

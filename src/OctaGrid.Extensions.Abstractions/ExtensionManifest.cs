@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Extensions.Abstractions;
 

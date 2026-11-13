@@ -9,6 +9,6 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\OctaGrid.Protocol\OctaGrid.Protocol.csproj" />
+    <ProjectReference Include="..\OctaGrid.Extensions.Models\OctaGrid.Extensions.Models.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 using OctaGrid.Client.ViewModels;
-using OctaGrid.Protocol.Messaging;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.Tests;
 

@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OctaGrid.Client.Models;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.ViewModels;
 

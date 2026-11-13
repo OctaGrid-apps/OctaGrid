@@ -1,10 +1,10 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using OctaGrid.Application.Services;
-using OctaGrid.Data.Abstractions;
-using OctaGrid.Data.Abstractions.Models;
+using OctaGrid.Data;
+using OctaGrid.Data.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Dashboards;
-using OctaGrid.Protocol.Exceptions;
 
 namespace OctaGrid.Application.Tests;
 

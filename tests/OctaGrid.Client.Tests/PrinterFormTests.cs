@@ -1,6 +1,6 @@
 using OctaGrid.Client.Models;
 using OctaGrid.Client.ViewModels;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Tests;

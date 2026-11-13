@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Local;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Desktop.Tests;

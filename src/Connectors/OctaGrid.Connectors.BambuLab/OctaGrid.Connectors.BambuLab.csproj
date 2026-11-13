@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Bundled connector: Bambu Lab (LAN mode, MQTT + FTPS). References only the SDK, like any third-party connector. -->
+  <!-- Built-in connector: Bambu Lab (LAN mode, MQTT + FTPS). References only the SDK, like any third-party connector. -->
   <ItemGroup>
     <PackageReference Include="FluentFTP" />
     <PackageReference Include="MQTTnet" />

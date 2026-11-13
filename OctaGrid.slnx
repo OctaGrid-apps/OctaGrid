@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/OctaGrid.Agent/">
     <Project Path="src/OctaGrid.Agent.Core/OctaGrid.Agent.Core.csproj" Id="8f6a0461-fa6d-49f3-961c-e129921dde52" />
+    <Project Path="src/OctaGrid.Agent.Hosting/OctaGrid.Agent.Hosting.csproj" />
   </Folder>
   <Folder Name="/OctaGrid.Client.UI/">
     <Project Path="src/OctaGrid.Client.Contracts/OctaGrid.Client.Contracts.csproj" Id="f014e502-9374-43f6-ab9d-d98ff9129f9e" />
@@ -10,6 +11,7 @@
   </Folder>
   <Folder Name="/OctaGrid.Extensions/">
     <Project Path="src/OctaGrid.Extensions.Abstractions/OctaGrid.Extensions.Abstractions.csproj" />
+    <Project Path="src/OctaGrid.Extensions.Models/OctaGrid.Extensions.Models.csproj" />
     <Project Path="src/Connectors/OctaGrid.Connectors.BambuLab/OctaGrid.Connectors.BambuLab.csproj" />
     <Project Path="src/Connectors/OctaGrid.Connectors.Moonraker/OctaGrid.Connectors.Moonraker.csproj" />
   </Folder>
@@ -23,10 +25,12 @@
     <Project Path="tests/OctaGrid.Client.Tests/OctaGrid.Client.Tests.csproj" />
     <Project Path="tests/OctaGrid.Connectors.Tests/OctaGrid.Connectors.Tests.csproj" />
     <Project Path="tests/OctaGrid.Extensions.Abstractions.Tests/OctaGrid.Extensions.Abstractions.Tests.csproj" />
+    <Project Path="tests/OctaGrid.Protocol.Tests/OctaGrid.Protocol.Tests.csproj" />
   </Folder>
   <Folder Name="/OctaGrid.Shared/">
     <Project Path="src/OctaGrid.Application/OctaGrid.Application.csproj" Id="93bebeb9-9414-4254-a1b7-be3e45b0bd0d" />
-    <Project Path="src/OctaGrid.Data.Abstractions/OctaGrid.Data.Abstractions.csproj" Id="ebc25056-0332-42fa-a9b6-1e78a0049461" />
+    <Project Path="src/OctaGrid.Data.Sqlite/OctaGrid.Data.Sqlite.csproj" />
+    <Project Path="src/OctaGrid.Data/OctaGrid.Data.csproj" Id="ebc25056-0332-42fa-a9b6-1e78a0049461" />
     <Project Path="src/OctaGrid.Protocol/OctaGrid.Protocol.csproj" Id="4473a0fa-df2f-4022-b7cc-39255c4f889d" />
   </Folder>
   <Folder Name="/Solution Items/">

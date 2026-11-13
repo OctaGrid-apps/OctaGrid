@@ -1,7 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.ViewModels;
 

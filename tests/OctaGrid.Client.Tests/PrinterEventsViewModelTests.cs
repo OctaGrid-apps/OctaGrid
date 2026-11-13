@@ -2,10 +2,8 @@ using CommunityToolkit.Mvvm.Messaging;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
-using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Extensions;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
-using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Client.Tests;
 

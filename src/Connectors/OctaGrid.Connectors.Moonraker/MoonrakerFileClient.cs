@@ -3,7 +3,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using OctaGrid.Protocol.Printers;
+using OctaGrid.Extensions.Models;
 using StreamJsonRpc;
 
 namespace OctaGrid.Connectors.Moonraker;
