@@ -11,9 +11,9 @@
   </Folder>
   <Folder Name="/OctaGrid.Extensions/">
     <Project Path="src/OctaGrid.Extensions.Abstractions/OctaGrid.Extensions.Abstractions.csproj" />
-    <Project Path="src/OctaGrid.Extensions.Models/OctaGrid.Extensions.Models.csproj" />
     <Project Path="src/Connectors/OctaGrid.Connectors.BambuLab/OctaGrid.Connectors.BambuLab.csproj" />
     <Project Path="src/Connectors/OctaGrid.Connectors.Moonraker/OctaGrid.Connectors.Moonraker.csproj" />
+    <Project Path="src/OctaGrid.Extensions.Models/OctaGrid.Extensions.Models.csproj" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="samples/OctaGrid.Extensions.Sample/OctaGrid.Extensions.Sample.csproj" />
