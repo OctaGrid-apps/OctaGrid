@@ -15,7 +15,7 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="FluentFTP" Version="55.1.0" />
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
-    <PackageVersion Include="Meziantou.Framework.Win32.CredentialManager" Version="3.0.9" />
+    <PackageVersion Include="Meziantou.Framework.Win32.CredentialManager" Version="3.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
