@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using OctaGrid.Agent.Core;
 using OctaGrid.Agent.Hosting;
+using OctaGrid.Application.Agents;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -11,7 +11,6 @@ using OctaGrid.Client.Contracts;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Data.Sqlite;
-using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Client.Local;
@@ -39,7 +38,6 @@ public static class DependencyInjection
         services.AddSingleton<EntityChangeFeed>();
         services.AddSingleton<LocalAgentSynchronizer>();
         services.AddSingleton<IMessagePublisher, LocalMessageHandler>();
-        services.AddSingleton<ITelemetrySink, LocalTelemetryHandler>();
 
         services.AddSingleton<OctaGridClientLocal>();
         services.AddSingleton<IUsersClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
@@ -48,16 +46,20 @@ public static class DependencyInjection
         services.AddSingleton<IPrintersClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
         services.AddSingleton<IAgentsClient>(sp => sp.GetRequiredService<OctaGridClientLocal>());
 
-        // The in-process agent. Local mode tells it where its files are, where telemetry goes
-        // (ITelemetrySink above) and which printers to run (IPrinterProfileSource below).
+        // The in-process agent, and the link the rest of Local mode reaches it through. Nothing below
+        // talks to the agent directly: requests and what the agent reports both go over IAgentLink.
         services.AddOctaGridAgent(() => new AgentHostingOptions(
             OctaGridDataPaths.ExtensionsFolder,
             Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
 
+        services.AddSingleton<IAgentLink, InProcessAgentLink>();
+        services.AddSingleton<LocalConnectorCache>();
+        services.AddSingleton<LocalAgentNotifications>();
+        services.AddSingleton<LocalPrinterProfiles>();
+
         services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();
         services.AddSingleton<IAgentCommandsService, LocalAgentCommands>();
-        services.AddSingleton<IPrinterProfileSource, LocalPrinterProfileSource>();
 
         return services;
     }

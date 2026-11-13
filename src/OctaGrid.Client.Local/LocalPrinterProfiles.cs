@@ -1,39 +1,46 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using OctaGrid.Agent.Core;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.Local;
 
-// A singleton (the agent holds it for its lifetime), so each read opens its own scope for the scoped services.
-internal sealed class LocalPrinterProfileSource(
-    IServiceScopeFactory scopes,
-    ICurrentUserAccessor currentUser,
-    ILogger<LocalPrinterProfileSource>? logger = null)
-    : IPrinterProfileSource
+/// <summary>
+/// Works out which printers the local agent has to run, with their settings and decrypted secrets.
+/// A singleton, so each read opens its own scope for the scoped services.
+/// </summary>
+internal sealed class LocalPrinterProfiles
 {
-    private readonly ILogger<LocalPrinterProfileSource> _logger = logger ?? NullLogger<LocalPrinterProfileSource>.Instance;
+    private readonly ICurrentUserAccessor _currentUser;
+    private readonly ILogger<LocalPrinterProfiles> _logger;
+    private readonly IServiceScopeFactory _scopes;
 
-    public async Task<IReadOnlyList<PrinterProfile>> GetProfilesAsync(CancellationToken cancellationToken)
+    public LocalPrinterProfiles(
+        IServiceScopeFactory scopes, ICurrentUserAccessor currentUser, ILogger<LocalPrinterProfiles>? logger = null)
     {
-        await using var scope = scopes.CreateAsyncScope();
+        _scopes = scopes;
+        _currentUser = currentUser;
+        _logger = logger ?? NullLogger<LocalPrinterProfiles>.Instance;
+    }
+
+    public async Task<IReadOnlyList<PrinterProfile>> GetAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = _scopes.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UsersService>();
         var workspaces = scope.ServiceProvider.GetRequiredService<WorkspacesService>();
         var printers = scope.ServiceProvider.GetRequiredService<PrintersService>();
 
-        var rawUserId = currentUser.GetCurrentUserId();
         Guid userId;
-        if (rawUserId.HasValue)
+        if (_currentUser.GetCurrentUserId() is { } known)
         {
-            userId = rawUserId.Value;
+            userId = known;
         }
         else
         {
             var user = await users.GetOrCreate(cancellationToken);
-            currentUser.SetCurrentUserId(user.Id);
+            _currentUser.SetCurrentUserId(user.Id);
             userId = user.Id;
         }
 

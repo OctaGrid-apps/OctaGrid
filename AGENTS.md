@@ -28,8 +28,8 @@ Client.Desktop ──► Client ──► Client.Contracts ──► Protocol �
 | `OctaGrid.Extensions.Abstractions` | Connector runtime interfaces (`IConnector`, `IPrinterSession`, capabilities). Agent-side only. References `Extensions.Models`, not `Protocol`. Packable SDK package. |
 | `OctaGrid.Data` | EF Core entities (`Models/`), `IEntityTypeConfiguration` classes (`Configurations/`), `OctaGridContext`. Provider-neutral. |
 | `OctaGrid.Data.Sqlite` | SQLite provider for `OctaGridContext`: registration, pragmas, migrations. Referenced by `Client.Local` only. |
-| `OctaGrid.Application` | Business logic (`Services/`), FluentValidation validators (`Validation/`). Transport-agnostic. |
-| `OctaGrid.Agent.Core` | Connector registry (`Connectors/`), extension loader/installer/manager (`Extensions/`), `DeviceOrchestrator`, `AgentWorker`. No UI, no EF. |
+| `OctaGrid.Application` | Business logic (`Services/`), FluentValidation validators (`Validation/`), the backend's way to reach agents (`Agents/IAgentLink`). Transport-agnostic. |
+| `OctaGrid.Agent.Core` | Connector registry (`Connectors/`), extension loader/installer/manager (`Extensions/`), `DeviceOrchestrator`, `AgentWorker`, and the agent's side of the link (`Link/`: `AgentRequestDispatcher`, `AgentNotificationHub`, `AgentUploads`). No UI, no EF. |
 | `OctaGrid.Agent.Hosting` | Agent composition (`AddOctaGridAgent`): built-in connectors, extension manager, `AgentWorker`. Shared by every process that runs an agent. No UI, no EF, no client assemblies. |
 | `OctaGrid.Client.Contracts` | `I*Client` interfaces the UI talks to. The seam between UI and "where the backend lives". |
 | `OctaGrid.Client.Local` | In-process implementation of the contracts: DI wiring and the adapters between the UI contracts, `Application` and the in-process agent. Uses `Data.Sqlite` and `Agent.Hosting`. |
@@ -40,6 +40,7 @@ Client.Desktop ──► Client ──► Client.Contracts ──► Protocol �
 Rules:
 - **Never** let `Client`/`Client.Contracts` reference `Application`, `Data` or `Agent.Core`. The UI sees only Contracts + Protocol, so a Remote implementation (`Client.Remote`) can replace `Client.Local` without touching views.
 - Never hard-code connector types or in-process assumptions in shared code; go through `ConnectorRegistry` and descriptors.
+- The backend reaches an agent **only** through `IAgentLink`, with `Protocol/AgentLink` messages. Nothing outside `Agent.Core`/`Agent.Hosting` calls `AgentWorker` (Local mode holds it only to stop it on exit). The agent gets its printers pushed (`ApplyPrinterProfilesRequest`); it never reads the database. File content crosses the link as an upload (`AgentLinkUploads.UploadAsync`), never as a path or a stream.
 - Platform-specific code (Mica, file pickers, launchers, WebView, credential storage) lives behind an interface in `Client` and is implemented in a host project. No `#if` in shared code.
 - New cross-boundary types go in `Protocol`, never EF entities. A type a connector also produces or consumes goes in `Extensions.Models`; `Extensions.Abstractions` and connectors must not reference `Protocol`.
 
