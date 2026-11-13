@@ -1,4 +1,4 @@
-﻿<ContentPage
+<ContentPage
     x:Class="OctaGrid.Client.Views.SettingsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -190,6 +190,17 @@
                         </controls:SettingsCard>
 
                         <controls:SettingsCard Description="{Binding UpdateChannelName}" Header="Update channel" />
+
+                        <controls:SettingsCard
+                            Description="Get new versions before they are stable. They can have bugs. Turning this off keeps your version until a newer stable one is released."
+                            Header="Pre-release updates"
+                            IsVisible="{Binding ShowPreReleaseUpdates}">
+                            <ToggleSwitch
+                                IsChecked="{Binding ReceivePreReleaseUpdates}"
+                                IsEnabled="{Binding CanChangePreReleaseUpdates}"
+                                OffContent="Off"
+                                OnContent="On" />
+                        </controls:SettingsCard>
                     </controls:SettingsExpander>
                 </controls:SettingsGroup>
 

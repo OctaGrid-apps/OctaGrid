@@ -36,6 +36,13 @@
         "nbgv"
       ],
       "rollForward": false
+    },
+    "vpk": {
+      "version": "1.2.161",
+      "commands": [
+        "vpk"
+      ],
+      "rollForward": false
     }
   }
 }

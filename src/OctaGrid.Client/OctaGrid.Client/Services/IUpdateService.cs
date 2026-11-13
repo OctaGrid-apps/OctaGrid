@@ -14,9 +14,24 @@ public interface IUpdateService
     /// </summary>
     bool CheckOnStartup => true;
 
+    /// <summary>Whether the user can choose to receive pre-release updates as well as stable ones.</summary>
+    bool SupportsPreReleaseUpdates => false;
+
+    /// <summary>Whether the installed version is a pre-release. Until the user chooses, it decides whether pre-releases are offered.</summary>
+    bool IsPreReleaseInstalled => false;
+
+    /// <summary>
+    /// Whether <see cref="DownloadAndApplyUpdateAsync" /> only downloads the update and leaves the app running. The update is
+    /// then installed when the app closes, or right away by <see cref="RestartToApplyUpdateAsync" />.
+    /// </summary>
+    bool InstallsUpdateOnExit => false;
+
     Task<AppUpdateInfo> CheckForUpdatesAsync(CancellationToken cancellationToken);
 
     Task DownloadAndApplyUpdateAsync(AppUpdateInfo updateInfo, Action<int>? progressCallback, CancellationToken cancellationToken);
+
+    /// <summary>Closes the app, installs the downloaded update and starts the app again. Used when <see cref="InstallsUpdateOnExit" />.</summary>
+    Task RestartToApplyUpdateAsync() => Task.CompletedTask;
 
     Task OpenStoreListingAsync();
 }

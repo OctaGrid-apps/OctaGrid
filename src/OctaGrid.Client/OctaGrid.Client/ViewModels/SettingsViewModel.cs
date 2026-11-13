@@ -92,7 +92,21 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     /// </summary>
     public bool CanCancelUpdate => IsUpdating && UpdateProgress < 100 && _updateService.Channel != UpdateChannel.MicrosoftStore;
 
-    public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsUpdating;
+    // Once an update is downloaded, a new check would only offer the same version again.
+    public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsUpdating && UpdateStatus != UpdateStatus.ReadyToRestart;
+
+    /// <summary>
+    /// The pre-release choice cannot change during a download, nor once an update is downloaded: that update is installed
+    /// when the app closes whatever the choice, and changing it would suggest otherwise.
+    /// </summary>
+    public bool CanChangePreReleaseUpdates => !IsUpdating && UpdateStatus != UpdateStatus.ReadyToRestart;
+
+    /// <summary>Whether the update channel offers pre-releases at all (Velopack does; the Microsoft Store does not).</summary>
+    public bool ShowPreReleaseUpdates => _updateService.SupportsPreReleaseUpdates;
+
+    /// <summary>Whether updates include pre-release versions. See <see cref="OnReceivePreReleaseUpdatesChanged" />.</summary>
+    [ObservableProperty]
+    public partial bool ReceivePreReleaseUpdates { get; set; }
 
     /// <summary>The transparency toggle is only offered where the platform has a backdrop effect (Mica on Windows 11).</summary>
     public bool IsTransparencySupported => _backdropCapabilities.IsTransparencySupported;
@@ -138,6 +152,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     [NotifyPropertyChangedFor(nameof(ShowCheckButton))]
     [NotifyPropertyChangedFor(nameof(IsUpdateBusy))]
     [NotifyPropertyChangedFor(nameof(IsProgressIndeterminate))]
+    [NotifyPropertyChangedFor(nameof(CanChangePreReleaseUpdates))]
     [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
     public partial bool IsUpdating { get; set; }
@@ -166,7 +181,9 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     public string UpdateActionText => _updateService.Channel == UpdateChannel.MicrosoftStore
         ? "Update"
-        : (UpdateStatus == UpdateStatus.ReadyToRestart ? "Restart to apply" : "Update and restart");
+        : UpdateStatus == UpdateStatus.ReadyToRestart
+            ? "Restart to apply"
+            : _updateService.InstallsUpdateOnExit ? "Download update" : "Update and restart";
 
     public string UpdateChannelName => _updateService.Channel switch
     {
@@ -183,9 +200,15 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     /// <summary>Explains the restart behavior next to the update button.</summary>
     public string UpdateRestartNotice => _updateService.Channel == UpdateChannel.MicrosoftStore
         ? "The update is installed by Microsoft Store."
-        : "OctaGrid will close and restart automatically to finish the update. Save your work first.";
+        : _updateService.InstallsUpdateOnExit
+            ? "OctaGrid keeps running while the update downloads. It is installed when you close OctaGrid, or right away if you restart."
+            : "OctaGrid will close and restart automatically to finish the update. Save your work first.";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionText))]
+    [NotifyPropertyChangedFor(nameof(CanChangePreReleaseUpdates))]
+    [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    [NotifyCanExecuteChangedFor(nameof(CheckForUpdatesCommand))]
     public partial UpdateStatus UpdateStatus { get; set; } = UpdateStatus.Idle;
 
     [ObservableProperty]
@@ -246,6 +269,22 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
             return;
         }
 
+        var installsOnExit = _updateService.InstallsUpdateOnExit;
+        if (installsOnExit && UpdateStatus == UpdateStatus.ReadyToRestart)
+        {
+            try
+            {
+                await _updateService.RestartToApplyUpdateAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to restart to install the update");
+                UpdateStatusText = $"Could not restart: {ex.Message}. The update is installed when you close OctaGrid";
+            }
+
+            return;
+        }
+
         try
         {
             IsUpdating = true;
@@ -260,10 +299,14 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
                 UpdateProgress = progress;
                 UpdateStatusText = progress < 100
                     ? $"Downloading update... {progress}%"
-                    : "Installing and restarting...";
+                    : installsOnExit ? "Finishing the download..." : "Installing and restarting...";
             }, cancellationToken);
 
             UpdateStatus = UpdateStatus.ReadyToRestart;
+            if (installsOnExit)
+            {
+                UpdateStatusText = $"Version {AvailableUpdate.TargetVersion} is ready. It is installed when you close OctaGrid";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -350,6 +393,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         SelectedAppElementTheme = AppElementThemes.FirstOrDefault(x => x.Value == _appSettings.ClientSettings.ElementTheme) ?? AppElementThemes.First();
         TransparencyEffects = _appSettings.ClientSettings.TransparencyEffects;
         IsExpertMode = _appSettings.ClientSettings.IsExpertMode;
+        ReceivePreReleaseUpdates = _appSettings.ClientSettings.ReceivesPreReleaseUpdates(_updateService.IsPreReleaseInstalled);
         AskClientModeOnAppStart = _appSettings.ClientSettings.AskToSelectClientMode;
         await RefreshExtensionsSummaryAsync(cancellationToken);
     }
@@ -458,6 +502,30 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         else
         {
             IsExpertMode = false;
+        }
+    }
+
+    // Stores the choice and checks again, so the update on offer matches it. Turning pre-releases off never offers an
+    // older stable version: the app stays on its version until a newer stable one ships.
+    partial void OnReceivePreReleaseUpdatesChanged(bool value)
+    {
+        if (_appSettings.ClientSettings.ReceivesPreReleaseUpdates(_updateService.IsPreReleaseInstalled) == value)
+        {
+            return;
+        }
+
+        _logger.LogInformation("Setting ReceivePreReleaseUpdates changed to {Value}", value);
+        _appSettings.Update(s => s with { ReceivePreReleaseUpdates = value });
+
+        // The update found before may be one the new choice excludes; forget it even if the next check fails.
+        _appState.AvailableUpdate = null;
+        AvailableUpdate = null;
+        UpdateStatus = UpdateStatus.Idle;
+        UpdateStatusText = "Check for updates";
+
+        if (_updateService.IsUpdateSupported && CheckForUpdatesCommand.CanExecute(null))
+        {
+            _ = CheckForUpdatesCommand.ExecuteAsync(null);
         }
     }
 

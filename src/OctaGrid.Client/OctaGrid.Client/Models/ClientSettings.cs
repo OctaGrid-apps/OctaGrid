@@ -34,4 +34,13 @@ public sealed record ClientSettings
 
     /// <summary>Folder extensions are loaded from in developer mode; null when developer mode is off.</summary>
     public string? DeveloperExtensionsFolder { get; init; }
+
+    /// <summary>
+    /// Whether updates include pre-release versions. Null until the user chooses in Settings: then a pre-release install
+    /// receives pre-releases and a stable install does not (see <see cref="ReceivesPreReleaseUpdates" />).
+    /// </summary>
+    public bool? ReceivePreReleaseUpdates { get; init; }
+
+    /// <summary>The user's choice about pre-release updates, or, before they choose, whether the installed version is one.</summary>
+    public bool ReceivesPreReleaseUpdates(bool preReleaseInstalled) => ReceivePreReleaseUpdates ?? preReleaseInstalled;
 }
