@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <!-- Needed here, not just on Data.Abstractions: dotnet ef's design-time services must be
          referenced by whichever project is passed as the startup project. Client.Local has no
          Main, so OctaGridSqliteDesignTimeFactory stands in for a running host. -->

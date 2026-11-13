@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- A sample OctaGrid extension: a simulated printer. Building it also produces the extension package in
-       bin/<configuration>/net10.0/package/:
+       bin/<configuration>/net11.0/package/:
          octagrid-samples.demo-printer/            the package folder (manifest + DLL), for "Install from folder"
          OctaGrid.Extensions.Sample.octaext         the same, zipped, for "Install from file"
        In a real extension reference the OctaGrid.Extensions.Abstractions NuGet package instead of the project. -->

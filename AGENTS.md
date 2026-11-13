@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository. Keep it short and fact
 
 ## Project
 
-OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printers. Stack: **.NET 10, C# (latest), Avalonia 12, CommunityToolkit.Mvvm, EF Core (SQLite), xunit v3**.
+OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printers. Stack: **.NET 11, C# (latest), Avalonia 12, CommunityToolkit.Mvvm, EF Core (SQLite), xunit v3**.
 
 - **Status: pre-alpha.** Local mode only: the Avalonia client hosts an in-process agent and a SQLite database. Windows is the only shipped platform.
 - **Planned (architecture must not block it):** a separate Agent app (Windows/Linux/Docker) plus an ASP.NET Core server, client↔server over SignalR and telemetry over WebRTC; third-party connector extensions; Linux/macOS/WASM clients (WASM is Remote-mode only). **Local mode must keep working.**
@@ -120,4 +120,4 @@ Not present today; design new contracts so this is a thin layer, not a rewrite.
 
 ## Known quirks
 
-- `OctaGrid.Client.Desktop` targets `net10.0-windows`; everything else targets `net10.0`.
+- `OctaGrid.Client.Desktop` targets `net11.0-windows`; everything else targets `net11.0`.

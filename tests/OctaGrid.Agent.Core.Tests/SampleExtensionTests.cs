@@ -43,8 +43,8 @@ public sealed class SampleExtensionTests : IDisposable
         // Same configuration as this test run when it exists (Debug or Release), otherwise whichever was built.
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
         var bin = Path.Combine(directory!.FullName, "samples", "OctaGrid.Extensions.Sample", "bin");
-        var candidates = new[] { Path.Combine(bin, configuration, "net10.0") }
-            .Concat(Directory.GetDirectories(bin).Select(d => Path.Combine(d, "net10.0")));
+        var candidates = new[] { Path.Combine(bin, configuration, "net11.0") }
+            .Concat(Directory.GetDirectories(bin).Select(d => Path.Combine(d, "net11.0")));
         return candidates.First(c => Directory.Exists(Path.Combine(c, "package", PackageFolderName)));
     }
 

@@ -2,7 +2,7 @@
 
 [![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NWQ15C73TXL?mode=direct)
 
-OctaGrid is a modern, cross-platform desktop application for managing and monitoring 3D printers from a single dashboard. Built with [.NET 10](https://dotnet.microsoft.com/) and [Avalonia UI](https://avaloniaui.net/).
+OctaGrid is a modern, cross-platform desktop application for managing and monitoring 3D printers from a single dashboard. Built with [.NET 11](https://dotnet.microsoft.com/) and [Avalonia UI](https://avaloniaui.net/).
 
 > [!WARNING]
 > **Pre-Alpha Release**: OctaGrid is currently in early pre-alpha. Features and local database schemas may change between releases. Please report any bugs or suggestions in [GitHub Issues](https://github.com/OctaGrid-apps/OctaGrid/issues).
@@ -54,7 +54,7 @@ All local data, configuration, and printer profiles are safely stored in `%AppDa
 
 ### Prerequisites
 
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or later
+- [.NET 11.0 SDK](https://dotnet.microsoft.com/download/dotnet/11.0) or later
 - Visual Studio 2026, JetBrains Rider, or VS Code with C# Dev Kit
 
 ### Clone & Build

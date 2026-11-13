@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Bundled connector: Moonraker (Klipper). References only the SDK, like any third-party connector. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
   <ItemGroup>
