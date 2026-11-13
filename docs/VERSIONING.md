@@ -80,6 +80,9 @@ tag matching `publicReleaseRefSpec` get the clean version.
    - generates release notes from commits since the previous release (a stable release is
      compared with the previous *stable* tag, a pre-release with the previous tag of any kind);
    - builds the MSIX bundle and the Velopack installer, portable zip and update feed;
+   - downloads the previous Velopack release (the newest stable one for a stable release, the
+     newest of any kind for a pre-release) so `vpk pack` also builds a delta package, which
+     installed apps download instead of the full package when they are on that version;
    - publishes the GitHub release (pre-release flag, "Latest" only for stable);
    - submits to the Microsoft Store — **stable releases only**.
 

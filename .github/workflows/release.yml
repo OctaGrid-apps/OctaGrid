@@ -40,9 +40,9 @@ jobs:
         shell: pwsh
         run: dotnet restore OctaGrid.slnx
 
-      - name: Install Velopack CLI
+      - name: Restore .NET tools
         shell: pwsh
-        run: dotnet tool install -g vpk
+        run: dotnet tool restore
 
       - name: Determine Version
         id: version_info
@@ -198,6 +198,23 @@ jobs:
           $version = "${{ steps.version_info.outputs.core_version }}"
           .\build-msix.ps1 -Architectures @('x64', 'arm64') -Configuration Release -OutputDir artifacts -PackageVersion $version -Bundle -Sign
 
+      # vpk pack builds a delta package only when the previous full package and feed are in its
+      # output directory. Without them (first release, network failure) it still builds a full
+      # release, and clients download the full package instead.
+      - name: Download previous Velopack release (for delta updates)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $vpkArgs = @('download', 'github', '--repoUrl', "https://github.com/$env:GITHUB_REPOSITORY", '--token', $env:GITHUB_TOKEN, '--outputDir', 'artifacts')
+          # A pre-release builds its delta from the newest release of any kind; a stable release from the newest stable one.
+          if ("${{ steps.version_info.outputs.prerelease }}" -eq "true") { $vpkArgs += '--pre' }
+          dotnet vpk @vpkArgs
+          if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Could not download the previous release; this release will have no delta package."
+              $global:LASTEXITCODE = 0
+          }
+
       - name: Build Velopack .EXE App & Installer
         shell: pwsh
         run: |
@@ -206,8 +223,8 @@ jobs:
           $notesPath = "artifacts/RELEASE_NOTES.md"
           $iconPath = "src/OctaGrid.Client/OctaGrid.Client/Assets/OctaGrid-logo.ico"
 
-          Write-Host "--> Creating Velopack .exe setup package..."
-          vpk pack `
+          Write-Host "--> Creating Velopack .exe setup and delta package..."
+          dotnet vpk pack `
             --packId "OctaGrid" `
             --packVersion "$version" `
             --packTitle "OctaGrid" `
@@ -238,7 +255,8 @@ jobs:
             artifacts/*-Setup.exe
             artifacts/OctaGrid-win-x64-portable.zip
             artifacts/releases.win.json
-            artifacts/*.nupkg
+            artifacts/OctaGrid-${{ steps.version_info.outputs.version }}-full.nupkg
+            artifacts/OctaGrid-${{ steps.version_info.outputs.version }}-delta.nupkg
 
       - name: Setup Microsoft Store CLI
         if: ${{ steps.version_info.outputs.prerelease != 'true' && (github.event_name == 'push' || inputs.publish_to_store != false) }}

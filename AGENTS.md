@@ -51,7 +51,7 @@ dotnet build OctaGrid.slnx                                  # keep the build war
 dotnet test --solution OctaGrid.slnx                        # xunit v3 on Microsoft.Testing.Platform (see global.json)
 dotnet test --project tests/OctaGrid.Application.Tests      # one project; use xunit v3's --filter-* options to narrow
 dotnet run --project src/OctaGrid.Client/OctaGrid.Client.Desktop/OctaGrid.Client.Desktop.csproj
-dotnet tool restore                                         # dotnet-ef, xstyler (XAML formatter), nbgv, dotnet-outdated
+dotnet tool restore                                         # dotnet-ef, xstyler (XAML formatter), nbgv, dotnet-outdated, vpk
 ```
 
 CI (`.github/workflows/ci.yml`) restores, builds Release and tests the solution on Windows, and validates the PR title. Before finishing a task, build and run the tests of every project you touched (plus dependents).

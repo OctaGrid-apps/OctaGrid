@@ -12,6 +12,10 @@ updates:
         patterns:
           - "Avalonia*"
           - "AvaloniaUI.*"
+      velopack:
+        patterns:
+          - "Velopack"
+          - "vpk"
       microsoft:
         patterns:
           - "Microsoft.*"
