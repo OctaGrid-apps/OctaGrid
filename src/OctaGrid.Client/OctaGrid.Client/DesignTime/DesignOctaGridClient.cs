@@ -23,7 +23,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
     private static readonly IReadOnlyDictionary<string, string> NoSettings = new Dictionary<string, string>();
     private static readonly IReadOnlyDictionary<string, string> VoronSettings = new Dictionary<string, string> { ["url"] = "192.168.1.50:7125" };
 
-    public Task AddPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken) =>
+    public Task AssignPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public Task<AgentResponse> CreateAgent(Guid workspaceId, string name, CancellationToken cancellationToken) =>

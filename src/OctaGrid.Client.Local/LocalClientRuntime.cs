@@ -15,18 +15,21 @@ internal sealed class LocalClientRuntime : IClientRuntime
     private readonly AgentWorker _agent;
     private readonly LocalConnectorCache _connectors;
     private readonly IAgentLink _link;
+    private readonly LocalAgent _localAgent;
     private readonly LocalAgentNotifications _notifications;
     private readonly LocalAgentSynchronizer _synchronizer;
 
     public LocalClientRuntime(
         AgentWorker agent,
         IAgentLink link,
+        LocalAgent localAgent,
         LocalAgentNotifications notifications,
         LocalConnectorCache connectors,
         LocalAgentSynchronizer synchronizer)
     {
         _agent = agent;
         _link = link;
+        _localAgent = localAgent;
         _notifications = notifications;
         _connectors = connectors;
         _synchronizer = synchronizer;
@@ -40,7 +43,7 @@ internal sealed class LocalClientRuntime : IClientRuntime
         {
             // First, and before anything that really waits: the in-process agent answers this at once, so the
             // connector list is there before the first window asks for it.
-            _connectors.Set((await _link.SendAsync(LocalAgent.Id, new GetConnectorsRequest(), cancellationToken)).Connectors);
+            _connectors.Set((await _link.SendAsync(_localAgent.Id, new GetConnectorsRequest(), cancellationToken)).Connectors);
 
             await _synchronizer.PushProfilesAsync(cancellationToken);
             // Runs for the app's lifetime; ends when cancellationToken is cancelled.

@@ -24,8 +24,8 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
         _currentUser = currentUser;
     }
 
-    public Task AddPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken) =>
-        Run<AgentsService>((agents, userId) => agents.AddPrinter(userId, agentId, printerId, cancellationToken), cancellationToken);
+    public Task AssignPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken) =>
+        Run<AgentsService>((agents, userId) => agents.AssignPrinter(userId, agentId, printerId, cancellationToken), cancellationToken);
 
     public Task<AgentResponse> CreateAgent(Guid workspaceId, string name, CancellationToken cancellationToken) =>
         Run<AgentsService, AgentResponse>((agents, userId) => agents.Create(userId, workspaceId, new CreateAgentRequest(name), cancellationToken), cancellationToken);

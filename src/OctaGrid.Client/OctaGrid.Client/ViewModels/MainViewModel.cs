@@ -13,7 +13,6 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class MainViewModel : ViewModelBase, IDialogParticipant
 {
-    private readonly IAgentsClient _agentsClient;
     private readonly IAppSettingsStore _appSettings;
     private readonly IDashboardsClient _dashboardsClient;
     private readonly ILogger<MainViewModel> _logger;
@@ -24,7 +23,6 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
 
     public MainViewModel(
         IWorkspacesClient workspacesClient,
-        IAgentsClient agentsClient,
         IDashboardsClient dashboardsClient,
         IUpdateService updateService,
         IAppSettingsStore appSettings,
@@ -44,7 +42,6 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         WorkspacesPage = workspacesPage;
         SettingsPage = settingsPage;
         _workspacesClient = workspacesClient;
-        _agentsClient = agentsClient;
         _dashboardsClient = dashboardsClient;
         _updateService = updateService;
         _appSettings = appSettings;
@@ -137,11 +134,11 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
     private async Task CreateDefaultEntities(CancellationToken cancellationToken)
     {
         const string DefaultWorkspaceName = "Default";
-        const string DefaultAgentName = "Local";
         const string DefaultDashboardName = "Default";
 
-        _logger.LogInformation("No workspaces found; provisioning default workspace '{WorkspaceName}', agent '{AgentName}', and dashboard '{DashboardName}'",
-            DefaultWorkspaceName, DefaultAgentName, DefaultDashboardName);
+        // No agent is created here: Local mode's backend provisions its own agent, and a remote agent is paired.
+        _logger.LogInformation("No workspaces found; provisioning default workspace '{WorkspaceName}' and dashboard '{DashboardName}'",
+            DefaultWorkspaceName, DefaultDashboardName);
 
         var workspaceResponse = await _workspacesClient.CreateWorkspace(DefaultWorkspaceName, cancellationToken);
         var ws = new Workspace()
@@ -151,8 +148,6 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         };
         Workspaces.Add(ws);
         AppStateService.SelectedWorkspace = ws;
-
-        _ = await _agentsClient.CreateAgent(workspaceResponse.Id, DefaultAgentName, cancellationToken);
 
         var dashboards = await _dashboardsClient.GetDashboardList(workspaceResponse.Id, cancellationToken);
         if (dashboards.Count == 0)

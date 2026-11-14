@@ -8,7 +8,7 @@ using OctaGrid.Extensions.Models;
 namespace OctaGrid.Client.Local;
 
 /// <summary>
-/// Works out which printers the local agent has to run, with their settings and decrypted secrets.
+/// Works out which printers an agent has to run, with their settings and decrypted secrets.
 /// A singleton, so each read opens its own scope for the scoped services.
 /// </summary>
 internal sealed class LocalPrinterProfiles
@@ -25,11 +25,11 @@ internal sealed class LocalPrinterProfiles
         _logger = logger ?? NullLogger<LocalPrinterProfiles>.Instance;
     }
 
-    public async Task<IReadOnlyList<PrinterProfile>> GetAsync(CancellationToken cancellationToken)
+    /// <summary>The enabled printers assigned to an agent, with their settings and decrypted secrets.</summary>
+    public async Task<IReadOnlyList<PrinterProfile>> GetAsync(Guid agentId, CancellationToken cancellationToken)
     {
         await using var scope = _scopes.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UsersService>();
-        var workspaces = scope.ServiceProvider.GetRequiredService<WorkspacesService>();
         var printers = scope.ServiceProvider.GetRequiredService<PrintersService>();
 
         Guid userId;
@@ -44,16 +44,8 @@ internal sealed class LocalPrinterProfiles
             userId = user.Id;
         }
 
-        // Local mode is one workspace and agent per install — no agent-id filtering needed.
-        var workspace = (await workspaces.GetList(userId, cancellationToken)).FirstOrDefault();
-        if (workspace is null)
-        {
-            _logger.LogDebug("No workspace found for local user {UserId}; returning 0 device profiles", userId);
-            return [];
-        }
-
-        var profiles = await printers.GetPrinterProfiles(userId, workspace.Id, cancellationToken);
-        _logger.LogDebug("Loaded {ProfileCount} enabled printer profile(s) for workspace {WorkspaceId}", profiles.Count, workspace.Id);
+        var profiles = await printers.GetPrinterProfiles(userId, agentId, cancellationToken);
+        _logger.LogDebug("Loaded {ProfileCount} enabled printer profile(s) for agent {AgentId}", profiles.Count, agentId);
         return profiles;
     }
 }

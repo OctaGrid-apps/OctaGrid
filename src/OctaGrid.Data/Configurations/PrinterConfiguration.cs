@@ -32,8 +32,11 @@ internal sealed class PrinterConfiguration : EntityConfiguration<Printer>
             .HasForeignKey(s => s.WorkspaceId)
             .IsRequired();
 
-        // The Printer<->Agent many-to-many is configured entirely by PrinterAgentConfiguration,
-        // since PrinterAgent is a first-class entity (its own Id/timestamps), not an implicit join
-        // table. Access it via PrinterAgents, not a skip-navigation, to keep one source of truth.
+        // Removing an agent keeps its printers (with their settings and secrets); they wait for another agent.
+        builder.HasOne(p => p.Agent)
+            .WithMany(a => a.Printers)
+            .HasForeignKey(p => p.AgentId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -52,6 +52,7 @@ public static class DependencyInjection
             OctaGridDataPaths.ExtensionsFolder,
             Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
 
+        services.AddSingleton<LocalAgent>();
         services.AddSingleton<IAgentLink, InProcessAgentLink>();
         services.AddSingleton<LocalConnectorCache>();
         services.AddSingleton<LocalAgentNotifications>();
@@ -118,6 +119,8 @@ public static class DependencyInjection
                 }
             }
 
+            EnsureLocalAgent(provider, context, user.Id, logger);
+
             var workspacesWithoutDashboards = context.Workspaces
                 .Include(w => w.Dashboards)
                 .Where(w => !w.Dashboards.Any())
@@ -143,6 +146,57 @@ public static class DependencyInjection
         {
             logger.LogError(ex, "Failed to ensure default local data.");
         }
+    }
+
+    /// <summary>
+    /// Makes sure the local user has a workspace and that the in-process agent has a row in it, so printers can be
+    /// assigned to it like to any other agent. Local mode has one agent: the first one of the user's workspaces.
+    /// </summary>
+    private static void EnsureLocalAgent(IServiceProvider provider, OctaGridContext context, Guid userId, ILogger logger)
+    {
+        var workspaceIds = context.WorkspaceMembers
+            .Where(m => m.UserId == userId)
+            // Ids are version 7 GUIDs, so they sort by creation time; SQLite cannot sort DateTimeOffset columns.
+            .OrderBy(m => m.WorkspaceId)
+            .Select(m => m.WorkspaceId)
+            .ToList();
+
+        if (workspaceIds.Count == 0)
+        {
+            var workspace = new Workspace { Name = "Default" };
+            workspace.Members.Add(new WorkspaceMember { UserId = userId, Role = Role.Owner, JoinedAt = DateTimeOffset.UtcNow });
+            workspace.Dashboards.Add(new Dashboard { Name = "Default", Type = DashboardType.List, IsDefault = true });
+            context.Workspaces.Add(workspace);
+            context.SaveChanges();
+
+            logger.LogInformation("Provisioned default workspace {WorkspaceId} for local user {UserId}", workspace.Id, userId);
+            workspaceIds.Add(workspace.Id);
+        }
+
+        var agentId = context.Agents
+            .Where(a => workspaceIds.Contains(a.WorkspaceId))
+            // Ids are version 7 GUIDs, so they sort by creation time; SQLite cannot sort DateTimeOffset columns.
+            .OrderBy(a => a.Id)
+            .Select(a => (Guid?)a.Id)
+            .FirstOrDefault();
+
+        if (agentId is null)
+        {
+            // Qualified: inside OctaGrid.* a bare Agent is the OctaGrid.Agent namespace.
+            var agent = new OctaGrid.Data.Models.Agent
+            {
+                Name = "Local",
+                WorkspaceId = workspaceIds[0],
+                Status = new AgentStatus { State = AgentState.Active, ActivatedAt = DateTimeOffset.UtcNow },
+            };
+            context.Agents.Add(agent);
+            context.SaveChanges();
+
+            logger.LogInformation("Provisioned local agent {AgentId} in workspace {WorkspaceId}", agent.Id, agent.WorkspaceId);
+            agentId = agent.Id;
+        }
+
+        provider.GetRequiredService<LocalAgent>().Set(agentId.Value);
     }
 
     private static string GetDatabasePath() => OctaGridDataPaths.DatabasePath;
