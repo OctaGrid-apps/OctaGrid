@@ -10,17 +10,19 @@ namespace OctaGrid.Client.Local;
 internal sealed class LocalExtensionsClient : IExtensionsClient
 {
     private readonly IAgentLink _link;
+    private readonly LocalAgent _localAgent;
 
-    public LocalExtensionsClient(IAgentLink link)
+    public LocalExtensionsClient(IAgentLink link, LocalAgent localAgent)
     {
         _link = link;
+        _localAgent = localAgent;
     }
 
     public async Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(CancellationToken cancellationToken) =>
-        (await _link.SendAsync(LocalAgent.Id, new GetExtensionsRequest(), cancellationToken)).Extensions;
+        (await _link.SendAsync(_localAgent.Id, new GetExtensionsRequest(), cancellationToken)).Extensions;
 
     public async Task SetExtensionEnabledAsync(string extensionId, bool enabled, CancellationToken cancellationToken) =>
-        await _link.SendAsync(LocalAgent.Id, new SetExtensionEnabledRequest(extensionId, enabled), cancellationToken);
+        await _link.SendAsync(_localAgent.Id, new SetExtensionEnabledRequest(extensionId, enabled), cancellationToken);
 
     /// <summary>
     /// Sends the package to the agent and asks it to install it. An agent takes a package as one file, so a
@@ -62,28 +64,28 @@ internal sealed class LocalExtensionsClient : IExtensionsClient
     }
 
     public async Task<ExtensionInstallResult> ApproveExtensionAsync(string extensionId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(LocalAgent.Id, new ApproveExtensionRequest(extensionId), cancellationToken)).Result;
+        (await _link.SendAsync(_localAgent.Id, new ApproveExtensionRequest(extensionId), cancellationToken)).Result;
 
     public async Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(LocalAgent.Id, new UninstallExtensionRequest(extensionId), cancellationToken)).Result;
+        (await _link.SendAsync(_localAgent.Id, new UninstallExtensionRequest(extensionId), cancellationToken)).Result;
 
     public async Task<string?> GetDeveloperFolderAsync(CancellationToken cancellationToken) =>
-        (await _link.SendAsync(LocalAgent.Id, new GetDeveloperFolderRequest(), cancellationToken)).Folder;
+        (await _link.SendAsync(_localAgent.Id, new GetDeveloperFolderRequest(), cancellationToken)).Folder;
 
     public async Task<ExtensionInstallResult> SetDeveloperFolderAsync(string? folder, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(LocalAgent.Id, new SetDeveloperFolderRequest(folder), cancellationToken)).Result;
+        (await _link.SendAsync(_localAgent.Id, new SetDeveloperFolderRequest(folder), cancellationToken)).Result;
 
     public async Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken) =>
-        (await _link.SendAsync(LocalAgent.Id, new ReloadDeveloperExtensionsRequest(), cancellationToken)).Result;
+        (await _link.SendAsync(_localAgent.Id, new ReloadDeveloperExtensionsRequest(), cancellationToken)).Result;
 
     private async Task<ExtensionInstallResult> InstallFileAsync(string path, CancellationToken cancellationToken)
     {
         Guid uploadId;
         await using (var content = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
         {
-            uploadId = await _link.UploadAsync(LocalAgent.Id, content, cancellationToken);
+            uploadId = await _link.UploadAsync(_localAgent.Id, content, cancellationToken);
         }
 
-        return (await _link.SendAsync(LocalAgent.Id, new InstallExtensionRequest(uploadId), cancellationToken)).Result;
+        return (await _link.SendAsync(_localAgent.Id, new InstallExtensionRequest(uploadId), cancellationToken)).Result;
     }
 }

@@ -4,7 +4,8 @@ namespace OctaGrid.Client.Contracts;
 
 public interface IAgentsClient
 {
-    Task AddPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken);
+    /// <summary>Makes an agent the one that connects to a printer, replacing the printer's previous agent.</summary>
+    Task AssignPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken);
 
     Task<AgentResponse> CreateAgent(Guid workspaceId, string name, CancellationToken cancellationToken);
 

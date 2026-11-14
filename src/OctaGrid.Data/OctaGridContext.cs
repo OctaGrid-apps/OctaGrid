@@ -13,7 +13,6 @@ public class OctaGridContext : DbContext
     public DbSet<Dashboard> Dashboards => Set<Dashboard>();
     public DbSet<DashboardWidget> DashboardWidgets => Set<DashboardWidget>();
     public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
-    public DbSet<PrinterAgent> PrinterAgents => Set<PrinterAgent>();
     public DbSet<Printer> Printers => Set<Printer>();
     public DbSet<User> Users => Set<User>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();

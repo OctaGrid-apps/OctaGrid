@@ -4,6 +4,11 @@ public sealed class Printer : Entity
 {
     public string Name { get; set; } = string.Empty;
     public Guid WorkspaceId { get; set; }
+    /// <summary>
+    /// The agent that connects to the printer, or null when none is assigned yet. A printer has one agent at a
+    /// time: two agents connecting to the same printer would fight over it.
+    /// </summary>
+    public Guid? AgentId { get; set; }
     public string? ReportedModel { get; set; }
     public bool Enabled { get; set; }
     public string ConnectorId { get; set; } = string.Empty;
@@ -18,7 +23,7 @@ public sealed class Printer : Entity
     // Navigation props
     public Workspace? Workspace { get; set; }
 
-    public PrinterStatus? Status { get; set; }
+    public Agent? Agent { get; set; }
 
-    public ICollection<PrinterAgent> PrinterAgents { get; set; } = [];
+    public PrinterStatus? Status { get; set; }
 }

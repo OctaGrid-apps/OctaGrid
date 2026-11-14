@@ -18,6 +18,8 @@ public sealed class PrintersServiceTests : IDisposable
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _workspaceId = Guid.NewGuid();
+    // Version 7, like the ids the context gives new rows, and older than any of them: ids sort by creation.
+    private readonly Guid _agentId = Guid.CreateVersion7(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero));
     private readonly RecordingPublisher _publisher = new();
     private readonly FixedKeySource _keySource = new();
     private readonly AesGcmSecretProtector _protector;
@@ -36,6 +38,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         context.Users.Add(new User { Id = _userId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
         context.Workspaces.Add(new Workspace { Id = _workspaceId, Name = "Test workspace" });
+        context.Agents.Add(new Agent { Id = _agentId, Name = "Agent", WorkspaceId = _workspaceId });
         context.WorkspaceMembers.Add(new WorkspaceMember
         {
             Id = Guid.NewGuid(),
@@ -234,7 +237,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using var context = NewContext();
         var service = NewService(context);
-        var profile = Assert.Single(await service.GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None));
+        var profile = Assert.Single(await service.GetPrinterProfiles(_userId, _agentId, CancellationToken.None));
         Assert.Null(profile.Get("apiKey"));
         // The form must not claim a secret is saved when it can no longer be read.
         Assert.Empty((await service.GetPrinter(_userId, _workspaceId, created.Id, CancellationToken.None)).SecretKeys);
@@ -263,7 +266,7 @@ public sealed class PrintersServiceTests : IDisposable
         }
 
         await using var verify = NewContext();
-        var profiles = await NewService(verify).GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None);
+        var profiles = await NewService(verify).GetPrinterProfiles(_userId, _agentId, CancellationToken.None);
 
         Assert.Null(profiles.Single(p => p.PrinterId == target.Id).Get("apiKey"));
         Assert.Equal("source-secret", profiles.Single(p => p.PrinterId == source.Id).Get("apiKey"));
@@ -342,7 +345,7 @@ public sealed class PrintersServiceTests : IDisposable
         await CreatePrinter(enabled: false);
 
         await using var context = NewContext();
-        var profiles = await NewService(context).GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None);
+        var profiles = await NewService(context).GetPrinterProfiles(_userId, _agentId, CancellationToken.None);
 
         var profile = Assert.Single(profiles);
         Assert.Equal(on.Id, profile.PrinterId);
@@ -360,7 +363,7 @@ public sealed class PrintersServiceTests : IDisposable
             new Dictionary<string, string> { ["apiKey"] = "secret" });
 
         await using var context = NewContext();
-        var profile = Assert.Single(await NewService(context).GetPrinterProfiles(_userId, _workspaceId, CancellationToken.None));
+        var profile = Assert.Single(await NewService(context).GetPrinterProfiles(_userId, _agentId, CancellationToken.None));
 
         Assert.Equal("secret", profile.Get("apiKey"));
     }
@@ -415,5 +418,178 @@ public sealed class PrintersServiceTests : IDisposable
             _workspaceId,
             new CreatePrinterRequest("Printer", "octagrid.moonraker", Settings(), new Dictionary<string, string>()),
             CancellationToken.None));
+    }
+
+    private Guid AddAgent(Guid? workspaceId = null)
+    {
+        using var context = NewContext();
+        var agent = new Agent { Name = "Another agent", WorkspaceId = workspaceId ?? _workspaceId };
+        context.Agents.Add(agent);
+        context.SaveChanges();
+        return agent.Id;
+    }
+
+    private Guid AddWorkspace()
+    {
+        using var context = NewContext();
+        // The user belongs to it too, so what is checked is the workspace match, not access.
+        var workspace = new Workspace { Name = "Other workspace" };
+        workspace.Members.Add(new WorkspaceMember { UserId = _userId, Role = Role.Owner, JoinedAt = DateTimeOffset.UtcNow });
+        context.Workspaces.Add(workspace);
+        context.SaveChanges();
+        return workspace.Id;
+    }
+
+    [Fact]
+    public async Task A_new_printer_gets_the_only_agent_of_its_workspace()
+    {
+        var created = await CreatePrinter();
+
+        Assert.Equal(_agentId, created.AgentId);
+        await using var context = NewContext();
+        Assert.Equal(_agentId, await NewService(context).GetAgentId(_userId, created.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_new_printer_gets_no_agent_when_the_workspace_has_several_and_none_is_asked_for()
+    {
+        AddAgent();
+
+        var created = await CreatePrinter();
+
+        Assert.Null(created.AgentId);
+        await using var context = NewContext();
+        await Assert.ThrowsAsync<ValidationException>(() => NewService(context).GetAgentId(_userId, created.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_new_printer_gets_the_agent_asked_for()
+    {
+        var other = AddAgent();
+
+        await using var context = NewContext();
+        var created = await NewService(context).Create(
+            _userId,
+            _workspaceId,
+            new CreatePrinterRequest("Printer", "octagrid.moonraker", Settings(), new Dictionary<string, string>(), AgentId: other),
+            CancellationToken.None);
+
+        Assert.Equal(other, created.AgentId);
+    }
+
+    [Fact]
+    public async Task A_new_printer_cannot_get_an_agent_of_another_workspace()
+    {
+        var foreign = AddAgent(AddWorkspace());
+
+        await using var context = NewContext();
+        await Assert.ThrowsAsync<ValidationException>(() => NewService(context).Create(
+            _userId,
+            _workspaceId,
+            new CreatePrinterRequest("Printer", "octagrid.moonraker", Settings(), new Dictionary<string, string>(), AgentId: foreign),
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task An_agent_gets_only_the_printers_assigned_to_it()
+    {
+        var mine = await CreatePrinter();
+        var other = AddAgent();
+        await using (var context = NewContext())
+        {
+            await NewService(context).Create(
+                _userId,
+                _workspaceId,
+                new CreatePrinterRequest("Theirs", "octagrid.moonraker", Settings(), new Dictionary<string, string>(), AgentId: other),
+                CancellationToken.None);
+        }
+
+        await using var verify = NewContext();
+        var profile = Assert.Single(await NewService(verify).GetPrinterProfiles(_userId, _agentId, CancellationToken.None));
+        Assert.Equal(mine.Id, profile.PrinterId);
+    }
+
+    [Fact]
+    public async Task A_user_outside_the_workspace_cannot_read_an_agents_printers_or_a_printers_agent()
+    {
+        var created = await CreatePrinter();
+
+        await using var context = NewContext();
+        var service = NewService(context);
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetPrinterProfiles(Guid.NewGuid(), _agentId, CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentId(Guid.NewGuid(), created.Id, CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentIds(Guid.NewGuid(), [created.Id], CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task The_agents_of_several_printers_leave_out_those_without_one()
+    {
+        var assigned = await CreatePrinter();
+        AddAgent();
+        var unassigned = await CreatePrinter();
+
+        await using var context = NewContext();
+        var agents = await NewService(context).GetAgentIds(_userId, [assigned.Id, unassigned.Id, Guid.NewGuid()], CancellationToken.None);
+
+        Assert.Equal(_agentId, Assert.Single(agents, a => a.Key == assigned.Id).Value);
+        Assert.Single(agents);
+    }
+
+    [Fact]
+    public async Task Assigning_a_printer_moves_it_to_the_new_agent_and_announces_the_change()
+    {
+        var created = await CreatePrinter();
+        var other = AddAgent();
+        _publisher.Published.Clear();
+
+        await using (var context = NewContext())
+        {
+            await new AgentsService(context, _publisher).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
+        }
+
+        await using var verify = NewContext();
+        Assert.Equal(other, await NewService(verify).GetAgentId(_userId, created.Id, CancellationToken.None));
+        var change = Assert.Single(_publisher.Published);
+        Assert.Equal(EntityTypes.Printer, change.EntityType);
+        Assert.Equal(created.Id, change.EntityId);
+    }
+
+    [Fact]
+    public async Task A_printer_cannot_be_assigned_to_an_agent_of_another_workspace()
+    {
+        var created = await CreatePrinter();
+        var foreign = AddAgent(AddWorkspace());
+
+        await using var context = NewContext();
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            new AgentsService(context, _publisher).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Agents_are_listed_in_the_order_they_were_created()
+    {
+        var second = AddAgent();
+
+        await using var context = NewContext();
+        var agents = await new AgentsService(context, _publisher).GetList(_userId, _workspaceId, CancellationToken.None);
+
+        Assert.Equal([_agentId, second], agents.Select(a => a.Id));
+    }
+
+    [Fact]
+    public async Task Removing_an_agent_keeps_its_printers_without_an_agent()
+    {
+        var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "kept" });
+
+        await using (var context = NewContext())
+        {
+            context.Agents.Remove(context.Agents.Single(a => a.Id == _agentId));
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var verify = NewContext();
+        var loaded = await NewService(verify).GetPrinter(_userId, _workspaceId, created.Id, CancellationToken.None);
+        Assert.Null(loaded.AgentId);
+        Assert.Equal("kept", SavedSecrets(created.Id)["apiKey"]);
     }
 }

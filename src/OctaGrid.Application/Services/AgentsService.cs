@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Agents;
+using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Application.Services;
 
@@ -13,14 +15,20 @@ public sealed class AgentsService
 {
     private readonly OctaGridContext _context;
     private readonly ILogger<AgentsService> _logger;
+    private readonly IMessagePublisher _publisher;
 
-    public AgentsService(OctaGridContext context, ILogger<AgentsService>? logger = null)
+    public AgentsService(OctaGridContext context, IMessagePublisher publisher, ILogger<AgentsService>? logger = null)
     {
         _context = context;
+        _publisher = publisher;
         _logger = logger ?? NullLogger<AgentsService>.Instance;
     }
 
-    public async Task AddPrinter(Guid userId, Guid agentId, Guid printerId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Makes an agent the one that connects to a printer, replacing the printer's previous agent. The agent and
+    /// the printer must be in the same workspace.
+    /// </summary>
+    public async Task AssignPrinter(Guid userId, Guid agentId, Guid printerId, CancellationToken cancellationToken)
     {
         var agent = await _context.Agents.FindAsync([agentId], cancellationToken)
             ?? throw new NotFoundException(nameof(Agent), agentId);
@@ -32,22 +40,25 @@ public sealed class AgentsService
 
         if (agent.WorkspaceId != printer.WorkspaceId)
         {
-            _logger.LogWarning("Rejected linking printer {PrinterId} (workspace {PrinterWorkspaceId}) to agent {AgentId} (workspace {AgentWorkspaceId})",
+            _logger.LogWarning("Rejected assigning printer {PrinterId} (workspace {PrinterWorkspaceId}) to agent {AgentId} (workspace {AgentWorkspaceId})",
                 printerId, printer.WorkspaceId, agentId, agent.WorkspaceId);
             throw new ValidationException(nameof(Agent), "Printer and agent should be in the same workspace");
         }
 
-        PrinterAgent printerAgent = new()
+        if (printer.AgentId == agentId)
         {
-            Printer = printer,
-            Agent = agent
-        };
+            return;
+        }
 
-        _context.PrinterAgents.Add(printerAgent);
+        var previousAgentId = printer.AgentId;
+        printer.AgentId = agentId;
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Assigned printer {PrinterId} to agent {AgentId} in workspace {WorkspaceId} by user {UserId}",
-            printerId, agentId, agent.WorkspaceId, userId);
+        _logger.LogInformation("Assigned printer {PrinterId} to agent {AgentId} (was {PreviousAgentId}) in workspace {WorkspaceId} by user {UserId}",
+            printerId, agentId, previousAgentId, agent.WorkspaceId, userId);
+
+        // Both agents' printer sets change: the previous one has to let go of the printer, the new one connect to it.
+        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
     }
 
     public async Task<AgentResponse> Create(Guid userId, Guid workspaceId, CreateAgentRequest request, CancellationToken cancellationToken)
@@ -78,8 +89,10 @@ public sealed class AgentsService
         await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
 
         var agents = await _context.Agents
+            .AsNoTracking()
             .Where(a => a.WorkspaceId == workspaceId)
-            .Include(x => x.Status)
+            // Ids are version 7 GUIDs, so they sort by creation time; SQLite cannot sort DateTimeOffset columns.
+            .OrderBy(a => a.Id)
             .Select(a => new AgentResponse(a.Id, a.Name, a.Status != null ? a.Status.State.ToString() : nameof(AgentState.Unknown), a.TokenPrefix, a.Version))
             .ToListAsync(cancellationToken);
 

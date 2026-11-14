@@ -12,6 +12,7 @@ namespace OctaGrid.Protocol.Printers;
 /// <param name="ConnectionState">Last known connection state.</param>
 /// <param name="Enabled">Whether the agent connects to the printer.</param>
 /// <param name="Version">Version used to ignore out-of-date change notifications.</param>
+/// <param name="AgentId">The agent that connects to the printer, or null when none is assigned.</param>
 public record PrinterResponse(
     Guid Id,
     string Name,
@@ -20,4 +21,5 @@ public record PrinterResponse(
     IReadOnlyList<string> SecretKeys,
     string ConnectionState,
     bool Enabled,
-    long Version);
+    long Version,
+    Guid? AgentId = null);

@@ -35,7 +35,7 @@ internal static class DesignData
     public static DashboardsViewModel Dashboards => new(Client, Client, State, AgentCommands, Images, Settings, Notifications);
 
     public static MainViewModel Main => new(
-        Client, Client, Client, Updates, Settings, State, Notifications,
+        Client, Client, Updates, Settings, State, Notifications,
         Dashboards, Printers, Agents, Workspaces, SettingsPage);
 
     public static PrinterPageViewModel PrinterPage => new(

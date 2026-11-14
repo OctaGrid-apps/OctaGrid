@@ -13,5 +13,6 @@ public sealed class Agent : Entity
     public Workspace? Workspace { get; set; }
 
     public AgentStatus? Status { get; set; }
-    public ICollection<PrinterAgent> PrinterAgents { get; set; } = [];
+    /// <summary>The printers this agent connects to.</summary>
+    public ICollection<Printer> Printers { get; set; } = [];
 }
