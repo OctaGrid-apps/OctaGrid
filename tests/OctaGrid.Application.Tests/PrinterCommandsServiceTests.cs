@@ -1,0 +1,148 @@
+using OctaGrid.Application.Services;
+using OctaGrid.Data;
+using OctaGrid.Extensions.Models.Exceptions;
+using OctaGrid.Protocol.AgentLink.Requests;
+
+namespace OctaGrid.Application.Tests;
+
+public sealed class PrinterCommandsServiceTests : IDisposable
+{
+    private readonly AgentLinkFixture _fixture = new();
+
+    public void Dispose() => _fixture.Dispose();
+
+    private PrinterCommandsService NewService(OctaGridContext context) =>
+        new(context, _fixture.Printers(context), _fixture.Link);
+
+    [Fact]
+    public async Task A_command_goes_to_the_printers_agent()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        await using var context = _fixture.NewContext();
+        await NewService(context).StartPrint(_fixture.UserId, printer.Id, "benchy.gcode", CancellationToken.None);
+
+        var (agentId, request) = Assert.Single(_fixture.Link.Sent);
+        Assert.Equal(_fixture.AgentId, agentId);
+        Assert.Equal(new StartPrintRequest(printer.Id, "benchy.gcode"), request);
+    }
+
+    [Fact]
+    public async Task A_user_outside_the_workspace_cannot_command_a_printer()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        await using var context = _fixture.NewContext();
+        var service = NewService(context);
+        var stranger = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.StopPrint(stranger, printer.Id, CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.SendConsoleCommand(stranger, printer.Id, "M112", CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetFiles(stranger, printer.Id, CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(
+            () => service.UploadFile(stranger, printer.Id, new MemoryStream([1, 2, 3]), "a.gcode", CancellationToken.None));
+        Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
+    public async Task A_printer_without_an_agent_cannot_be_commanded()
+    {
+        var printer = await _fixture.CreatePrinter();
+        _fixture.UnassignPrinter(printer.Id);
+
+        await using var context = _fixture.NewContext();
+        await Assert.ThrowsAsync<ValidationException>(
+            () => NewService(context).PausePrint(_fixture.UserId, printer.Id, CancellationToken.None));
+        Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
+    public async Task An_uploaded_file_is_sent_in_pieces_and_then_stored_on_the_printer()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        await using var context = _fixture.NewContext();
+        await NewService(context).UploadFile(
+            _fixture.UserId, printer.Id, new MemoryStream([1, 2, 3, 4, 5, 6]), "a.gcode", CancellationToken.None);
+
+        Assert.All(_fixture.Link.Sent, sent => Assert.Equal(_fixture.AgentId, sent.AgentId));
+        var requests = _fixture.Link.Sent.Select(s => s.Request).ToList();
+        Assert.IsType<BeginUploadRequest>(requests[0]);
+        var chunks = requests.OfType<UploadChunkRequest>().ToList();
+        Assert.Equal([1, 2, 3, 4, 5, 6], chunks.SelectMany(c => c.Data));
+        Assert.Equal(new StorePrinterFileRequest(printer.Id, _fixture.Link.UploadId, "a.gcode"), requests[^1]);
+    }
+
+    [Fact]
+    public async Task State_is_requested_from_each_agent_once_and_only_for_its_printers()
+    {
+        var first = await _fixture.CreatePrinter();
+        var second = await _fixture.CreatePrinter();
+        var unassigned = await _fixture.CreatePrinter();
+        _fixture.UnassignPrinter(unassigned.Id);
+
+        await using var context = _fixture.NewContext();
+        await NewService(context).RequestState(_fixture.UserId, [first.Id, second.Id, unassigned.Id], CancellationToken.None);
+
+        var (agentId, request) = Assert.Single(_fixture.Link.Sent);
+        Assert.Equal(_fixture.AgentId, agentId);
+        var ids = Assert.IsType<RequestPrinterStateRequest>(request).PrinterIds;
+        Assert.Equal(new[] { first.Id, second.Id }.Order(), ids.Order());
+    }
+
+    [Fact]
+    public async Task A_saved_printer_is_tested_by_its_own_agent_with_its_saved_secrets()
+    {
+        var printer = await _fixture.CreatePrinter();
+        var foreignAgent = _fixture.AddForeignAgent();
+
+        await using var context = _fixture.NewContext();
+        var result = await NewService(context).TestConnection(
+            _fixture.UserId,
+            "octagrid.bambu-mqtt",
+            new Dictionary<string, string> { ["url"] = "192.168.1.9" },
+            printer.Id,
+            foreignAgent,
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        var (agentId, request) = Assert.Single(_fixture.Link.Sent);
+        Assert.Equal(_fixture.AgentId, agentId);
+        var settings = Assert.IsType<TestConnectionRequest>(request).Settings;
+        Assert.Equal("192.168.1.9", settings["url"]);
+        Assert.Equal("123456", settings["apiKey"]);
+    }
+
+    [Fact]
+    public async Task A_new_printer_is_tested_by_the_agent_that_is_named()
+    {
+        await using var context = _fixture.NewContext();
+        await NewService(context).TestConnection(
+            _fixture.UserId,
+            "octagrid.bambu-mqtt",
+            new Dictionary<string, string> { ["url"] = "192.168.1.9" },
+            printerId: null,
+            _fixture.AgentId,
+            CancellationToken.None);
+
+        Assert.Equal(_fixture.AgentId, Assert.Single(_fixture.Link.Sent).AgentId);
+    }
+
+    [Fact]
+    public async Task A_new_printer_cannot_be_tested_without_an_agent_or_on_an_agent_the_user_cannot_use()
+    {
+        var foreignAgent = _fixture.AddForeignAgent();
+        var settings = new Dictionary<string, string> { ["url"] = "192.168.1.9" };
+
+        await using var context = _fixture.NewContext();
+        var service = NewService(context);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => service.TestConnection(_fixture.UserId, "octagrid.bambu-mqtt", settings, null, null, CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(
+            () => service.TestConnection(_fixture.UserId, "octagrid.bambu-mqtt", settings, null, foreignAgent, CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => service.TestConnection(_fixture.UserId, "octagrid.bambu-mqtt", settings, null, Guid.NewGuid(), CancellationToken.None));
+        Assert.Empty(_fixture.Link.Sent);
+    }
+}

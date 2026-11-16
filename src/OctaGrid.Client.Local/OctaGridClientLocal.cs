@@ -11,17 +11,14 @@ namespace OctaGrid.Client.Local;
 
 // Deliberately does NOT implement IAuthClient — local mode has no login (single implicit-owner account, auto-provisioned via Me()).
 //
-// A singleton, while the application services and their DbContext are scoped. Every call opens its own scope,
-// the way a server handles one request, so calls from the UI and the agent never share a DbContext.
+// A singleton, while the application services and their DbContext are scoped: every call runs in its own scope (LocalCalls).
 internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPrintersClient, IAgentsClient, IDashboardsClient
 {
-    private readonly ICurrentUserAccessor _currentUser;
-    private readonly IServiceScopeFactory _scopes;
+    private readonly LocalCalls _calls;
 
-    public OctaGridClientLocal(IServiceScopeFactory scopes, ICurrentUserAccessor currentUser)
+    public OctaGridClientLocal(LocalCalls calls)
     {
-        _scopes = scopes;
-        _currentUser = currentUser;
+        _calls = calls;
     }
 
     public Task AssignPrinter(Guid agentId, Guid printerId, CancellationToken cancellationToken) =>
@@ -63,11 +60,8 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
     public Task<List<WorkspaceSummaryResponse>> GetWorkspacesSummary(CancellationToken cancellationToken) =>
         Run<WorkspacesService, List<WorkspaceSummaryResponse>>((workspaces, userId) => workspaces.GetSummary(userId, cancellationToken), cancellationToken);
 
-    public async Task<UserResponse> Me(CancellationToken cancellationToken)
-    {
-        await using var scope = _scopes.CreateAsyncScope();
-        return await GetOrCreateUserAsync(scope.ServiceProvider, cancellationToken);
-    }
+    public Task<UserResponse> Me(CancellationToken cancellationToken) =>
+        _calls.GetOrCreateUserAsync(cancellationToken);
 
     public Task<DashboardResponse> SetDefaultDashboard(Guid dashboardId, CancellationToken cancellationToken) =>
         Run<DashboardsService, DashboardResponse>((dashboards, userId) => dashboards.SetDefault(userId, dashboardId, cancellationToken), cancellationToken);
@@ -90,37 +84,11 @@ internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPr
     public Task<WorkspaceResponse> UpdateWorkspace(Guid workspaceId, string name, CancellationToken cancellationToken) =>
         Run<WorkspacesService, WorkspaceResponse>((workspaces, userId) => workspaces.Update(userId, workspaceId, new UpdateWorkspaceRequest(name), cancellationToken), cancellationToken);
 
-    private async Task<UserResponse> GetOrCreateUserAsync(IServiceProvider scoped, CancellationToken cancellationToken)
-    {
-        var user = await scoped.GetRequiredService<UsersService>().GetOrCreate(cancellationToken);
-        _currentUser.SetCurrentUserId(user.Id);
-        return user;
-    }
+    private Task<TResult> Run<TService, TResult>(Func<TService, Guid, Task<TResult>> call, CancellationToken cancellationToken)
+        where TService : notnull =>
+        _calls.Run(call, cancellationToken);
 
-    private async ValueTask<Guid> GetUserIdAsync(IServiceProvider scoped, CancellationToken cancellationToken)
-    {
-        if (_currentUser.GetCurrentUserId() is { } id)
-        {
-            return id;
-        }
-
-        return (await GetOrCreateUserAsync(scoped, cancellationToken)).Id;
-    }
-
-    /// <summary>Runs one call against a service in its own scope, as the current user.</summary>
-    private async Task<TResult> Run<TService, TResult>(Func<TService, Guid, Task<TResult>> call, CancellationToken cancellationToken)
-        where TService : notnull
-    {
-        await using var scope = _scopes.CreateAsyncScope();
-        var userId = await GetUserIdAsync(scope.ServiceProvider, cancellationToken);
-        return await call(scope.ServiceProvider.GetRequiredService<TService>(), userId);
-    }
-
-    private async Task Run<TService>(Func<TService, Guid, Task> call, CancellationToken cancellationToken)
-        where TService : notnull
-    {
-        await using var scope = _scopes.CreateAsyncScope();
-        var userId = await GetUserIdAsync(scope.ServiceProvider, cancellationToken);
-        await call(scope.ServiceProvider.GetRequiredService<TService>(), userId);
-    }
+    private Task Run<TService>(Func<TService, Guid, Task> call, CancellationToken cancellationToken)
+        where TService : notnull =>
+        _calls.Run(call, cancellationToken);
 }

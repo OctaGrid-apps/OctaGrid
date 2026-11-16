@@ -1,58 +1,43 @@
-using OctaGrid.Application.Agents;
+using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.AgentLink.Requests;
 using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.Local;
 
 /// <summary>
-/// Extension management, sent as messages over the <see cref="IAgentLink"/> to the agent each call names. In Local
-/// mode the link reaches only the in-process agent and rejects any other id.
+/// Extension management, handed to <see cref="ExtensionsService"/> as the local user. The service checks that the
+/// user may manage the agent each call names; in Local mode the link then reaches only the in-process agent.
 /// </summary>
 internal sealed class LocalExtensionsClient : IExtensionsClient
 {
-    private readonly IAgentLink _link;
+    private readonly LocalCalls _calls;
 
-    public LocalExtensionsClient(IAgentLink link)
+    public LocalExtensionsClient(LocalCalls calls)
     {
-        _link = link;
+        _calls = calls;
     }
 
-    public async Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(Guid agentId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(agentId, new GetExtensionsRequest(), cancellationToken)).Extensions;
+    public Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(Guid agentId, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, IReadOnlyList<ExtensionInfo>>((extensions, userId) => extensions.GetList(userId, agentId, cancellationToken), cancellationToken);
 
-    public async Task SetExtensionEnabledAsync(Guid agentId, string extensionId, bool enabled, CancellationToken cancellationToken) =>
-        await _link.SendAsync(agentId, new SetExtensionEnabledRequest(extensionId, enabled), cancellationToken);
+    public Task SetExtensionEnabledAsync(Guid agentId, string extensionId, bool enabled, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService>((extensions, userId) => extensions.SetEnabled(userId, agentId, extensionId, enabled, cancellationToken), cancellationToken);
 
-    public async Task<ExtensionInstallResult> InstallExtensionAsync(Guid agentId, Stream package, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(package);
+    public Task<ExtensionInstallResult> InstallExtensionAsync(Guid agentId, Stream package, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, ExtensionInstallResult>((extensions, userId) => extensions.Install(userId, agentId, package, cancellationToken), cancellationToken);
 
-        var uploadId = await _link.UploadAsync(agentId, package, cancellationToken);
-        try
-        {
-            return (await _link.SendAsync(agentId, new InstallExtensionRequest(uploadId), cancellationToken)).Result;
-        }
-        catch (OperationCanceledException)
-        {
-            // Cancelled before the agent took the upload: do not leave it behind.
-            await AgentLinkUploads.AbortQuietlyAsync(_link, agentId, uploadId);
-            throw;
-        }
-    }
+    public Task<ExtensionInstallResult> ApproveExtensionAsync(Guid agentId, string extensionId, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, ExtensionInstallResult>((extensions, userId) => extensions.Approve(userId, agentId, extensionId, cancellationToken), cancellationToken);
 
-    public async Task<ExtensionInstallResult> ApproveExtensionAsync(Guid agentId, string extensionId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(agentId, new ApproveExtensionRequest(extensionId), cancellationToken)).Result;
+    public Task<ExtensionInstallResult> UninstallExtensionAsync(Guid agentId, string extensionId, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, ExtensionInstallResult>((extensions, userId) => extensions.Uninstall(userId, agentId, extensionId, cancellationToken), cancellationToken);
 
-    public async Task<ExtensionInstallResult> UninstallExtensionAsync(Guid agentId, string extensionId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(agentId, new UninstallExtensionRequest(extensionId), cancellationToken)).Result;
+    public Task<string?> GetDeveloperFolderAsync(Guid agentId, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, string?>((extensions, userId) => extensions.GetDeveloperFolder(userId, agentId, cancellationToken), cancellationToken);
 
-    public async Task<string?> GetDeveloperFolderAsync(Guid agentId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(agentId, new GetDeveloperFolderRequest(), cancellationToken)).Folder;
+    public Task<ExtensionInstallResult> SetDeveloperFolderAsync(Guid agentId, string? folder, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, ExtensionInstallResult>((extensions, userId) => extensions.SetDeveloperFolder(userId, agentId, folder, cancellationToken), cancellationToken);
 
-    public async Task<ExtensionInstallResult> SetDeveloperFolderAsync(Guid agentId, string? folder, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(agentId, new SetDeveloperFolderRequest(folder), cancellationToken)).Result;
-
-    public async Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(Guid agentId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(agentId, new ReloadDeveloperExtensionsRequest(), cancellationToken)).Result;
+    public Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(Guid agentId, CancellationToken cancellationToken) =>
+        _calls.Run<ExtensionsService, ExtensionInstallResult>((extensions, userId) => extensions.ReloadDeveloperExtensions(userId, agentId, cancellationToken), cancellationToken);
 }
