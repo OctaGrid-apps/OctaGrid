@@ -1,0 +1,140 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using OctaGrid.Application.Agents;
+using OctaGrid.Application.Secrets;
+using OctaGrid.Application.Services;
+using OctaGrid.Application.Telemetry;
+using OctaGrid.Data;
+using OctaGrid.Data.Models;
+using OctaGrid.Protocol.AgentLink;
+using OctaGrid.Protocol.AgentLink.Replies;
+using OctaGrid.Protocol.AgentLink.Requests;
+using OctaGrid.Protocol.Extensions;
+using OctaGrid.Protocol.Messaging;
+using OctaGrid.Protocol.Printers;
+
+namespace OctaGrid.Application.Tests;
+
+/// <summary>
+/// A real (in-memory) SQLite database with one user in one workspace that has one agent, and a link that records
+/// what is sent instead of reaching an agent. For the services that talk to agents.
+/// </summary>
+internal sealed class AgentLinkFixture : IDisposable
+{
+    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly AesGcmSecretProtector _protector = new(new FixedKeySource());
+
+    public AgentLinkFixture()
+    {
+        _connection.Open();
+        using var context = NewContext();
+        context.Database.EnsureCreated();
+
+        context.Users.Add(new User { Id = UserId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
+        context.Workspaces.Add(new Workspace { Id = WorkspaceId, Name = "Test workspace" });
+        context.Agents.Add(new Agent { Id = AgentId, Name = "Agent", WorkspaceId = WorkspaceId });
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = WorkspaceId,
+            UserId = UserId,
+            Role = Role.Owner,
+            JoinedAt = DateTimeOffset.UtcNow,
+        });
+        context.SaveChanges();
+    }
+
+    public Guid AgentId { get; } = Guid.NewGuid();
+
+    public RecordingAgentLink Link { get; } = new();
+
+    public Guid UserId { get; } = Guid.NewGuid();
+
+    public Guid WorkspaceId { get; } = Guid.NewGuid();
+
+    /// <summary>An agent in a workspace the test user is not a member of.</summary>
+    public Guid AddForeignAgent()
+    {
+        using var context = NewContext();
+        var workspace = new Workspace { Id = Guid.NewGuid(), Name = "Someone else's" };
+        var agent = new Agent { Id = Guid.NewGuid(), Name = "Foreign", WorkspaceId = workspace.Id };
+        context.Workspaces.Add(workspace);
+        context.Agents.Add(agent);
+        context.SaveChanges();
+        return agent.Id;
+    }
+
+    public async Task<PrinterResponse> CreatePrinter(bool enabled = true, Guid? agentId = null)
+    {
+        await using var context = NewContext();
+        return await Printers(context).Create(
+            UserId,
+            WorkspaceId,
+            new CreatePrinterRequest(
+                "Printer",
+                "octagrid.bambu-mqtt",
+                new Dictionary<string, string> { ["url"] = "192.168.1.5" },
+                new Dictionary<string, string> { ["apiKey"] = "123456" },
+                enabled,
+                agentId),
+            CancellationToken.None);
+    }
+
+    public void Dispose() => _connection.Dispose();
+
+    public OctaGridContext NewContext() =>
+        new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
+
+    public PrintersService Printers(OctaGridContext context) => new(context, new NullPublisher(), _protector);
+
+    /// <summary>Takes the printer away from its agent, as when the agent is removed.</summary>
+    public void UnassignPrinter(Guid printerId)
+    {
+        using var context = NewContext();
+        context.Printers.Single(p => p.Id == printerId).AgentId = null;
+        context.SaveChanges();
+    }
+
+    private sealed class FixedKeySource : ISecretKeySource
+    {
+        public byte[] GetOrCreateKey() => Enumerable.Range(1, AesGcmSecretProtector.KeySize).Select(i => (byte)i).ToArray();
+    }
+
+    private sealed class NullPublisher : IMessagePublisher
+    {
+        public void Publish(EntityChanged entity)
+        {
+        }
+    }
+}
+
+/// <summary>Records every request with the agent it was sent to, and answers with an empty success.</summary>
+internal sealed class RecordingAgentLink : IAgentLink
+{
+    public List<(Guid AgentId, AgentRequest Request)> Sent { get; } = [];
+
+    public Guid UploadId { get; } = Guid.NewGuid();
+
+    public Task<TReply> SendAsync<TReply>(Guid agentId, AgentRequest<TReply> request, CancellationToken cancellationToken)
+        where TReply : AgentReply
+    {
+        Sent.Add((agentId, request));
+
+        AgentReply reply = request switch
+        {
+            // Small pieces, so a short stream still arrives as several of them.
+            BeginUploadRequest => new UploadStartedReply(UploadId, MaxChunkSize: 4),
+            ListPrinterFilesRequest => new PrinterFilesReply([]),
+            GetExtensionsRequest => new ExtensionsReply([]),
+            GetDeveloperFolderRequest => new DeveloperFolderReply(null),
+            TestConnectionRequest => new ConnectionTestReply(Extensions.Models.ConnectionTestResult.Ok()),
+            AgentRequest<ExtensionChangeReply> => new ExtensionChangeReply(ExtensionInstallResult.Ok(null, "Done")),
+            AgentRequest<AgentAck> => new AgentAck(),
+            _ => throw new NotSupportedException($"The recording link has no answer for {request.GetType().Name}."),
+        };
+
+        return Task.FromResult((TReply)reply);
+    }
+
+    public IDisposable Subscribe(Action<AgentNotificationEnvelope> handler) => throw new NotSupportedException();
+}

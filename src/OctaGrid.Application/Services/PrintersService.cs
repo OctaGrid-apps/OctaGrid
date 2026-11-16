@@ -95,19 +95,11 @@ public sealed class PrintersService
 
     /// <summary>
     /// The printers an agent has to connect to (its enabled ones), with their settings and decrypted secrets.
-    /// This is what is pushed to the agent; it never reads the database itself.
+    /// This is what is pushed to the agent; it never reads the database itself. The backend does this by itself,
+    /// so no user is checked: never return the result to a client.
     /// </summary>
-    public async Task<List<PrinterProfile>> GetPrinterProfiles(Guid userId, Guid agentId, CancellationToken cancellationToken)
+    public async Task<List<PrinterProfile>> GetPrinterProfiles(Guid agentId, CancellationToken cancellationToken)
     {
-        var workspaceId = await _context.Agents
-            .AsNoTracking()
-            .Where(a => a.Id == agentId)
-            .Select(a => (Guid?)a.WorkspaceId)
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException(nameof(Agent), agentId);
-
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
-
         var printers = await _context.Printers
             .AsNoTracking()
             .Where(p => p.AgentId == agentId && p.Enabled)

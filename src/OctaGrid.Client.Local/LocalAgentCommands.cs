@@ -1,137 +1,75 @@
-using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core;
-using OctaGrid.Application.Agents;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Extensions.Models;
-using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.AgentLink.Requests;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Local;
 
 /// <summary>
-/// What the UI asks of printers, sent as messages over the <see cref="IAgentLink"/> to the agent each printer is
-/// assigned to, the way a server routes them. Nothing here touches the agent directly.
+/// What the UI asks of printers, handed to <see cref="PrinterCommandsService"/> as the local user. The service
+/// authorizes the call and sends it to the printer's agent, the way a server does.
 /// </summary>
 internal sealed class LocalAgentCommands : IAgentCommandsService, ICommandService
 {
+    private readonly LocalCalls _calls;
     private readonly LocalConnectorCache _connectors;
-    private readonly ICurrentUserAccessor _currentUser;
-    private readonly IAgentLink _link;
     private readonly LocalAgent _localAgent;
-    private readonly IServiceScopeFactory _scopes;
 
-    public LocalAgentCommands(
-        IAgentLink link,
-        LocalAgent localAgent,
-        LocalConnectorCache connectors,
-        IServiceScopeFactory scopes,
-        ICurrentUserAccessor currentUser)
+    public LocalAgentCommands(LocalCalls calls, LocalAgent localAgent, LocalConnectorCache connectors)
     {
-        _link = link;
+        _calls = calls;
         _localAgent = localAgent;
         _connectors = connectors;
-        _scopes = scopes;
-        _currentUser = currentUser;
     }
 
     public IReadOnlyList<ConnectorDescriptor> Connectors => _connectors.Connectors;
 
-    public async Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOfAsync(deviceId, cancellationToken), new DeletePrinterFileRequest(deviceId, fileName), cancellationToken);
+    public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.DeleteFile(userId, deviceId, fileName, cancellationToken), cancellationToken);
 
-    public async Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(await AgentOfAsync(printerId, cancellationToken), new GetPrinterConsoleRequest(printerId, afterSequence, limit), cancellationToken)).Page;
+    public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, ConsolePage>((printers, userId) => printers.GetConsole(userId, printerId, afterSequence, limit, cancellationToken), cancellationToken);
 
-    public async Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(await AgentOfAsync(printerId, cancellationToken), new GetPrinterEventsRequest(printerId, afterSequence, limit), cancellationToken)).Page;
+    public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, PrinterEventPage>((printers, userId) => printers.GetEvents(userId, printerId, afterSequence, limit, cancellationToken), cancellationToken);
 
-    public async Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(await AgentOfAsync(deviceId, cancellationToken), new ListPrinterFilesRequest(deviceId), cancellationToken)).Files;
+    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, IEnumerable<PrintMetadata>>(async (printers, userId) => await printers.GetFiles(userId, deviceId, cancellationToken), cancellationToken);
 
-    public async Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-        (await _link.SendAsync(await AgentOfAsync(printerId, cancellationToken), new GetPrintThumbnailRequest(printerId, fileName), cancellationToken)).Thumbnail;
+    public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, PrintThumbnail?>((printers, userId) => printers.GetThumbnail(userId, printerId, fileName, cancellationToken), cancellationToken);
 
-    public async Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOfAsync(deviceId, cancellationToken), new PausePrintRequest(deviceId), cancellationToken);
+    public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.PausePrint(userId, deviceId, cancellationToken), cancellationToken);
 
-    public async Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOfAsync(deviceId, cancellationToken), new ResumePrintRequest(deviceId), cancellationToken);
+    public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.ResumePrint(userId, deviceId, cancellationToken), cancellationToken);
 
-    public async Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOfAsync(printerId, cancellationToken), new SendConsoleCommandRequest(printerId, command), cancellationToken);
+    public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.SendConsoleCommand(userId, printerId, command, cancellationToken), cancellationToken);
 
-    public async Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOfAsync(deviceId, cancellationToken), new StartPrintRequest(deviceId, fileName), cancellationToken);
+    public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StartPrint(userId, deviceId, fileName, cancellationToken), cancellationToken);
 
-    public async Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOfAsync(deviceId, cancellationToken), new StopPrintRequest(deviceId), cancellationToken);
+    public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StopPrint(userId, deviceId, cancellationToken), cancellationToken);
 
-    public async Task<ConnectionTestResult> TestConnectionAsync(
-        string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken)
-    {
-        // A new printer is tested by the agent it will get, which in Local mode is the local one.
-        var agentId = _localAgent.Id;
-        if (printerId is { } id)
-        {
-            // The service is scoped (it uses the DbContext), so it gets its own scope for this call.
-            await using var scope = _scopes.CreateAsyncScope();
-            var printers = scope.ServiceProvider.GetRequiredService<PrintersService>();
-            var userId = CurrentUserId();
-            settings = await printers.AddSavedSecrets(userId, id, settings, cancellationToken);
-
-            // The saved secrets go only to the printer's own agent; a printer without one is tested locally.
-            var agents = await printers.GetAgentIds(userId, [id], cancellationToken);
-            agentId = agents.GetValueOrDefault(id, agentId);
-        }
-
-        return (await _link.SendAsync(agentId, new TestConnectionRequest(connectorId, settings), cancellationToken)).Result;
-    }
+    // A new printer, or a saved one without an agent, is tested by the agent it will get: in Local mode, the local one.
+    public Task<ConnectionTestResult> TestConnectionAsync(
+        string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, ConnectionTestResult>(
+            (printers, userId) => printers.TestConnection(userId, connectorId, settings, printerId, _localAgent.Id, cancellationToken), cancellationToken);
 
     public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>
         TriggerInitialStateAsync([printerId], cancellationToken);
 
-    public async Task TriggerInitialStateAsync(IEnumerable<Guid> printers, CancellationToken cancellationToken)
+    public Task TriggerInitialStateAsync(IEnumerable<Guid> printers, CancellationToken cancellationToken)
     {
-        IReadOnlyDictionary<Guid, Guid> agents;
-        await using (var scope = _scopes.CreateAsyncScope())
-        {
-            agents = await scope.ServiceProvider.GetRequiredService<PrintersService>()
-                .GetAgentIds(CurrentUserId(), printers.ToList(), cancellationToken);
-        }
-
-        // A printer without an agent has no state to report.
-        foreach (var group in agents.GroupBy(a => a.Value, a => a.Key))
-        {
-            await _link.SendAsync(group.Key, new RequestPrinterStateRequest(group.ToList()), cancellationToken);
-        }
+        var printerIds = printers.ToList();
+        return _calls.Run<PrinterCommandsService>((service, userId) => service.RequestState(userId, printerIds, cancellationToken), cancellationToken);
     }
 
-    public async Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken)
-    {
-        var agentId = await AgentOfAsync(deviceId, cancellationToken);
-        var uploadId = await _link.UploadAsync(agentId, stream, cancellationToken);
-        try
-        {
-            await _link.SendAsync(agentId, new StorePrinterFileRequest(deviceId, uploadId, fileName), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // Cancelled before the agent took the upload: do not leave it behind.
-            await AgentLinkUploads.AbortQuietlyAsync(_link, agentId, uploadId);
-            throw;
-        }
-    }
-
-    /// <summary>The agent a printer is assigned to, checked against what the current user may reach.</summary>
-    private async Task<Guid> AgentOfAsync(Guid printerId, CancellationToken cancellationToken)
-    {
-        await using var scope = _scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<PrintersService>()
-            .GetAgentId(CurrentUserId(), printerId, cancellationToken);
-    }
-
-    private Guid CurrentUserId() =>
-        _currentUser.GetCurrentUserId() ?? throw new AuthenticationException("No user is signed in.");
+    public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.UploadFile(userId, deviceId, stream, fileName, cancellationToken), cancellationToken);
 }

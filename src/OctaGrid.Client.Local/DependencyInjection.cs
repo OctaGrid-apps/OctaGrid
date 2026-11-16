@@ -29,6 +29,9 @@ public static class DependencyInjection
             .AddScoped<AgentsService>()
             .AddScoped<UsersService>()
             .AddScoped<PrintersService>()
+            .AddScoped<PrinterCommandsService>()
+            .AddScoped<ExtensionsService>()
+            .AddScoped<AgentProfilesService>()
             .AddScoped<DashboardsService>()
             .AddScoped<WorkspacesService>();
 
@@ -56,7 +59,7 @@ public static class DependencyInjection
         services.AddSingleton<IAgentLink, InProcessAgentLink>();
         services.AddSingleton<LocalConnectorCache>();
         services.AddSingleton<LocalAgentNotifications>();
-        services.AddSingleton<LocalPrinterProfiles>();
+        services.AddSingleton<LocalCalls>();
 
         services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();

@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
+using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 
@@ -27,6 +28,19 @@ internal static class Extensions
             return setter;
         }
         return setter.SetProperty(propertyExpression, valueExpression);
+    }
+
+    /// <summary>Fails unless the agent exists and the user is a member of its workspace.</summary>
+    public static async Task ValidateAgentAccess(this OctaGridContext context, Guid userId, Guid agentId, CancellationToken cancellationToken)
+    {
+        var workspaceId = await context.Agents
+            .AsNoTracking()
+            .Where(a => a.Id == agentId)
+            .Select(a => (Guid?)a.WorkspaceId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(Agent), agentId);
+
+        await context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
     }
 
     public static async Task ValidateUserAccess(this DbSet<WorkspaceMember> workspaceMembers, Guid userId, Guid workspaceId, CancellationToken cancellationToken)

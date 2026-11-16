@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
-using OctaGrid.Application.Agents;
-using OctaGrid.Protocol.AgentLink.Requests;
+using OctaGrid.Application.Services;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Local;
@@ -12,28 +11,24 @@ namespace OctaGrid.Client.Local;
 /// </summary>
 internal sealed class LocalAgentSynchronizer
 {
+    private readonly LocalCalls _calls;
     private readonly EntityChangeFeed _feed;
-    private readonly IAgentLink _link;
     private readonly LocalAgent _localAgent;
     private readonly ILogger<LocalAgentSynchronizer> _logger;
-    private readonly LocalPrinterProfiles _profiles;
 
-    public LocalAgentSynchronizer(
-        EntityChangeFeed feed, IAgentLink link, LocalAgent localAgent, LocalPrinterProfiles profiles, ILogger<LocalAgentSynchronizer> logger)
+    public LocalAgentSynchronizer(EntityChangeFeed feed, LocalCalls calls, LocalAgent localAgent, ILogger<LocalAgentSynchronizer> logger)
     {
         _feed = feed;
-        _link = link;
+        _calls = calls;
         _localAgent = localAgent;
-        _profiles = profiles;
         _logger = logger;
     }
 
-    /// <summary>Reads the printers assigned to the local agent and sends them to it.</summary>
-    public async Task PushProfilesAsync(CancellationToken cancellationToken)
+    /// <summary>Sends the local agent the printers assigned to it.</summary>
+    public Task PushProfilesAsync(CancellationToken cancellationToken)
     {
         var agentId = _localAgent.Id;
-        var profiles = await _profiles.GetAsync(agentId, cancellationToken);
-        await _link.SendAsync(agentId, new ApplyPrinterProfilesRequest(profiles), cancellationToken);
+        return _calls.RunAsBackend<AgentProfilesService>(profiles => profiles.Push(agentId, cancellationToken));
     }
 
     /// <summary>Sends the printers again after every printer change, until cancelled. Changes are handled one at a time, in order.</summary>
