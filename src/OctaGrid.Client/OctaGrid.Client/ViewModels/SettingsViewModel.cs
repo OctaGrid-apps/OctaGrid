@@ -17,6 +17,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     private readonly IAppSettingsStore _appSettings;
     private readonly IBackdropCapabilities _backdropCapabilities;
     private readonly ApplicationState _appState;
+    private readonly AgentDirectory? _agentDirectory;
     private readonly IExtensionsClient? _extensionsClient;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -31,13 +32,15 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         IExtensionsClient? extensionsClient = null,
         INotificationService? notifications = null,
         ILoggerFactory? loggerFactory = null,
-        IBackdropCapabilities? backdropCapabilities = null)
+        IBackdropCapabilities? backdropCapabilities = null,
+        AgentDirectory? agentDirectory = null)
     {
         _appSettings = appSettingsStore;
         _backdropCapabilities = backdropCapabilities ?? new NullBackdropCapabilities();
         _appState = appState;
         _updateService = updateService ?? new NullUpdateService();
         _extensionsClient = extensionsClient;
+        _agentDirectory = agentDirectory;
         _notifications = notifications;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
@@ -112,7 +115,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     public bool IsTransparencySupported => _backdropCapabilities.IsTransparencySupported;
 
     /// <summary>Whether this client can manage extensions at all.</summary>
-    public bool CanManageExtensions => _extensionsClient is not null;
+    public bool CanManageExtensions => _extensionsClient is not null && _agentDirectory is not null;
 
     [ObservableProperty]
     public partial string ExtensionsSummary { get; set; } = "Add support for more printers";
@@ -401,7 +404,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
     [RelayCommand]
     private async Task ManageExtensions()
     {
-        if (_extensionsClient is null)
+        if (_extensionsClient is null || _agentDirectory is null)
         {
             return;
         }
@@ -409,6 +412,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
         _logger.LogInformation("Opening the extension management dialog from Settings");
         var viewModel = new ExtensionsViewModel(
             _extensionsClient,
+            _agentDirectory,
             _notifications,
             _loggerFactory.CreateLogger<ExtensionsViewModel>(),
             _appSettings);
@@ -542,18 +546,29 @@ public partial class SettingsViewModel : ViewModelBase, IDialogParticipant
 
     private async Task RefreshExtensionsSummaryAsync(CancellationToken cancellationToken)
     {
-        if (_extensionsClient is null)
+        if (_extensionsClient is null || _agentDirectory is null)
         {
             return;
         }
 
         try
         {
-            var extensions = await _extensionsClient.GetExtensionsAsync(cancellationToken);
-            var active = extensions.Count(e => e.State == Protocol.Extensions.ExtensionState.Loaded);
-            ExtensionsSummary = extensions.Count == 0
-                ? "No extensions installed"
-                : $"{extensions.Count} installed, {active} active";
+            // Totals over every agent: the same extension on two agents counts twice, as it is installed twice.
+            var agents = await _agentDirectory.GetAgentsAsync(cancellationToken);
+            var installed = 0;
+            var active = 0;
+            foreach (var agent in agents)
+            {
+                var extensions = await _extensionsClient.GetExtensionsAsync(agent.Id, cancellationToken);
+                installed += extensions.Count;
+                active += extensions.Count(e => e.State == Protocol.Extensions.ExtensionState.Loaded);
+            }
+
+            ExtensionsSummary = agents.Count == 0
+                ? "No agent yet"
+                : installed == 0
+                    ? "No extensions installed"
+                    : $"{installed} installed, {active} active";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

@@ -8,22 +8,6 @@ public static class PackageEnvironment
     private const int AppModelErrorNoPackage = 15700;
     private const int ErrorInsufficientBuffer = 122;
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1838:Avoid 'StringBuilder' parameters for P/Invokes")]
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
-    private static extern int GetCurrentPackageFullName(ref int packageFullNameLength, StringBuilder? packageFullName);
-
-    public static bool IsRunningAsPackaged()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return false;
-        }
-
-        var length = 0;
-        var result = GetCurrentPackageFullName(ref length, null);
-        return result != AppModelErrorNoPackage;
-    }
-
     public static string? GetCurrentPackageFullName()
     {
         if (!OperatingSystem.IsWindows())
@@ -59,4 +43,20 @@ public static class PackageEnvironment
 
         return null;
     }
+
+    public static bool IsRunningAsPackaged()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        var length = 0;
+        var result = GetCurrentPackageFullName(ref length, null);
+        return result != AppModelErrorNoPackage;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1838:Avoid 'StringBuilder' parameters for P/Invokes")]
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int GetCurrentPackageFullName(ref int packageFullNameLength, StringBuilder? packageFullName);
 }

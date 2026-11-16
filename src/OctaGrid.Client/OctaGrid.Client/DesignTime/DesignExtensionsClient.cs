@@ -21,25 +21,33 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
             ConnectorCapabilities.None, CanUninstall: true, Permissions: ["network"], ProjectUrl: "https://github.com/acme/octagrid-prusalink"),
     ];
 
-    public Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<ExtensionInfo>> GetExtensionsAsync(Guid agentId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ExtensionInfo>>(_extensions.ToList());
 
-    public Task SetExtensionEnabledAsync(string extensionId, bool enabled, CancellationToken cancellationToken)
+    public Task SetExtensionEnabledAsync(Guid agentId, string extensionId, bool enabled, CancellationToken cancellationToken)
     {
         Replace(extensionId, e => e with { State = enabled ? ExtensionState.Loaded : ExtensionState.Disabled });
         return Task.CompletedTask;
     }
 
-    public Task<ExtensionInstallResult> InstallExtensionAsync(string packagePath, CancellationToken cancellationToken) =>
-        Task.FromResult(ExtensionInstallResult.Fail("Installing is not available in the designer."));
+    /// <summary>The bytes of the last package sent to <see cref="InstallExtensionAsync"/>, for tests.</summary>
+    public byte[]? LastPackage { get; private set; }
 
-    public Task<ExtensionInstallResult> ApproveExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    public async Task<ExtensionInstallResult> InstallExtensionAsync(Guid agentId, Stream package, CancellationToken cancellationToken)
+    {
+        using var copy = new MemoryStream();
+        await package.CopyToAsync(copy, cancellationToken);
+        LastPackage = copy.ToArray();
+        return ExtensionInstallResult.Fail("Installing is not available in the designer.");
+    }
+
+    public Task<ExtensionInstallResult> ApproveExtensionAsync(Guid agentId, string extensionId, CancellationToken cancellationToken)
     {
         Replace(extensionId, e => e with { State = ExtensionState.Loaded, StateMessage = null, Capabilities = All });
         return Task.FromResult(ExtensionInstallResult.Ok(extensionId, "Turned on."));
     }
 
-    public Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    public Task<ExtensionInstallResult> UninstallExtensionAsync(Guid agentId, string extensionId, CancellationToken cancellationToken)
     {
         _extensions.RemoveAll(e => e.Id == extensionId && e.CanUninstall);
         return Task.FromResult(ExtensionInstallResult.Ok(extensionId, "Removed."));
@@ -47,15 +55,15 @@ internal sealed class DesignExtensionsClient : IExtensionsClient
 
     private string? _developerFolder;
 
-    public Task<string?> GetDeveloperFolderAsync(CancellationToken cancellationToken) => Task.FromResult(_developerFolder);
+    public Task<string?> GetDeveloperFolderAsync(Guid agentId, CancellationToken cancellationToken) => Task.FromResult(_developerFolder);
 
-    public Task<ExtensionInstallResult> SetDeveloperFolderAsync(string? folder, CancellationToken cancellationToken)
+    public Task<ExtensionInstallResult> SetDeveloperFolderAsync(Guid agentId, string? folder, CancellationToken cancellationToken)
     {
         _developerFolder = string.IsNullOrWhiteSpace(folder) ? null : folder;
         return Task.FromResult(ExtensionInstallResult.Ok(null, _developerFolder is null ? "Developer mode is off." : "Developer mode is on."));
     }
 
-    public Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken) =>
+    public Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(Guid agentId, CancellationToken cancellationToken) =>
         Task.FromResult(ExtensionInstallResult.Ok(null, "Developer extensions reloaded."));
 
     private void Replace(string extensionId, Func<ExtensionInfo, ExtensionInfo> change)

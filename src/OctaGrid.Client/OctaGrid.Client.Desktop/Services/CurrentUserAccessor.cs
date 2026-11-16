@@ -8,8 +8,8 @@ namespace OctaGrid.Client.Desktop.Services;
 internal sealed class CurrentUserAccessor : ICurrentUserAccessor
 {
     private const string ApplicationName = nameof(OctaGrid);
+    private readonly Lock _lock = new();
     private readonly ILogger<CurrentUserAccessor> _logger;
-    private readonly object _lock = new();
     private Guid? _cachedUserId;
     private bool _hasReadCredential;
 

@@ -12,11 +12,13 @@ public class NotificationService : INotificationService
 {
     private readonly ILogger<NotificationService> _logger;
 
+    private Action? _detach;
+
     // WindowNotificationManager needs a live TopLevel, which doesn't exist when the container is built.
     // The first view that has one calls Attach; until then notifications are dropped.
     private WindowNotificationManager? _manager;
+
     private TopLevel? _topLevel;
-    private Action? _detach;
 
     public NotificationService(ILogger<NotificationService>? logger = null)
     {

@@ -12,18 +12,17 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParticipant
 {
-    private readonly IAgentCommandsService _agentCommands;
-    private readonly IByteArrayImageCache _imageCache;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly ILogger<PrinterDashboardCardViewModel> _logger;
-
     // How long a just-started file name is kept while the printer still reports an idle state.
     private static readonly TimeSpan StartGrace = TimeSpan.FromSeconds(30);
 
+    private readonly IAgentCommandsService _agentCommands;
+    private readonly IByteArrayImageCache _imageCache;
+    private readonly ILogger<PrinterDashboardCardViewModel> _logger;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly TimeProvider _timeProvider;
-    private string? _startedFileName;
     private string? _previousFileName;
     private DateTimeOffset _startedAt;
+    private string? _startedFileName;
 
     public PrinterDashboardCardViewModel(
         PrinterStatusWidget item,
@@ -53,6 +52,29 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     /// the card itself is created again whenever the dashboard is shown again.
     /// </summary>
     public TemperatureHistory TemperatureHistory { get; }
+
+    /// <summary>The connector's display name, or its id while no connector with that id is loaded.</summary>
+    internal string ConnectorName =>
+        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))?.DisplayName
+        ?? Item.ConnectorId;
+
+    /// <summary>True when the printer's connector can report a console. Printers without one show no Console tab.</summary>
+    internal bool SupportsConsole => Supports(ConnectorCapabilities.Console);
+
+    /// <summary>True when the printer's connector can take commands typed in its console (the console must report as well).</summary>
+    internal bool SupportsConsoleCommands => Supports(ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands);
+
+    /// <summary>The console of this printer, for the printer page. Loads nothing until asked.</summary>
+    internal PrinterConsoleViewModel CreateConsoleViewModel() =>
+        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>(), SupportsConsoleCommands);
+
+    /// <summary>The history of this printer, for the dialog and for the printer page. Loads nothing until asked.</summary>
+    internal PrinterEventsViewModel CreateEventsViewModel() =>
+        new(Item.Id, Item.Name, _agentCommands, _loggerFactory.CreateLogger<PrinterEventsViewModel>());
+
+    /// <summary>The files on this printer, for the file dialog and for the printer page. Loads nothing until asked.</summary>
+    internal FilePickerViewModel CreateFilesViewModel() =>
+        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
 
     private void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
     {
@@ -99,6 +121,27 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.SetConditions(message.Value.Conditions);
     }
 
+    private async Task LoadData(CancellationToken cancellationToken)
+    {
+        if (!Item.IsConnectorAvailable)
+        {
+            // No connector is loaded for this printer, so there is nothing to ask for its state.
+            return;
+        }
+
+        try
+        {
+            await _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenPage() => WeakReferenceMessenger.Default.Send(new OpenPrinterPageRequested(this));
+
     /// <summary>
     /// Ends the "just started" window once the printer confirms the job, or drops the optimistic file name
     /// when the printer still reports an idle state after <see cref="StartGrace" /> (the job was rejected).
@@ -121,46 +164,6 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         }
     }
 
-    private async Task LoadData(CancellationToken cancellationToken)
-    {
-        if (!Item.IsConnectorAvailable)
-        {
-            // No connector is loaded for this printer, so there is nothing to ask for its state.
-            return;
-        }
-
-        try
-        {
-            await _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
-        }
-    }
-
-    [RelayCommand]
-    private void OpenPage() => WeakReferenceMessenger.Default.Send(new OpenPrinterPageRequested(this));
-
-    /// <summary>The connector's display name, or its id while no connector with that id is loaded.</summary>
-    internal string ConnectorName =>
-        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))?.DisplayName
-        ?? Item.ConnectorId;
-
-    /// <summary>True when the printer's connector can report a console. Printers without one show no Console tab.</summary>
-    internal bool SupportsConsole => Supports(ConnectorCapabilities.Console);
-
-    /// <summary>True when the printer's connector can take commands typed in its console (the console must report as well).</summary>
-    internal bool SupportsConsoleCommands => Supports(ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands);
-
-    /// <summary>The console of this printer, for the printer page. Loads nothing until asked.</summary>
-    internal PrinterConsoleViewModel CreateConsoleViewModel() =>
-        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>(), SupportsConsoleCommands);
-
-    private bool Supports(ConnectorCapabilities capabilities) =>
-        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))
-            ?.Capabilities.HasFlag(capabilities) == true;
-
     [RelayCommand]
     private async Task ShowEvents()
     {
@@ -179,6 +182,35 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         {
             return;
         }
+    }
+
+    /// <summary>Starts printing a file that is already on the printer. Used by the printer page's file list.</summary>
+    [RelayCommand]
+    private async Task StartFile(string fileName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await StartFileCoreAsync(fileName, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to start file '{FileName}' on printer {PrinterId} ('{PrinterName}')", fileName, Item.Id, Item.Name);
+            throw;
+        }
+    }
+
+    private async Task StartFileCoreAsync(string fileName, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
+            fileName, Item.Id, Item.Name);
+        await _agentCommands.StartPrintJobAsync(Item.Id, fileName, cancellationToken);
+
+        // Printers report the file name late (often only once printing), so show the chosen one while preparing.
+        _previousFileName = Item.PrintFileName;
+        _startedFileName = fileName;
+        _startedAt = _timeProvider.GetUtcNow();
+        Item.PrintFileName = fileName;
+        _ = TryGetThumbnail();
     }
 
     [RelayCommand]
@@ -218,43 +250,6 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         }
     }
 
-    /// <summary>Starts printing a file that is already on the printer. Used by the printer page's file list.</summary>
-    [RelayCommand]
-    private async Task StartFile(string fileName, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await StartFileCoreAsync(fileName, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Failed to start file '{FileName}' on printer {PrinterId} ('{PrinterName}')", fileName, Item.Id, Item.Name);
-            throw;
-        }
-    }
-
-    private async Task StartFileCoreAsync(string fileName, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
-            fileName, Item.Id, Item.Name);
-        await _agentCommands.StartPrintJobAsync(Item.Id, fileName, cancellationToken);
-
-        // Printers report the file name late (often only once printing), so show the chosen one while preparing.
-        _previousFileName = Item.PrintFileName;
-        _startedFileName = fileName;
-        _startedAt = _timeProvider.GetUtcNow();
-        Item.PrintFileName = fileName;
-        _ = TryGetThumbnail();
-    }
-
-    /// <summary>The history of this printer, for the dialog and for the printer page. Loads nothing until asked.</summary>
-    internal PrinterEventsViewModel CreateEventsViewModel() =>
-        new(Item.Id, Item.Name, _agentCommands, _loggerFactory.CreateLogger<PrinterEventsViewModel>());
-
-    /// <summary>The files on this printer, for the file dialog and for the printer page. Loads nothing until asked.</summary>
-    internal FilePickerViewModel CreateFilesViewModel() =>
-        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
-
     [RelayCommand]
     private async Task StopButtonClicked(CancellationToken cancellationToken)
     {
@@ -269,6 +264,10 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             throw;
         }
     }
+
+    private bool Supports(ConnectorCapabilities capabilities) =>
+                                _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))
+            ?.Capabilities.HasFlag(capabilities) == true;
 
     private async Task TryGetThumbnail()
     {

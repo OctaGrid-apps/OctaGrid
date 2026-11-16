@@ -36,6 +36,12 @@ public sealed record ClientSettings
     public string? DeveloperExtensionsFolder { get; init; }
 
     /// <summary>
+    /// The agent developer mode was turned on for; the folder is on that agent's machine. Null when developer mode is
+    /// off, or when it was turned on before agents were told apart (then the only agent is used).
+    /// </summary>
+    public Guid? DeveloperExtensionsAgentId { get; init; }
+
+    /// <summary>
     /// Whether updates include pre-release versions. Null until the user chooses in Settings: then a pre-release install
     /// receives pre-releases and a stable install does not (see <see cref="ReceivesPreReleaseUpdates" />).
     /// </summary>

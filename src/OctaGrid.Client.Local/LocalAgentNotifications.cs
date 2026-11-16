@@ -35,12 +35,15 @@ internal sealed class LocalAgentNotifications
             case PrinterTelemetryReported telemetry:
                 _messageHandler.Handle(telemetry.Telemetry);
                 break;
+
             case PrinterEventRecorded recorded:
                 _messageHandler.Handle(recorded);
                 break;
+
             case PrinterConsoleLineRecorded recorded:
                 _messageHandler.Handle(recorded);
                 break;
+
             case ConnectorsChanged changed:
                 _connectors.Set(changed.Connectors);
                 break;

@@ -12,15 +12,15 @@ namespace OctaGrid.Agent.Core;
 
 public class AgentWorker : IAsyncDisposable
 {
+    private readonly SemaphoreSlim _applyGate = new(1, 1);
     private readonly PrinterConsoleLog _console;
     private readonly PrinterEventLog _events;
     private readonly ExtensionManager _extensions;
     private readonly ILogger<AgentWorker> _logger;
     private readonly DeviceOrchestrator _orchestrator;
-    private IReadOnlyList<PrinterProfile> _profiles = [];
-    private readonly SemaphoreSlim _applyGate = new(1, 1);
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private DeveloperExtensionWatcher? _developerWatcher;
+    private IReadOnlyList<PrinterProfile> _profiles = [];
 
     /// <param name="extensions">The installed extensions and which of them are enabled.</param>
     public AgentWorker(
@@ -41,19 +41,18 @@ public class AgentWorker : IAsyncDisposable
             console: _console);
     }
 
+    /// <summary>
+    /// Raised when the connectors this agent offers may have changed: an extension was turned on or off,
+    /// approved, removed or reloaded. Read <see cref="ConnectorDescriptors"/> for the new set.
+    /// </summary>
+    public event Action? ConnectorsChanged;
+
     /// <summary>Raised when a printer writes a console line, so clients can show it live. See <see cref="PrinterConsoleLog.Recorded"/>.</summary>
     public event Action<PrinterConsoleLineRecorded>? ConsoleLineRecorded
     {
         add => _console.Recorded += value;
         remove => _console.Recorded -= value;
     }
-
-    /// <summary>
-    /// What a printer wrote to its console, oldest first, for a client that needs to catch up. See
-    /// <see cref="PrinterConsoleLog.Get"/> for the cursor rules.
-    /// </summary>
-    public ConsolePage GetPrinterConsole(Guid deviceId, long? afterSequence, int limit) =>
-        _console.Get(deviceId, afterSequence, limit);
 
     /// <summary>Raised when an event is recorded for a printer, so clients can show it live. See <see cref="PrinterEventLog.Recorded"/>.</summary>
     public event Action<PrinterEventRecorded>? EventRecorded
@@ -62,46 +61,23 @@ public class AgentWorker : IAsyncDisposable
         remove => _events.Recorded -= value;
     }
 
-    /// <summary>
-    /// What happened to a printer, oldest first, for a client that needs to catch up. See
-    /// <see cref="PrinterEventLog.Get"/> for the cursor rules.
-    /// </summary>
-    public PrinterEventPage GetPrinterEvents(Guid deviceId, long? afterSequence, int limit) =>
-        _events.Get(deviceId, afterSequence, limit);
-
     /// <summary>Descriptors of the enabled connectors, for clients.</summary>
     public IReadOnlyList<ConnectorDescriptor> ConnectorDescriptors => _extensions.EnabledDescriptors;
 
-    /// <summary>All installed extensions with their current state.</summary>
-    public IReadOnlyList<ExtensionInfo> GetExtensions() =>
-        _extensions.GetExtensions()
-            .Select(e => e with { ActivePrinters = _orchestrator.ActiveSessionCount(e.Id) })
-            .ToList();
+    /// <summary>The folder extensions are loaded from in developer mode, or null when developer mode is off.</summary>
+    public string? DeveloperFolder => _extensions.DeveloperFolder;
 
     /// <summary>
-    /// Turns an extension on or off. Printers that use a disabled connector stop their session; they
-    /// start again when it is enabled.
+    /// Tells the agent which printers it runs. The backend sends the complete set when the agent starts and
+    /// whenever a printer is added, changed or removed. The agent keeps it, so it can start the same printers
+    /// again after an extension is turned on or reloaded.
     /// </summary>
-    public async Task SetExtensionEnabledAsync(string extensionId, bool enabled, CancellationToken cancellationToken)
+    /// <param name="profiles">Every printer the agent has to run, with settings and secrets.</param>
+    /// <param name="cancellationToken">Cancels waiting for an earlier change to finish.</param>
+    public Task ApplyProfilesAsync(IReadOnlyList<PrinterProfile> profiles, CancellationToken cancellationToken)
     {
-        if (!_extensions.SetEnabled(extensionId, enabled))
-        {
-            _logger.LogWarning("Cannot {Action} extension '{ExtensionId}': it is not installed",
-                enabled ? "enable" : "disable", extensionId);
-            return;
-        }
-
-        _logger.LogInformation("Extension '{ExtensionId}' {State}", extensionId, enabled ? "enabled" : "disabled");
-        await ReapplyProfilesAsync(cancellationToken);
-        ConnectorsChanged?.Invoke();
-    }
-
-    /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
-    public ExtensionInstallResult InstallExtension(string packagePath)
-    {
-        var result = _extensions.Install(packagePath);
-        _logger.LogInformation("Install of extension package {Package}: {Success} {Message}", packagePath, result.Success, result.Message);
-        return result;
+        ArgumentNullException.ThrowIfNull(profiles);
+        return ApplyAsync(profiles.ToList(), cancellationToken);
     }
 
     /// <summary>Trusts an installed extension and loads it. Printers that were waiting for its connector start.</summary>
@@ -118,22 +94,82 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
-    /// <summary>Removes an installed extension. Printers that use it stop their session.</summary>
-    public async Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
-    {
-        var result = _extensions.Uninstall(extensionId);
-        _logger.LogInformation("Removal of extension '{ExtensionId}': {Success} {Message}", extensionId, result.Success, result.Message);
-        if (result.Success)
-        {
-            await ReapplyProfilesAsync(cancellationToken);
-            ConnectorsChanged?.Invoke();
-        }
+    public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
+            _orchestrator.DeleteFileAsync(deviceId, fileName, cancellationToken);
 
+    public ValueTask DisposeAsync()
+    {
+        _logger.LogInformation("Disposing AgentWorker and stopping all device sessions");
+        GC.SuppressFinalize(this);
+        _developerWatcher?.Dispose();
+        return _orchestrator.DisposeAsync();
+    }
+
+    /// <summary>All installed extensions with their current state.</summary>
+    public IReadOnlyList<ExtensionInfo> GetExtensions() =>
+        _extensions.GetExtensions()
+            .Select(e => e with { ActivePrinters = _orchestrator.ActiveSessionCount(e.Id) })
+            .ToList();
+
+    /// <summary>
+    /// What a printer wrote to its console, oldest first, for a client that needs to catch up. See
+    /// <see cref="PrinterConsoleLog.Get"/> for the cursor rules.
+    /// </summary>
+    public ConsolePage GetPrinterConsole(Guid deviceId, long? afterSequence, int limit) =>
+        _console.Get(deviceId, afterSequence, limit);
+
+    /// <summary>
+    /// What happened to a printer, oldest first, for a client that needs to catch up. See
+    /// <see cref="PrinterEventLog.Get"/> for the cursor rules.
+    /// </summary>
+    public PrinterEventPage GetPrinterEvents(Guid deviceId, long? afterSequence, int limit) =>
+        _events.Get(deviceId, afterSequence, limit);
+
+    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
+            _orchestrator.GetPrinterFilesAsync(deviceId, cancellationToken);
+
+    public Task<PrintThumbnail?> GetThumbnailAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
+            _orchestrator.GetThumbnailAsync(deviceId, fileName, cancellationToken);
+
+    /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
+    public ExtensionInstallResult InstallExtension(string packagePath)
+    {
+        var result = _extensions.Install(packagePath);
+        _logger.LogInformation("Install of extension package {Package}: {Success} {Message}", packagePath, result.Success, result.Message);
         return result;
     }
 
-    /// <summary>The folder extensions are loaded from in developer mode, or null when developer mode is off.</summary>
-    public string? DeveloperFolder => _extensions.DeveloperFolder;
+    public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+            _orchestrator.PausePrintJobAsync(deviceId, cancellationToken);
+
+    /// <summary>
+    /// Loads the developer folder again, for example after a build. The printers that use a developer extension
+    /// restart their session with the new version.
+    /// </summary>
+    public async Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken)
+    {
+        await _reloadGate.WaitAsync(cancellationToken);
+        try
+        {
+            _extensions.BeginDeveloperReload();
+            await ReapplyProfilesAsync(cancellationToken);    // stops the sessions that use the old version
+            _extensions.CompleteDeveloperReload();
+            await ReapplyProfilesAsync(cancellationToken);    // starts them again with the new one
+            ConnectorsChanged?.Invoke();
+            return ExtensionInstallResult.Ok(null, "Developer extensions reloaded.");
+        }
+        finally
+        {
+            _reloadGate.Release();
+        }
+    }
+
+    public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+            _orchestrator.ResumePrintJobAsync(deviceId, cancellationToken);
+
+    /// <summary>Sends a command the user typed to a printer. See <see cref="DeviceOrchestrator.SendConsoleCommandAsync"/> for the checks and errors.</summary>
+    public Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken) =>
+        _orchestrator.SendConsoleCommandAsync(deviceId, command, cancellationToken);
 
     /// <summary>
     /// Turns developer mode on for a folder (or off with null), loads what is in it and, while it is on, reloads
@@ -166,127 +202,28 @@ public class AgentWorker : IAsyncDisposable
     }
 
     /// <summary>
-    /// Loads the developer folder again, for example after a build. The printers that use a developer extension
-    /// restart their session with the new version.
+    /// Turns an extension on or off. Printers that use a disabled connector stop their session; they
+    /// start again when it is enabled.
     /// </summary>
-    public async Task<ExtensionInstallResult> ReloadDeveloperExtensionsAsync(CancellationToken cancellationToken)
+    public async Task SetExtensionEnabledAsync(string extensionId, bool enabled, CancellationToken cancellationToken)
     {
-        await _reloadGate.WaitAsync(cancellationToken);
-        try
+        if (!_extensions.SetEnabled(extensionId, enabled))
         {
-            _extensions.BeginDeveloperReload();
-            await ReapplyProfilesAsync(cancellationToken);    // stops the sessions that use the old version
-            _extensions.CompleteDeveloperReload();
-            await ReapplyProfilesAsync(cancellationToken);    // starts them again with the new one
-            ConnectorsChanged?.Invoke();
-            return ExtensionInstallResult.Ok(null, "Developer extensions reloaded.");
+            _logger.LogWarning("Cannot {Action} extension '{ExtensionId}': it is not installed",
+                enabled ? "enable" : "disable", extensionId);
+            return;
         }
-        finally
-        {
-            _reloadGate.Release();
-        }
+
+        _logger.LogInformation("Extension '{ExtensionId}' {State}", extensionId, enabled ? "enabled" : "disabled");
+        await ReapplyProfilesAsync(cancellationToken);
+        ConnectorsChanged?.Invoke();
     }
-
-    private async Task ReloadOnChangeAsync()
-    {
-        try
-        {
-            _logger.LogInformation("The developer folder changed; reloading developer extensions");
-            await ReloadDeveloperExtensionsAsync(CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to reload developer extensions");
-        }
-    }
-
-    // A printer whose connector the user disabled gets no session; unknown connectors are passed
-    // through so the orchestrator can report them.
-    private List<PrinterProfile> WithoutDisabledConnectors(IReadOnlyList<PrinterProfile> profiles) =>
-        profiles.Where(p => !_extensions.IsDisabled(p.ConnectorId)).ToList();
-
-    public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        _orchestrator.DeleteFileAsync(deviceId, fileName, cancellationToken);
-
-    public ValueTask DisposeAsync()
-    {
-        _logger.LogInformation("Disposing AgentWorker and stopping all device sessions");
-        GC.SuppressFinalize(this);
-        _developerWatcher?.Dispose();
-        return _orchestrator.DisposeAsync();
-    }
-
-    /// <summary>
-    /// Raised when the connectors this agent offers may have changed: an extension was turned on or off,
-    /// approved, removed or reloaded. Read <see cref="ConnectorDescriptors"/> for the new set.
-    /// </summary>
-    public event Action? ConnectorsChanged;
-
-    /// <summary>
-    /// Tells the agent which printers it runs. The backend sends the complete set when the agent starts and
-    /// whenever a printer is added, changed or removed. The agent keeps it, so it can start the same printers
-    /// again after an extension is turned on or reloaded.
-    /// </summary>
-    /// <param name="profiles">Every printer the agent has to run, with settings and secrets.</param>
-    /// <param name="cancellationToken">Cancels waiting for an earlier change to finish.</param>
-    public Task ApplyProfilesAsync(IReadOnlyList<PrinterProfile> profiles, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(profiles);
-        return ApplyAsync(profiles.ToList(), cancellationToken);
-    }
-
-    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _orchestrator.GetPrinterFilesAsync(deviceId, cancellationToken);
-
-    public Task<PrintThumbnail?> GetThumbnailAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        _orchestrator.GetThumbnailAsync(deviceId, fileName, cancellationToken);
-
-    public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _orchestrator.PausePrintJobAsync(deviceId, cancellationToken);
-
-    // Applies the printers the agent already has again, after the set of usable connectors changed.
-    private Task ReapplyProfilesAsync(CancellationToken cancellationToken) => ApplyAsync(null, cancellationToken);
-
-    // One at a time, and the set is replaced and read inside the gate: otherwise a re-apply that read the old set
-    // could finish last, stop the session of a printer added in between, and forget its history.
-    private async Task ApplyAsync(IReadOnlyList<PrinterProfile>? replacement, CancellationToken cancellationToken)
-    {
-        await _applyGate.WaitAsync(cancellationToken);
-        try
-        {
-            if (replacement is not null)
-            {
-                _profiles = replacement;
-            }
-
-            var profiles = _profiles;
-            // Profiles carry secrets, so only their number is logged.
-            _logger.LogInformation("Applying {ProfileCount} printer profile(s)", profiles.Count);
-            await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
-
-            // A printer that was deleted takes its history with it; one whose connector is only turned off keeps it.
-            var printerIds = profiles.Select(p => p.PrinterId).ToList();
-            _events.Retain(printerIds);
-            _console.Retain(printerIds);
-        }
-        finally
-        {
-            _applyGate.Release();
-        }
-    }
-
-    public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _orchestrator.ResumePrintJobAsync(deviceId, cancellationToken);
-
-    /// <summary>Sends a command the user typed to a printer. See <see cref="DeviceOrchestrator.SendConsoleCommandAsync"/> for the checks and errors.</summary>
-    public Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken) =>
-        _orchestrator.SendConsoleCommandAsync(deviceId, command, cancellationToken);
 
     public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        _orchestrator.StartPrintJobAsync(deviceId, fileName, cancellationToken);
+            _orchestrator.StartPrintJobAsync(deviceId, fileName, cancellationToken);
 
     public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _orchestrator.StopPrintJobAsync(deviceId, cancellationToken);
+            _orchestrator.StopPrintJobAsync(deviceId, cancellationToken);
 
     /// <summary>Checks that a printer can be reached with the given settings, before it is saved.</summary>
     /// <param name="connectorId">The connector to test with.</param>
@@ -332,11 +269,74 @@ public class AgentWorker : IAsyncDisposable
     }
 
     public Task TriggerInitialStateAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _orchestrator.TriggerInitialStateAsync(deviceId, cancellationToken);
+            _orchestrator.TriggerInitialStateAsync(deviceId, cancellationToken);
 
     public Task TriggerInitialStateAsync(IEnumerable<Guid> devices, CancellationToken cancellationToken) =>
-        _orchestrator.TriggerInitialStateAsync(devices, cancellationToken);
+            _orchestrator.TriggerInitialStateAsync(devices, cancellationToken);
+
+    /// <summary>Removes an installed extension. Printers that use it stop their session.</summary>
+    public async Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
+    {
+        var result = _extensions.Uninstall(extensionId);
+        _logger.LogInformation("Removal of extension '{ExtensionId}': {Success} {Message}", extensionId, result.Success, result.Message);
+        if (result.Success)
+        {
+            await ReapplyProfilesAsync(cancellationToken);
+            ConnectorsChanged?.Invoke();
+        }
+
+        return result;
+    }
 
     public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
         _orchestrator.UploadFileAsync(deviceId, stream, fileName, cancellationToken);
+
+    // One at a time, and the set is replaced and read inside the gate: otherwise a re-apply that read the old set
+    // could finish last, stop the session of a printer added in between, and forget its history.
+    private async Task ApplyAsync(IReadOnlyList<PrinterProfile>? replacement, CancellationToken cancellationToken)
+    {
+        await _applyGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (replacement is not null)
+            {
+                _profiles = replacement;
+            }
+
+            var profiles = _profiles;
+            // Profiles carry secrets, so only their number is logged.
+            _logger.LogInformation("Applying {ProfileCount} printer profile(s)", profiles.Count);
+            await _orchestrator.ApplyProfilesAsync(WithoutDisabledConnectors(profiles));
+
+            // A printer that was deleted takes its history with it; one whose connector is only turned off keeps it.
+            var printerIds = profiles.Select(p => p.PrinterId).ToList();
+            _events.Retain(printerIds);
+            _console.Retain(printerIds);
+        }
+        finally
+        {
+            _applyGate.Release();
+        }
+    }
+
+    // Applies the printers the agent already has again, after the set of usable connectors changed.
+    private Task ReapplyProfilesAsync(CancellationToken cancellationToken) => ApplyAsync(null, cancellationToken);
+
+    private async Task ReloadOnChangeAsync()
+    {
+        try
+        {
+            _logger.LogInformation("The developer folder changed; reloading developer extensions");
+            await ReloadDeveloperExtensionsAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reload developer extensions");
+        }
+    }
+
+    // A printer whose connector the user disabled gets no session; unknown connectors are passed
+    // through so the orchestrator can report them.
+    private List<PrinterProfile> WithoutDisabledConnectors(IReadOnlyList<PrinterProfile> profiles) =>
+        profiles.Where(p => !_extensions.IsDisabled(p.ConnectorId)).ToList();
 }

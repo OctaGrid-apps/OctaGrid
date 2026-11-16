@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Dialogs.ExtensionsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -21,10 +21,30 @@
                     Text="Extensions add support for printers and other features. Turning one off stops the printers that use it."
                     TextWrapping="Wrap" />
 
+                <StackPanel Classes="gap-0_5" IsVisible="{Binding HasSeveralAgents}">
+                    <TextBlock Classes="small" Text="Agent" />
+                    <ComboBox
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Agent"
+                        IsEnabled="{Binding !IsBusy}"
+                        ItemsSource="{Binding Agents}"
+                        SelectedItem="{Binding SelectedAgent}" />
+                </StackPanel>
+
                 <TextBlock
                     Classes="body secondary"
-                    IsVisible="{Binding IsEmpty}"
-                    Text="No extensions installed." />
+                    IsVisible="{Binding HasNoAgent}"
+                    Text="There is no agent to install extensions on yet."
+                    TextWrapping="Wrap" />
+
+                <TextBlock Classes="body secondary" Text="No extensions installed.">
+                    <TextBlock.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="HasAgent" />
+                            <Binding Path="IsEmpty" />
+                        </MultiBinding>
+                    </TextBlock.IsVisible>
+                </TextBlock>
 
                 <ItemsControl IsEnabled="{Binding CanEdit}" ItemsSource="{Binding Items}">
                     <ItemsControl.ItemsPanel>

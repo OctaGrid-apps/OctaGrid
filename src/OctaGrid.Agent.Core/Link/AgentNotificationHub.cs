@@ -24,7 +24,7 @@ public sealed class AgentNotificationHub : ITelemetrySink
     /// <summary>Raised for every notification, on the thread that reported it. May be raised from any thread.</summary>
     public event Action<AgentNotification>? Published;
 
-    /// <summary>Hands a notification to the subscribers. A subscriber that throws does not stop the others.</summary>
+    /// <summary>Hands a notification to the subscribers..</summary>
     public void Publish(AgentNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);

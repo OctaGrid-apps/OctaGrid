@@ -9,21 +9,29 @@ using OctaGrid.Protocol.Extensions;
 
 namespace OctaGrid.Client.ViewModels;
 
-/// <summary>The extension management dialog: shows installed extensions and turns them on or off.</summary>
+/// <summary>
+/// The extension management dialog: shows the extensions installed on one agent and turns them on or off. With more
+/// than one agent the user picks which one.
+/// </summary>
 public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<bool>
 {
+    private readonly AgentDirectory _agents;
     private readonly IExtensionsClient _client;
     private readonly ILogger<ExtensionsViewModel> _logger;
     private readonly INotificationService? _notifications;
     private readonly IAppSettingsStore? _settings;
+    private bool _agentsLoaded;
+    private bool _choosingAgent;
 
     public ExtensionsViewModel(
         IExtensionsClient client,
+        AgentDirectory agents,
         INotificationService? notifications = null,
         ILogger<ExtensionsViewModel>? logger = null,
         IAppSettingsStore? settings = null)
     {
         _client = client;
+        _agents = agents;
         _settings = settings;
         _notifications = notifications;
         _logger = logger ?? NullLogger<ExtensionsViewModel>.Instance;
@@ -33,11 +41,28 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
 
     public bool IsEmpty => Items.Count == 0;
 
+    /// <summary>The agents whose extensions can be managed.</summary>
+    public ObservableCollection<AgentChoice> Agents { get; } = [];
+
+    /// <summary>The agent whose extensions are shown; null when there is none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAgent))]
+    [NotifyPropertyChangedFor(nameof(CanEdit))]
+    public partial AgentChoice? SelectedAgent { get; set; }
+
+    public bool HasAgent => SelectedAgent is not null;
+
+    /// <summary>Whether to show the agent picker: with one agent there is nothing to choose.</summary>
+    public bool HasSeveralAgents => Agents.Count > 1;
+
+    /// <summary>True once the agents are loaded and there are none, so there is nowhere to install extensions.</summary>
+    public bool HasNoAgent => _agentsLoaded && Agents.Count == 0;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanEdit))]
     public partial bool IsBusy { get; set; }
 
-    public bool CanEdit => !IsBusy;
+    public bool CanEdit => !IsBusy && HasAgent;
 
     /// <summary>The folder extensions are loaded from in developer mode; null when developer mode is off.</summary>
     [ObservableProperty]
@@ -48,18 +73,26 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
     public bool IsDeveloperMode => DeveloperFolder is not null;
 
     public string DeveloperStatus => DeveloperFolder is null
-        ? "Off. Point it at the folder your extension is built into: it loads without asking and reloads after every build."
+        ? "Off. Point it at the folder your extension is built into, on the agent's computer: it loads without asking and reloads after every build."
         : $"On: {DeveloperFolder}";
 
-    /// <summary>Turns developer mode on for a folder the user picked. The choice is saved for the next start.</summary>
+    /// <summary>
+    /// Turns developer mode on for a folder the user picked, on the selected agent. The choice is saved, with the agent,
+    /// for the next start.
+    /// </summary>
     public async Task SetDeveloperFolderAsync(string? folder)
     {
-        await RunAsync("change developer mode for", async () =>
+        await RunAsync("change developer mode for", async agentId =>
         {
-            var result = await _client.SetDeveloperFolderAsync(folder, CancellationToken.None);
+            var result = await _client.SetDeveloperFolderAsync(agentId, folder, CancellationToken.None);
             if (result.Success)
             {
-                _settings?.Update(s => s with { DeveloperExtensionsFolder = string.IsNullOrWhiteSpace(folder) ? null : folder });
+                var on = !string.IsNullOrWhiteSpace(folder);
+                _settings?.Update(s => s with
+                {
+                    DeveloperExtensionsFolder = on ? folder : null,
+                    DeveloperExtensionsAgentId = on ? agentId : null,
+                });
             }
 
             Report(result, "Developer mode");
@@ -72,9 +105,9 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
     [RelayCommand]
     private async Task ReloadDeveloper()
     {
-        await RunAsync("reload", async () =>
+        await RunAsync("reload", async agentId =>
         {
-            var result = await _client.ReloadDeveloperExtensionsAsync(CancellationToken.None);
+            var result = await _client.ReloadDeveloperExtensionsAsync(agentId, CancellationToken.None);
             Report(result, "Developer mode");
         });
     }
@@ -82,8 +115,21 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
     [RelayCommand]
     private async Task Load(CancellationToken cancellationToken)
     {
-        var extensions = await _client.GetExtensionsAsync(cancellationToken);
-        DeveloperFolder = await _client.GetDeveloperFolderAsync(cancellationToken);
+        if (!_agentsLoaded)
+        {
+            await LoadAgentsAsync(cancellationToken);
+        }
+
+        if (SelectedAgent is not { } agent)
+        {
+            Items.Clear();
+            DeveloperFolder = null;
+            OnPropertyChanged(nameof(IsEmpty));
+            return;
+        }
+
+        var extensions = await _client.GetExtensionsAsync(agent.Id, cancellationToken);
+        DeveloperFolder = await _client.GetDeveloperFolderAsync(agent.Id, cancellationToken);
 
         // Keep existing rows so the list does not flicker when it refreshes after a toggle.
         foreach (var info in extensions)
@@ -110,14 +156,85 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
     [RelayCommand]
     private void Close() => this.ReturnResultFromOverlayDialog(true);
 
-    /// <summary>Installs a package the user picked (a folder or a <c>.octaext</c> file). It is not run until approved.</summary>
-    public async Task InstallAsync(string packagePath)
+    /// <summary>Installs a package the user picked on the selected agent. It is not run until approved.</summary>
+    /// <param name="openPackage">
+    /// Opens the package (a <c>.octaext</c> or <c>.zip</c> file, or a folder the view zipped). It is called here, so a
+    /// package that cannot be read is reported like any other failure.
+    /// </param>
+    public async Task InstallAsync(Func<CancellationToken, Task<Stream>> openPackage)
     {
-        await RunAsync("install", async () =>
+        ArgumentNullException.ThrowIfNull(openPackage);
+
+        await RunAsync("install", async agentId =>
         {
-            var result = await _client.InstallExtensionAsync(packagePath, CancellationToken.None);
+            ExtensionInstallResult result;
+            try
+            {
+                await using var package = await openPackage(CancellationToken.None);
+                result = await _client.InstallExtensionAsync(agentId, package, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "The extension package could not be read");
+                result = ExtensionInstallResult.Fail($"The package could not be read: {ex.Message}");
+            }
+
             Report(result, "Extensions");
         });
+    }
+
+    private async Task LoadAgentsAsync(CancellationToken cancellationToken)
+    {
+        var agents = await _agents.GetAgentsAsync(cancellationToken);
+        Agents.Clear();
+        foreach (var agent in agents)
+        {
+            Agents.Add(agent);
+        }
+
+        _agentsLoaded = true;
+
+        // Start on the agent developer mode was turned on for, where the user most likely works.
+        var preferred = _settings?.ClientSettings.DeveloperExtensionsAgentId;
+        _choosingAgent = true;
+        try
+        {
+            SelectedAgent = Agents.FirstOrDefault(a => a.Id == preferred) ?? Agents.FirstOrDefault();
+        }
+        finally
+        {
+            _choosingAgent = false;
+        }
+
+        OnPropertyChanged(nameof(HasSeveralAgents));
+        OnPropertyChanged(nameof(HasNoAgent));
+    }
+
+    partial void OnSelectedAgentChanged(AgentChoice? value)
+    {
+        if (!_choosingAgent)
+        {
+            _ = ShowAgentAsync();
+        }
+    }
+
+    // Shows the extensions of the agent the user just picked.
+    private async Task ShowAgentAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            await Load(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load the extensions of agent {AgentId}", SelectedAgent?.Id);
+            _notifications?.ShowError("Extensions", "Could not read the extensions of this agent.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private async void OnReview(ExtensionItemViewModel item)
@@ -128,9 +245,9 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
             return;
         }
 
-        await RunAsync("approve", async () =>
+        await RunAsync("approve", async agentId =>
         {
-            var result = await _client.ApproveExtensionAsync(item.Id, CancellationToken.None);
+            var result = await _client.ApproveExtensionAsync(agentId, item.Id, CancellationToken.None);
             Report(result, item.Name);
         });
     }
@@ -144,9 +261,9 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
             return;
         }
 
-        await RunAsync("remove", async () =>
+        await RunAsync("remove", async agentId =>
         {
-            var result = await _client.UninstallExtensionAsync(item.Id, CancellationToken.None);
+            var result = await _client.UninstallExtensionAsync(agentId, item.Id, CancellationToken.None);
             Report(result, item.Name);
         });
     }
@@ -164,60 +281,66 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
         }
     }
 
-    // Runs one action while the list is locked, then shows what the agent actually did.
-    private async Task RunAsync(string action, Func<Task> work)
+    // Runs one action on the selected agent while the list is locked, then shows what the agent actually did.
+    private async Task RunAsync(string action, Func<Guid, Task> work)
     {
+        if (SelectedAgent is not { } agent)
+        {
+            return;
+        }
+
         IsBusy = true;
         try
         {
-            await work();
+            await work(agent.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to {Action} an extension", action);
+            _logger.LogError(ex, "Failed to {Action} an extension on agent {AgentId}", action, agent.Id);
             _notifications?.ShowError("Extensions", $"Could not {action} the extension.");
         }
         finally
         {
-            try
-            {
-                await Load(CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to refresh the extension list");
-            }
-
+            await RefreshAsync();
             IsBusy = false;
         }
     }
 
     private async void OnToggled(ExtensionItemViewModel item, bool enabled)
     {
+        if (SelectedAgent is not { } agent)
+        {
+            return;
+        }
+
         IsBusy = true;
         try
         {
-            await _client.SetExtensionEnabledAsync(item.Id, enabled, CancellationToken.None);
-            _logger.LogInformation("Extension {ExtensionId} {State} by user", item.Id, enabled ? "enabled" : "disabled");
+            await _client.SetExtensionEnabledAsync(agent.Id, item.Id, enabled, CancellationToken.None);
+            _logger.LogInformation("Extension {ExtensionId} {State} on agent {AgentId} by user", item.Id, enabled ? "enabled" : "disabled", agent.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to {Action} extension {ExtensionId}", enabled ? "enable" : "disable", item.Id);
+            _logger.LogError(ex, "Failed to {Action} extension {ExtensionId} on agent {AgentId}", enabled ? "enable" : "disable", item.Id, agent.Id);
             _notifications?.ShowError("Extensions", $"Could not {(enabled ? "enable" : "disable")} {item.Name}.");
         }
         finally
         {
             // Always show what the agent actually did, also after a failure.
-            try
-            {
-                await Load(CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to refresh the extension list");
-            }
-
+            await RefreshAsync();
             IsBusy = false;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            await Load(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh the extension list");
         }
     }
 }

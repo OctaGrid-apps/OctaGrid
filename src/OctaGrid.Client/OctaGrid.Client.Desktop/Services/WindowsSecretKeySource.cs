@@ -14,7 +14,7 @@ namespace OctaGrid.Client.Desktop.Services;
 internal sealed class WindowsSecretKeySource : ISecretKeySource
 {
     private const string CredentialName = "OctaGrid/secrets-key";
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly ILogger<WindowsSecretKeySource> _logger;
     private byte[]? _key;
 
