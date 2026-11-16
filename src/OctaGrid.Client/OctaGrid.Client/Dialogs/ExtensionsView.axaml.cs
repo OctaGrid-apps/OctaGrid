@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 
 namespace OctaGrid.Client.Dialogs;
@@ -39,9 +40,10 @@ public partial class ExtensionsView : UserControl
             FileTypeFilter = [ExtensionPackages],
         });
 
-        if (files.Count == 1 && files[0].TryGetLocalPath() is { } path)
+        if (files.Count == 1)
         {
-            await viewModel.InstallAsync(path);
+            var file = files[0];
+            await viewModel.InstallAsync(_ => file.OpenReadAsync());
         }
     }
 
@@ -77,9 +79,10 @@ public partial class ExtensionsView : UserControl
             AllowMultiple = false,
         });
 
-        if (folders.Count == 1 && folders[0].TryGetLocalPath() is { } path)
+        if (folders.Count == 1)
         {
-            await viewModel.InstallAsync(path);
+            var folder = folders[0];
+            await viewModel.InstallAsync(ct => ExtensionFolderPackage.ZipAsync(folder, ct));
         }
     }
 }

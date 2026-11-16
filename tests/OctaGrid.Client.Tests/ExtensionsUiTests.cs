@@ -14,9 +14,15 @@ namespace OctaGrid.Client.Tests;
 [Collection(UiCollection.Name)]
 public class ExtensionsUiTests
 {
+    private static AgentDirectory OneAgent()
+    {
+        var client = new DesignOctaGridClient();
+        return new AgentDirectory(client, client);
+    }
+
     private static async Task<ExtensionsViewModel> LoadedViewModel()
     {
-        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient());
+        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), OneAgent());
         await viewModel.LoadCommand.ExecuteAsync(null);
         return viewModel;
     }
@@ -76,7 +82,7 @@ public class ExtensionsUiTests
     public async Task Choosing_a_developer_folder_turns_developer_mode_on_and_remembers_it()
     {
         var settings = new InMemorySettingsStore();
-        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), settings: settings);
+        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), OneAgent(), settings: settings);
         await viewModel.LoadCommand.ExecuteAsync(null);
         Assert.False(viewModel.IsDeveloperMode);
 
@@ -85,27 +91,30 @@ public class ExtensionsUiTests
         Assert.True(viewModel.IsDeveloperMode);
         Assert.Contains(@"C:\work\MyConnector\bin", viewModel.DeveloperStatus);
         Assert.Equal(@"C:\work\MyConnector\bin", settings.ClientSettings.DeveloperExtensionsFolder);
+        Assert.Equal(DesignOctaGridClient.DesignAgentId, settings.ClientSettings.DeveloperExtensionsAgentId);
     }
 
     [Fact]
     public async Task Turning_developer_mode_off_clears_the_saved_folder()
     {
         var settings = new InMemorySettingsStore();
-        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), settings: settings);
+        var viewModel = new ExtensionsViewModel(new DesignExtensionsClient(), OneAgent(), settings: settings);
+        await viewModel.LoadCommand.ExecuteAsync(null);
         await viewModel.SetDeveloperFolderAsync(@"C:\work\MyConnector\bin");
 
         await viewModel.TurnOffDeveloperModeCommand.ExecuteAsync(null);
 
         Assert.False(viewModel.IsDeveloperMode);
         Assert.Null(settings.ClientSettings.DeveloperExtensionsFolder);
+        Assert.Null(settings.ClientSettings.DeveloperExtensionsAgentId);
     }
 
     [Fact]
     public async Task Extensions_from_the_developer_folder_say_where_they_come_from()
     {
         var client = new DesignExtensionsClient();
-        await client.ApproveExtensionAsync("acme.prusalink", CancellationToken.None);
-        var info = (await client.GetExtensionsAsync(CancellationToken.None)).Single(e => e.Id == "acme.prusalink") with
+        await client.ApproveExtensionAsync(DesignOctaGridClient.DesignAgentId, "acme.prusalink", CancellationToken.None);
+        var info = (await client.GetExtensionsAsync(DesignOctaGridClient.DesignAgentId, CancellationToken.None)).Single(e => e.Id == "acme.prusalink") with
         {
             Source = ExtensionSource.Development,
             CanUninstall = false,
@@ -125,7 +134,7 @@ public class ExtensionsUiTests
     public async Task The_project_link_is_shown_only_for_a_web_address(string? url, bool shown)
     {
         var client = new DesignExtensionsClient();
-        var info = (await client.GetExtensionsAsync(CancellationToken.None)).First() with { ProjectUrl = url };
+        var info = (await client.GetExtensionsAsync(DesignOctaGridClient.DesignAgentId, CancellationToken.None)).First() with { ProjectUrl = url };
 
         var item = new ExtensionItemViewModel(info, (_, _) => { }, _ => { }, _ => { });
 

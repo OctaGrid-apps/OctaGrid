@@ -11,11 +11,6 @@ namespace OctaGrid.Connectors.Moonraker;
 
 internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileStorage, IThumbnails, IConsoleOutput, IConsoleInput
 {
-    private const string DefaultGCodeRoot = "gcodes";
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(10);
-
     // print_stats.message holds why a print failed (state "error"); webhooks.state_message only explains Klipper itself.
     internal static readonly object SubscribeParams = new
     {
@@ -29,11 +24,14 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         }
     };
 
+    private const string DefaultGCodeRoot = "gcodes";
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(10);
     private readonly MoonrakerFileClient _fileClient;
     private readonly ILogger<MoonrakerClient> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly PrinterProfile _profile;
-    private readonly string _url;
 
     // Single-flight: while one query is pending, further triggers join it instead of queueing more
     // requests behind it. Against a frozen Moonraker every extra request would just wait for the
@@ -41,8 +39,9 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     private readonly Lock _queryGate = new();
 
     private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
-    private JsonRpc? _jsonRpc;
+    private readonly string _url;
     private IConsoleSink? _console;
+    private JsonRpc? _jsonRpc;
     private MoonrakerListener? _listener;
 
     private Task? _queryInFlight;
@@ -58,8 +57,6 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
     private Guid DeviceId => _profile.PrinterId;
 
-    public void SetConsoleSink(IConsoleSink sink) => _console = sink;
-
     public async Task DeleteFileAsync(string fileName, CancellationToken cancellationToken)
     {
         var rpc = RequireRpc();
@@ -72,30 +69,6 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     {
         GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;
-    }
-
-    public async Task<IReadOnlyList<PrintMetadata>> ListFilesAsync(CancellationToken cancellationToken)
-    {
-        var rpc = RequireRpc();
-
-        _logger.LogDebug("Listing files on Moonraker device {DeviceId}", DeviceId);
-        var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
-
-        var filePaths = files.EnumerateArray()
-            .Select(f => f.GetProperty("path").GetString())
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToList();
-
-        var metadata = new List<PrintMetadata>(filePaths.Count);
-
-        foreach (var filePath in filePaths)
-        {
-            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, filePath!, cancellationToken, _logger).ConfigureAwait(false);
-            metadata.Add(new PrintMetadata(fileMetadata.FileName, fileMetadata.FileSize, fileMetadata.MaterialType, fileMetadata.NozzleDiameter, fileMetadata.EstimatedTimeSeconds));
-        }
-
-        _logger.LogDebug("Retrieved metadata for {FileCount} file(s) on Moonraker device {DeviceId}", metadata.Count, DeviceId);
-        return metadata;
     }
 
     // Unlike RequestStateAsync/QueryStateAsync above, this result goes straight back to the
@@ -126,6 +99,30 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         return thumbnail;
     }
 
+    public async Task<IReadOnlyList<PrintMetadata>> ListFilesAsync(CancellationToken cancellationToken)
+    {
+        var rpc = RequireRpc();
+
+        _logger.LogDebug("Listing files on Moonraker device {DeviceId}", DeviceId);
+        var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
+
+        var filePaths = files.EnumerateArray()
+            .Select(f => f.GetProperty("path").GetString())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        var metadata = new List<PrintMetadata>(filePaths.Count);
+
+        foreach (var filePath in filePaths)
+        {
+            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, filePath!, cancellationToken, _logger).ConfigureAwait(false);
+            metadata.Add(new PrintMetadata(fileMetadata.FileName, fileMetadata.FileSize, fileMetadata.MaterialType, fileMetadata.NozzleDiameter, fileMetadata.EstimatedTimeSeconds));
+        }
+
+        _logger.LogDebug("Retrieved metadata for {FileCount} file(s) on Moonraker device {DeviceId}", metadata.Count, DeviceId);
+        return metadata;
+    }
+
     public async Task PausePrintAsync(CancellationToken cancellationToken)
     {
         var rpc = RequireRpc();
@@ -134,21 +131,16 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.pause", cancellationToken: cancellationToken);
     }
 
-    public async Task SendCommandAsync(string command, CancellationToken cancellationToken)
+    public Task RequestStateAsync(CancellationToken cancellationToken)
     {
-        var rpc = RequireRpc();
+        lock (_queryGate)
+        {
+            if (_queryInFlight is { IsCompleted: false })
+            {
+                return _queryInFlight;
+            }
 
-        try
-        {
-            // The answer is not awaited here: Klipper reports it as console output (notify_gcode_response), and the call
-            // returns once the command has run.
-            await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.gcode.script", new { script = command }, cancellationToken: cancellationToken);
-        }
-        catch (RemoteInvocationException ex)
-        {
-            // Klipper refused the command (an unknown command, a value out of range, a printer in shutdown): the reason is
-            // for the user, so it is passed on as a rejected command and not as a fault of the connection.
-            throw new ValidationException("command", ex.Message);
+            return _queryInFlight = QueryStateAsync();
         }
     }
 
@@ -219,6 +211,26 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
             }
         }
     }
+
+    public async Task SendCommandAsync(string command, CancellationToken cancellationToken)
+    {
+        var rpc = RequireRpc();
+
+        try
+        {
+            // The answer is not awaited here: Klipper reports it as console output (notify_gcode_response), and the call
+            // returns once the command has run.
+            await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.gcode.script", new { script = command }, cancellationToken: cancellationToken);
+        }
+        catch (RemoteInvocationException ex)
+        {
+            // Klipper refused the command (an unknown command, a value out of range, a printer in shutdown): the reason is
+            // for the user, so it is passed on as a rejected command and not as a fault of the connection.
+            throw new ValidationException("command", ex.Message);
+        }
+    }
+
+    public void SetConsoleSink(IConsoleSink sink) => _console = sink;
 
     public async Task StartPrintAsync(string fileName, CancellationToken cancellationToken)
     {
@@ -305,30 +317,12 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         }
     }
 
-    public Task RequestStateAsync(CancellationToken cancellationToken)
-    {
-        lock (_queryGate)
-        {
-            if (_queryInFlight is { IsCompleted: false })
-            {
-                return _queryInFlight;
-            }
-
-            return _queryInFlight = QueryStateAsync();
-        }
-    }
-
     public Task UploadFileAsync(Stream content, string fileName, CancellationToken cancellationToken)
     {
         return _fileClient.UploadFileAsync(content, fileName, cancellationToken);
     }
 
     private static Uri BuildUri(string connectionString) => new($"ws://{connectionString}/websocket");
-
-    // An expected condition (the printer is off or still reconnecting), not a bug: an AppException carries a message the
-    // user can be shown as is, where a bare InvalidOperationException would only say that something went wrong.
-    private JsonRpc RequireRpc() =>
-        _jsonRpc ?? throw new NotFoundException("The printer is not connected.");
 
     private static async Task CloseQuietlyAsync(ClientWebSocket ws)
     {
@@ -393,6 +387,11 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
             // fresh state, so there is nothing to retry here.
         }
     }
+
+    // An expected condition (the printer is off or still reconnecting), not a bug: an AppException carries a message the
+    // user can be shown as is, where a bare InvalidOperationException would only say that something went wrong.
+    private JsonRpc RequireRpc() =>
+        _jsonRpc ?? throw new NotFoundException("The printer is not connected.");
 
     private async Task RunSessionAsync(Guid deviceId, ClientWebSocket ws, ITelemetrySink telemetry, CancellationToken ct)
     {

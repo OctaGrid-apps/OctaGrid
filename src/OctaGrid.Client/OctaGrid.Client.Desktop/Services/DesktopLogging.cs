@@ -7,6 +7,16 @@ namespace OctaGrid.Client.Desktop.Services;
 
 public static class DesktopLogging
 {
+    public static IServiceCollection AddDesktopLogging(this IServiceCollection services)
+    {
+        services.AddLogging(builder =>
+        {
+            builder.AddSerilog(Log.Logger, dispose: false);
+        });
+
+        return services;
+    }
+
     public static ILogger Initialize()
     {
         var directory = Directory.CreateDirectory(Helper.LogsDirectory);
@@ -58,15 +68,5 @@ public static class DesktopLogging
         };
 
         return logger;
-    }
-
-    public static IServiceCollection AddDesktopLogging(this IServiceCollection services)
-    {
-        services.AddLogging(builder =>
-        {
-            builder.AddSerilog(Log.Logger, dispose: false);
-        });
-
-        return services;
     }
 }

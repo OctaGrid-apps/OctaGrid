@@ -61,7 +61,8 @@ internal static class DesignData
 
     public static PrinterListViewModel Printers => new(Client, Notifications, State, AgentCommands);
 
-    public static SettingsViewModel SettingsPage => new(Settings, State, Updates, extensionsClient: Extensions, notifications: Notifications);
+    public static SettingsViewModel SettingsPage => new(
+        Settings, State, Updates, extensionsClient: Extensions, notifications: Notifications, agentDirectory: new AgentDirectory(Client, Client));
 
     public static WorkspaceListViewModel Workspaces => new(Client, State);
 }

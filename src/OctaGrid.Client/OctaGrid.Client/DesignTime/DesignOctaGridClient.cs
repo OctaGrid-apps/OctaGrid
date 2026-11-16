@@ -16,6 +16,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
 {
     public static readonly Guid DefaultDashboardId = Guid.Parse("00000000-0000-0000-0000-000000000002");
     public static readonly Guid DefaultWorkspaceId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    public static readonly Guid DesignAgentId = Guid.Parse("00000000-0000-0000-0000-0000000000b1");
     public static readonly Guid VoronPrinterId = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
     public static readonly Guid BambuPrinterId = Guid.Parse("00000000-0000-0000-0000-0000000000a2");
 
@@ -46,7 +47,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
 
     public Task<List<AgentResponse>> GetAgentList(Guid workspaceId, CancellationToken cancellationToken) =>
         Task.FromResult<List<AgentResponse>>([
-            new AgentResponse(Guid.NewGuid(), "Local Agent", "Online", "octa_local_token", 1)
+            new AgentResponse(DesignAgentId, "Local Agent", "Online", "octa_local_token", 1)
         ]);
 
     public Task<List<DashboardResponse>> GetDashboardList(Guid workspaceId, CancellationToken cancellationToken) =>

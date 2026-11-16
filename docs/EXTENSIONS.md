@@ -98,6 +98,10 @@ folder…* takes a folder. Both need `octagrid-extension.json` at the top level 
 top-level folder). The package is copied to `extensions/<id>/<version>/`. Packages are limited to 5000 files and 256 MB
 unpacked, and a package with a path that leaves its folder is rejected. Installing never runs any extension code.
 
+Extensions are installed **per agent**: each agent runs its own set. With more than one agent, the dialog asks which
+agent to manage. The client reads the package (a folder is zipped first) and sends it to that agent, so the agent may
+be on another computer.
+
 **Trust.** An installed extension starts as *Needs approval*. **Review…** shows the publisher and the declared
 permissions and asks whether to trust it. Only then is its code loaded, and it works immediately, with no restart.
 The approval is saved for that exact version: installing another version asks again. Extensions that are already
@@ -118,6 +122,10 @@ OctaGrid or approve it after every change.
 1. `OctaGrid --extensions-dev <folder>` (or `--extensions-dev=<folder>`), for a launch profile.
 2. The environment variable `OCTAGRID_EXTENSIONS_DEV=<folder>`.
 3. **Settings > Extensions > Developer mode > Choose folder…**, which is remembered for the next start.
+
+The folder is on the agent's computer, so developer mode belongs to one agent: the one chosen in the dialog, which is
+remembered with the folder. Options 1 and 2 use that remembered agent, or the only agent when there is one (always the
+case in Local mode); with several agents and none remembered, developer mode does not start and the log says so.
 
 The folder is either one extension (it contains `octagrid-extension.json`) or a folder with several extension folders in
 it. To get the manifest into your build output, add this to the extension project:

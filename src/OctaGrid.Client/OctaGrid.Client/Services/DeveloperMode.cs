@@ -35,6 +35,24 @@ public static class DeveloperMode
         return string.IsNullOrWhiteSpace(savedFolder) ? null : savedFolder;
     }
 
+    /// <summary>
+    /// The agent developer mode is turned on for at startup: the one it was saved for, or else the only agent. With
+    /// several agents and none saved there is no telling which machine the folder is on, so the answer is null.
+    /// </summary>
+    /// <param name="agents">The agents the user can manage.</param>
+    /// <param name="savedAgentId">The agent saved with the folder in the settings.</param>
+    public static AgentChoice? ChooseAgent(IReadOnlyList<AgentChoice> agents, Guid? savedAgentId)
+    {
+        ArgumentNullException.ThrowIfNull(agents);
+
+        if (savedAgentId is { } saved && agents.FirstOrDefault(a => a.Id == saved) is { } savedAgent)
+        {
+            return savedAgent;
+        }
+
+        return agents.Count == 1 ? agents[0] : null;
+    }
+
     private static string? FromCommandLine(IReadOnlyList<string>? args)
     {
         if (args is null)

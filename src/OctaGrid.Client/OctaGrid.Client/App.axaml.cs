@@ -37,6 +37,7 @@ public partial class App : Application
             services.AddSingleton<IByteArrayImageCache, ByteArrayImageCache>();
             services.AddSingleton<ITemperatureHistoryStore, TemperatureHistoryStore>();
             services.AddSingleton<ApplicationState>();
+            services.AddSingleton<AgentDirectory>();
 
             // ViewModels: registered here so Views resolve them from the container instead of
             // `new`-ing them up, which is what lets each ViewModel declare its real dependencies
@@ -250,20 +251,31 @@ public partial class App : Application
         logger.LogInformation("Framework initialization completed");
     }
 
-    // Developer mode: the folder comes from --extensions-dev, the environment or the saved setting. Modes that cannot
-    // load extensions (no extensions client) simply have nothing to do.
+    // Developer mode: the folder comes from --extensions-dev, the environment or the saved setting, and the agent from
+    // the setting or, with only one, that one. Modes that cannot load extensions (no extensions client) simply have
+    // nothing to do.
     private static async Task StartDeveloperModeAsync(IServiceProvider services, IReadOnlyList<string>? args, ClientSettings settings, ILogger logger)
     {
         try
         {
             var folder = DeveloperMode.ResolveFolder(args, settings.DeveloperExtensionsFolder);
-            if (folder is null || services.GetService<IExtensionsClient>() is not { } extensions)
+            if (folder is null
+                || services.GetService<IExtensionsClient>() is not { } extensions
+                || services.GetService<AgentDirectory>() is not { } directory)
             {
                 return;
             }
 
-            var result = await extensions.SetDeveloperFolderAsync(folder, CancellationToken.None);
-            logger.LogInformation("Developer mode for {Folder}: {Success} {Message}", folder, result.Success, result.Message);
+            var agents = await directory.GetAgentsAsync(CancellationToken.None);
+            if (DeveloperMode.ChooseAgent(agents, settings.DeveloperExtensionsAgentId) is not { } agent)
+            {
+                logger.LogWarning("Developer mode for {Folder} not started: {AgentCount} agent(s) and none chosen for it; choose the folder again in Settings > Extensions",
+                    folder, agents.Count);
+                return;
+            }
+
+            var result = await extensions.SetDeveloperFolderAsync(agent.Id, folder, CancellationToken.None);
+            logger.LogInformation("Developer mode for {Folder} on agent {AgentId}: {Success} {Message}", folder, agent.Id, result.Success, result.Message);
         }
         catch (Exception ex)
         {

@@ -14,8 +14,8 @@ namespace OctaGrid.Client.Desktop.Services;
 public sealed class StoreUpdateService : IUpdateService
 {
     public const string StoreProductId = "9NWQ15C73TXL";
-    private const string StoreProductUri = $"ms-windows-store://pdp/?ProductId={StoreProductId}";
     private const string DisplayCatalogUri = $"https://displaycatalog.mp.microsoft.com/v7/products/{StoreProductId}?market=US&languages=en-US";
+    private const string StoreProductUri = $"ms-windows-store://pdp/?ProductId={StoreProductId}";
 
     private static readonly HttpClient HttpClient = new()
     {
@@ -201,31 +201,6 @@ public sealed class StoreUpdateService : IUpdateService
         return Task.CompletedTask;
     }
 
-    private static void InitializeStoreContextWithWindow(StoreContext storeContext)
-    {
-        void BindHwnd()
-        {
-            if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
-                desktop.MainWindow is { } window)
-            {
-                var platformHandle = window.TryGetPlatformHandle();
-                if (platformHandle != null)
-                {
-                    InitializeWithWindow.Initialize(storeContext, platformHandle.Handle);
-                }
-            }
-        }
-
-        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
-        {
-            BindHwnd();
-        }
-        else
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Invoke(BindHwnd);
-        }
-    }
-
     private static Version? ExtractPackageVersion(JsonElement pkg, out string? packageFullName)
     {
         packageFullName = null;
@@ -281,6 +256,31 @@ public sealed class StoreUpdateService : IUpdateService
         }
 
         return null;
+    }
+
+    private static void InitializeStoreContextWithWindow(StoreContext storeContext)
+    {
+        void BindHwnd()
+        {
+            if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
+                desktop.MainWindow is { } window)
+            {
+                var platformHandle = window.TryGetPlatformHandle();
+                if (platformHandle != null)
+                {
+                    InitializeWithWindow.Initialize(storeContext, platformHandle.Handle);
+                }
+            }
+        }
+
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            BindHwnd();
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Invoke(BindHwnd);
+        }
     }
 
     private static bool IsNewerVersion(string currentVersion, string latestVersion)

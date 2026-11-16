@@ -16,13 +16,12 @@ public sealed class VelopackUpdateService : IUpdateService
 {
     private const string RepoUrl = "https://github.com/OctaGrid-apps/OctaGrid";
 
-    private readonly ILogger<VelopackUpdateService> _logger;
-    private readonly IAppSettingsStore _settings;
-
     // Reads what Velopack installed (version, install state) and installs a downloaded update. Checks and downloads use a
     // manager of their own, because whether they include pre-releases can change while the app runs.
     private readonly UpdateManager? _installed;
 
+    private readonly ILogger<VelopackUpdateService> _logger;
+    private readonly IAppSettingsStore _settings;
     private bool _exitHookAttached;
     private VelopackAsset? _pendingUpdate;
     private bool _restartAfterUpdate;
@@ -48,18 +47,16 @@ public sealed class VelopackUpdateService : IUpdateService
     // own portable zip is, and updates like an install.
     public bool CheckOnStartup => IsUpdateSupported;
 
-    public bool IsUpdateSupported => _installed?.IsInstalled == true;
-
-    public bool SupportsPreReleaseUpdates => IsUpdateSupported;
+    public bool InstallsUpdateOnExit => true;
 
     // The version Velopack installed, not the assembly version: it is the version the update feed is compared with.
     public bool IsPreReleaseInstalled => _installed?.CurrentVersion?.IsPrerelease == true;
 
-    public bool InstallsUpdateOnExit => true;
+    public bool IsUpdateSupported => _installed?.IsInstalled == true;
 
-    private bool IncludePreReleases => _settings.ClientSettings.ReceivesPreReleaseUpdates(IsPreReleaseInstalled);
-
+    public bool SupportsPreReleaseUpdates => IsUpdateSupported;
     private string CurrentVersion => _installed?.CurrentVersion is { } version ? $"v{version.ToFullString()}" : Helper.GetAppVersion();
+    private bool IncludePreReleases => _settings.ClientSettings.ReceivesPreReleaseUpdates(IsPreReleaseInstalled);
 
     public async Task<AppUpdateInfo> CheckForUpdatesAsync(CancellationToken cancellationToken)
     {
@@ -115,6 +112,8 @@ public sealed class VelopackUpdateService : IUpdateService
         _logger.LogInformation("Velopack update {Version} downloaded; it is installed when the app closes", target.Version.ToFullString());
     }
 
+    public Task OpenStoreListingAsync() => Task.CompletedTask;
+
     public Task RestartToApplyUpdateAsync()
     {
         if (_pendingUpdate is null || _installed is null)
@@ -138,8 +137,6 @@ public sealed class VelopackUpdateService : IUpdateService
 
         return Task.CompletedTask;
     }
-
-    public Task OpenStoreListingAsync() => Task.CompletedTask;
 
     private static UpdateManager CreateManager(bool includePreReleases) =>
         new(new GithubSource(RepoUrl, null, includePreReleases));

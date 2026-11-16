@@ -35,42 +35,39 @@ public partial class ManageDashboardsViewModel : ViewModelBase, IDialogParticipa
         Fill(dashboards);
     }
 
-    public ObservableCollection<DashboardItemViewModel> Items { get; } = [];
-
     /// <summary>The kinds of dashboard that can be created. Add a kind here when its page exists.</summary>
     public IReadOnlyList<DashboardType> AvailableTypes { get; } = [DashboardType.List];
 
-    [ObservableProperty]
-    public partial DashboardType NewType { get; set; } = DashboardType.List;
-
     /// <summary>Only worth a picker once there is more than one kind to choose from.</summary>
     public bool CanChooseType => AvailableTypes.Count > 1;
+
+    /// <summary>More than one saved dashboard is left, so any of them can be deleted.</summary>
+    public bool CanDeleteAny => Items.Count(i => !i.IsNew) > 1;
+
+    public bool CanEdit => !IsBusy;
+    public bool HasNewItem => Items.Any(i => i.IsNew);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanEdit))]
     public partial bool IsBusy { get; set; }
 
-    public bool CanEdit => !IsBusy;
+    public ObservableCollection<DashboardItemViewModel> Items { get; } = [];
 
-    /// <summary>More than one saved dashboard is left, so any of them can be deleted.</summary>
-    public bool CanDeleteAny => Items.Count(i => !i.IsNew) > 1;
+    [ObservableProperty]
+    public partial DashboardType NewType { get; set; } = DashboardType.List;
 
-    public bool HasNewItem => Items.Any(i => i.IsNew);
-
-    [RelayCommand(CanExecute = nameof(CanAdd))]
-    private void Add()
+    internal async Task DeleteAsync(DashboardItemViewModel item)
     {
-        Items.Insert(0, new DashboardItemViewModel(this, null, NewType));
-        OnPropertyChanged(nameof(HasNewItem));
-        AddCommand.NotifyCanExecuteChanged();
+        var confirm = new ConfirmViewModel(
+            $"Delete \"{item.Name}\"? The dashboard and its layout are removed. Your printers stay in the workspace. This cannot be undone.",
+            "Delete");
+        if (await this.ShowOverlayDialogAsync("Delete dashboard", confirm) != true)
+        {
+            return;
+        }
+
+        await RunAsync("delete", () => _client.DeleteDashboard(item.Id, CancellationToken.None));
     }
-
-    private bool CanAdd() => !HasNewItem && !IsBusy;
-
-    partial void OnIsBusyChanged(bool value) => AddCommand.NotifyCanExecuteChanged();
-
-    [RelayCommand]
-    private void Close() => this.ReturnResultFromOverlayDialog(_changed);
 
     internal void Discard(DashboardItemViewModel item)
     {
@@ -98,18 +95,37 @@ public partial class ManageDashboardsViewModel : ViewModelBase, IDialogParticipa
     internal Task SetDefaultAsync(DashboardItemViewModel item) =>
         RunAsync("set as default", () => _client.SetDefaultDashboard(item.Id, CancellationToken.None));
 
-    internal async Task DeleteAsync(DashboardItemViewModel item)
+    [RelayCommand(CanExecute = nameof(CanAdd))]
+    private void Add()
     {
-        var confirm = new ConfirmViewModel(
-            $"Delete \"{item.Name}\"? The dashboard and its layout are removed. Your printers stay in the workspace. This cannot be undone.",
-            "Delete");
-        if (await this.ShowOverlayDialogAsync("Delete dashboard", confirm) != true)
+        Items.Insert(0, new DashboardItemViewModel(this, null, NewType));
+        OnPropertyChanged(nameof(HasNewItem));
+        AddCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanAdd() => !HasNewItem && !IsBusy;
+
+    [RelayCommand]
+    private void Close() => this.ReturnResultFromOverlayDialog(_changed);
+
+    private void Fill(IEnumerable<DashboardResponse> dashboards)
+    {
+        Items.Clear();
+        foreach (var dashboard in dashboards)
         {
-            return;
+            Items.Add(new DashboardItemViewModel(this, dashboard));
         }
 
-        await RunAsync("delete", () => _client.DeleteDashboard(item.Id, CancellationToken.None));
+        OnPropertyChanged(nameof(CanDeleteAny));
+        OnPropertyChanged(nameof(HasNewItem));
+        AddCommand.NotifyCanExecuteChanged();
+        foreach (var item in Items)
+        {
+            item.Refresh();
+        }
     }
+
+    partial void OnIsBusyChanged(bool value) => AddCommand.NotifyCanExecuteChanged();
 
     // Runs one change while the list is locked, then shows what is really stored, also after a failure.
     private async Task RunAsync(string action, Func<Task> work)
@@ -137,23 +153,6 @@ public partial class ManageDashboardsViewModel : ViewModelBase, IDialogParticipa
             }
 
             IsBusy = false;
-        }
-    }
-
-    private void Fill(IEnumerable<DashboardResponse> dashboards)
-    {
-        Items.Clear();
-        foreach (var dashboard in dashboards)
-        {
-            Items.Add(new DashboardItemViewModel(this, dashboard));
-        }
-
-        OnPropertyChanged(nameof(CanDeleteAny));
-        OnPropertyChanged(nameof(HasNewItem));
-        AddCommand.NotifyCanExecuteChanged();
-        foreach (var item in Items)
-        {
-            item.Refresh();
         }
     }
 }
