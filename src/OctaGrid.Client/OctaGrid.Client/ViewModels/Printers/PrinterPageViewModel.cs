@@ -201,7 +201,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         FileRows.Clear();
         foreach (var file in Files.Files)
         {
-            FileRows.Add(new PrinterFileRowViewModel(file, PrintFileAsync, DeleteFileAsync, () => Item.CanStartNewPrint));
+            FileRows.Add(new PrinterFileRowViewModel(file, PrintFileAsync, DeleteFileAsync, () => Item.CanStartNewPrint, Card.Permissions));
         }
     }
 

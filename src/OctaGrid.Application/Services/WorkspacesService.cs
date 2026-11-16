@@ -63,7 +63,7 @@ public sealed class WorkspacesService
         _logger.LogInformation("Created workspace {WorkspaceId} ('{WorkspaceName}') for owner {UserId}",
             workspace.Id, workspace.Name, userId);
 
-        return new WorkspaceResponse(workspace.Id, workspace.Name, workspace.Version);
+        return new WorkspaceResponse(workspace.Id, workspace.Name, workspace.Version, _access.PermissionsOf(Role.Owner));
     }
 
     public async Task<List<WorkspaceResponse>> GetList(Guid userId, CancellationToken cancellationToken)
@@ -71,13 +71,16 @@ public sealed class WorkspacesService
         var user = await _context.Users.FindAsync([userId], cancellationToken)
             ?? throw new AuthenticationException("User is not found");
 
-        var response = await _context.WorkspaceMembers
+        var memberships = await _context.WorkspaceMembers
             .AsNoTracking()
             .Where(uw => uw.UserId == userId)
-            .Select(uw => new WorkspaceResponse(uw.Workspace!.Id, uw.Workspace.Name, uw.Version))
+            .Select(uw => new { uw.Workspace!.Id, uw.Workspace.Name, uw.Version, uw.Role })
             .ToListAsync(cancellationToken);
 
-        return response;
+        // The role stays here: the client is told what the user may do, not which role that comes from.
+        return memberships
+            .Select(m => new WorkspaceResponse(m.Id, m.Name, m.Version, _access.PermissionsOf(m.Role)))
+            .ToList();
     }
 
     public async Task<List<WorkspaceSummaryResponse>> GetSummary(Guid userId, CancellationToken cancellationToken)
@@ -85,20 +88,24 @@ public sealed class WorkspacesService
         var user = await _context.Users.FindAsync([userId], cancellationToken)
             ?? throw new AuthenticationException("User is not found");
 
-        var response = await _context.WorkspaceMembers
+        var memberships = await _context.WorkspaceMembers
             .AsNoTracking()
             .Where(uw => uw.UserId == userId)
-            .Select(uw => new WorkspaceSummaryResponse(
+            .Select(uw => new
+            {
                 uw.WorkspaceId,
                 uw.Workspace!.Name,
-                uw.Role.ToString(),
-                uw.Workspace.Members.Count(),
-                uw.Workspace.Agents.Count(),
-                uw.Workspace.Printers.Count()
-            ))
+                uw.Role,
+                Users = uw.Workspace.Members.Count(),
+                Agents = uw.Workspace.Agents.Count(),
+                Printers = uw.Workspace.Printers.Count()
+            })
             .ToListAsync(cancellationToken);
 
-        return response;
+        return memberships
+            .Select(m => new WorkspaceSummaryResponse(
+                m.WorkspaceId, m.Name, m.Role.ToString(), m.Users, m.Agents, m.Printers, _access.PermissionsOf(m.Role)))
+            .ToList();
     }
 
     public async Task<WorkspaceResponse> Update(Guid userId, Guid workspaceId, UpdateWorkspaceRequest request, CancellationToken cancellationToken)
@@ -125,6 +132,7 @@ public sealed class WorkspacesService
 
         _publisher.Publish(new EntityChanged(EntityTypes.Workspace, workspace.Id, workspace.Version, ChangeKind.Upserted, workspace.Id));
 
-        return new WorkspaceResponse(workspace.Id, workspace.Name, workspace.Version);
+        return new WorkspaceResponse(
+            workspace.Id, workspace.Name, workspace.Version, await _access.GetPermissions(userId, workspaceId, cancellationToken));
     }
 }

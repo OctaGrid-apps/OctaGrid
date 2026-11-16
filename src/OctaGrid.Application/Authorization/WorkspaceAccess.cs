@@ -50,6 +50,21 @@ public sealed class WorkspaceAccess
         }
     }
 
+    /// <summary>What a member with this role may do, in a fixed order, to tell a client what to show.</summary>
+    public IReadOnlyList<Permission> PermissionsOf(Role role) => [.. _policy.For(role).Order()];
+
+    /// <summary>What the user may do in the workspace. Empty when the user is not a member.</summary>
+    public async Task<IReadOnlyList<Permission>> GetPermissions(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
+    {
+        var role = await _context.WorkspaceMembers
+            .AsNoTracking()
+            .Where(m => m.WorkspaceId == workspaceId && m.UserId == userId)
+            .Select(m => (Role?)m.Role)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return role is null ? [] : PermissionsOf(role.Value);
+    }
+
     /// <summary>The same check for an agent: fails when the agent does not exist, then checks its workspace.</summary>
     public async Task RequireForAgent(Guid userId, Guid agentId, Permission permission, CancellationToken cancellationToken)
     {

@@ -3,9 +3,11 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:conv="using:OctaGrid.Client.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:designtime="using:OctaGrid.Client.DesignTime"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:perms="using:OctaGrid.Protocol.Permissions"
     xmlns:services="using:OctaGrid.Client.Services"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     xmlns:ws="using:OctaGrid.Protocol.Workspaces"
@@ -64,7 +66,8 @@
                                             AutomationProperties.Name="More options"
                                             BorderBrush="Transparent"
                                             Classes="icon"
-                                            DockPanel.Dock="Right">
+                                            DockPanel.Dock="Right"
+                                            IsVisible="{Binding Permissions, Converter={x:Static conv:HasPermissionConverter.Instance}, ConverterParameter={x:Static perms:Permission.ManageWorkspace}}">
                                             <PathIcon
                                                 Width="12"
                                                 Height="12"

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Permissions;
+using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Protocol.Tests;
 
@@ -28,6 +29,18 @@ public sealed class PermissionTests
 
         Assert.Equal("""["View","SendCommands"]""", json);
         Assert.Equal(permissions, JsonSerializer.Deserialize<Permission[]>(json));
+    }
+
+    [Fact]
+    public void A_workspace_carries_the_users_permissions_and_none_when_the_backend_did_not_say()
+    {
+        var withPermissions = new WorkspaceResponse(Guid.NewGuid(), "Lab", 3, [Permission.View, Permission.ControlPrint]);
+
+        var back = JsonSerializer.Deserialize<WorkspaceResponse>(JsonSerializer.Serialize(withPermissions))!;
+        var fromAnOlderBackend = JsonSerializer.Deserialize<WorkspaceResponse>("""{"Id":"00000000-0000-0000-0000-000000000001","Name":"Lab","Version":3}""")!;
+
+        Assert.Equal(withPermissions.Permissions, back.Permissions);
+        Assert.Null(fromAnOlderBackend.Permissions);
     }
 
     [Fact]

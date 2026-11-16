@@ -16,9 +16,17 @@ public partial class AgentListViewModel : ViewModelBase, IDialogParticipant
     private readonly ApplicationState _appState;
     private readonly ILogger<AgentListViewModel> _logger;
 
-    public AgentListViewModel(IAgentsClient agentsClient, ApplicationState appState, ILogger<AgentListViewModel>? logger = null)
+    /// <summary>What the user may do in the selected workspace. Buttons for anything else are not shown.</summary>
+    public WorkspacePermissions Permissions { get; }
+
+    public AgentListViewModel(
+        IAgentsClient agentsClient,
+        ApplicationState appState,
+        ILogger<AgentListViewModel>? logger = null,
+        WorkspacePermissions? permissions = null)
     {
         _agentsClient = agentsClient;
+        Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _appState = appState;
         _logger = logger ?? NullLogger<AgentListViewModel>.Instance;
     }

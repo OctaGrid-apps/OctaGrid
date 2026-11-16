@@ -21,13 +21,18 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         Guid deviceId,
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
-        ILogger<FilePickerViewModel>? logger = null)
+        ILogger<FilePickerViewModel>? logger = null,
+        WorkspacePermissions? permissions = null)
     {
         _agentCommandsService = agentCommands;
         _imageCache = imageCache;
         _logger = logger ?? NullLogger<FilePickerViewModel>.Instance;
         _deviceId = deviceId;
+        Permissions = permissions ?? WorkspacePermissions.Unrestricted;
     }
+
+    /// <summary>What the user may do with the files. Buttons for anything else are not shown.</summary>
+    public WorkspacePermissions Permissions { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEmpty))]

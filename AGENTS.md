@@ -76,6 +76,7 @@ CI (`.github/workflows/ci.yml`) restores, builds Release and tests the solution 
 - Views: set `x:DataType` on views and every `DataTemplate` (compiled bindings). Code-behind only for view-only concerns (focus, animation, drag/drop). No business logic.
 - Register ViewModels as transient and long-lived services as singletons in the composition root (`App.axaml.cs`, `Client.Local/DependencyInjection.cs`, `Program.cs`).
 - Styling: use the tokens and style classes in `Styles/` and follow [docs/SPACING.md](docs/SPACING.md) (4px grid, semantic `Gap.*` tokens, parent owns spacing) and [docs/TYPOGRAPHY.md](docs/TYPOGRAPHY.md). No magic numbers or hard-coded colours in views. Support light/dark and both backdrops: the single theme (`OctaGridTheme`) is translucent for Mica, and `SolidBackdrop` is layered over it when transparency effects are off or unavailable. Format XAML with `dotnet xstyler`.
+- What the user may not do is hidden, not disabled: bind `IsVisible` to `WorkspacePermissions` (`Permissions.CanControlPrint`, ...), which view models take as an optional constructor parameter and expose as `Permissions`. Never test a role name in the client; the backend check is the one that counts.
 - Every user-visible async state needs loading, empty and error presentation. Keep controls usable by keyboard and screen reader (`AutomationProperties.Name` on icon-only buttons).
 - Keep `DesignTime/` data in sync when a Contracts interface changes (`DesignOctaGridClient`).
 

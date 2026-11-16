@@ -30,11 +30,13 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         IByteArrayImageCache imageCache,
         ILoggerFactory? loggerFactory = null,
         TimeProvider? timeProvider = null,
-        TemperatureHistory? temperatureHistory = null)
+        TemperatureHistory? temperatureHistory = null,
+        WorkspacePermissions? permissions = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
         TemperatureHistory = temperatureHistory ?? new TemperatureHistory(_timeProvider);
         Item = item;
+        Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _agentCommands = agentCommands;
         _imageCache = imageCache;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -53,6 +55,9 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     /// </summary>
     public TemperatureHistory TemperatureHistory { get; }
 
+    /// <summary>What the user may do with this printer. Buttons for anything else are not shown.</summary>
+    public WorkspacePermissions Permissions { get; }
+
     /// <summary>The connector's display name, or its id while no connector with that id is loaded.</summary>
     internal string ConnectorName =>
         _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))?.DisplayName
@@ -66,7 +71,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     /// <summary>The console of this printer, for the printer page. Loads nothing until asked.</summary>
     internal PrinterConsoleViewModel CreateConsoleViewModel() =>
-        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>(), SupportsConsoleCommands);
+        new(Item.Id, _agentCommands, _loggerFactory.CreateLogger<PrinterConsoleViewModel>(), SupportsConsoleCommands, Permissions);
 
     /// <summary>The history of this printer, for the dialog and for the printer page. Loads nothing until asked.</summary>
     internal PrinterEventsViewModel CreateEventsViewModel() =>
@@ -74,7 +79,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     /// <summary>The files on this printer, for the file dialog and for the printer page. Loads nothing until asked.</summary>
     internal FilePickerViewModel CreateFilesViewModel() =>
-        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>());
+        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>(), Permissions);
 
     private void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
     {

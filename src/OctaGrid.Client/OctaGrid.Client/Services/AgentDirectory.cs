@@ -1,4 +1,5 @@
 using OctaGrid.Client.Contracts;
+using OctaGrid.Protocol.Permissions;
 
 namespace OctaGrid.Client.Services;
 
@@ -6,7 +7,8 @@ namespace OctaGrid.Client.Services;
 /// <param name="Id">The agent's id.</param>
 /// <param name="Name">The agent's name.</param>
 /// <param name="WorkspaceName">The name of the agent's workspace, to tell apart agents with the same name.</param>
-public sealed record AgentChoice(Guid Id, string Name, string WorkspaceName)
+/// <param name="CanManageExtensions">Whether the user may change what is installed on the agent, not only see it.</param>
+public sealed record AgentChoice(Guid Id, string Name, string WorkspaceName, bool CanManageExtensions = true)
 {
     /// <summary>What a picker shows for the agent.</summary>
     public string DisplayName => $"{Name} · {WorkspaceName}";
@@ -35,9 +37,10 @@ public sealed class AgentDirectory
         var choices = new List<AgentChoice>();
         foreach (var workspace in await _workspaces.GetWorkspaceList(cancellationToken))
         {
+            var canManageExtensions = WorkspacePermissions.Allows(workspace.Permissions, Permission.ManageExtensions);
             foreach (var agent in await _agents.GetAgentList(workspace.Id, cancellationToken))
             {
-                choices.Add(new AgentChoice(agent.Id, agent.Name, workspace.Name));
+                choices.Add(new AgentChoice(agent.Id, agent.Name, workspace.Name, canManageExtensions));
             }
         }
 
