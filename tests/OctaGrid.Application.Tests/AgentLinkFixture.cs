@@ -52,6 +52,24 @@ internal sealed class AgentLinkFixture : IDisposable
 
     public Guid WorkspaceId { get; } = Guid.NewGuid();
 
+    /// <summary>Another member of the workspace, with the given role.</summary>
+    public Guid AddMember(Role role)
+    {
+        using var context = NewContext();
+        var user = new User { Id = Guid.NewGuid(), Name = role.ToString(), Email = $"{Guid.NewGuid():N}@example.com", PasswordHash = "x" };
+        context.Users.Add(user);
+        context.WorkspaceMembers.Add(new WorkspaceMember
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = WorkspaceId,
+            UserId = user.Id,
+            Role = role,
+            JoinedAt = DateTimeOffset.UtcNow,
+        });
+        context.SaveChanges();
+        return user.Id;
+    }
+
     /// <summary>An agent in a workspace the test user is not a member of.</summary>
     public Guid AddForeignAgent()
     {
@@ -85,7 +103,7 @@ internal sealed class AgentLinkFixture : IDisposable
     public OctaGridContext NewContext() =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
 
-    public PrintersService Printers(OctaGridContext context) => new(context, new NullPublisher(), _protector);
+    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), new NullPublisher(), _protector);
 
     /// <summary>Takes the printer away from its agent, as when the agent is removed.</summary>
     public void UnassignPrinter(Guid printerId)

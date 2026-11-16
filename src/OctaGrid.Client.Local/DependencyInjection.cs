@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Hosting;
 using OctaGrid.Application.Agents;
+using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -26,6 +27,7 @@ public static class DependencyInjection
         // process. The Local adapters below are singletons and open one scope per call, as a server does per request.
         services
             .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
+            .AddScoped<WorkspaceAccess>()
             .AddScoped<AgentsService>()
             .AddScoped<UsersService>()
             .AddScoped<PrintersService>()
@@ -34,6 +36,8 @@ public static class DependencyInjection
             .AddScoped<AgentProfilesService>()
             .AddScoped<DashboardsService>()
             .AddScoped<WorkspacesService>();
+
+        services.AddSingleton<IPermissionPolicy, RolePermissionPolicy>();
 
         // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data;
@@ -8,18 +9,21 @@ using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Messaging;
+using OctaGrid.Protocol.Permissions;
 
 namespace OctaGrid.Application.Services;
 
 public sealed class AgentsService
 {
+    private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<AgentsService> _logger;
     private readonly IMessagePublisher _publisher;
 
-    public AgentsService(OctaGridContext context, IMessagePublisher publisher, ILogger<AgentsService>? logger = null)
+    public AgentsService(OctaGridContext context, WorkspaceAccess access, IMessagePublisher publisher, ILogger<AgentsService>? logger = null)
     {
         _context = context;
+        _access = access;
         _publisher = publisher;
         _logger = logger ?? NullLogger<AgentsService>.Instance;
     }
@@ -33,7 +37,7 @@ public sealed class AgentsService
         var agent = await _context.Agents.FindAsync([agentId], cancellationToken)
             ?? throw new NotFoundException(nameof(Agent), agentId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, agent.WorkspaceId, cancellationToken);
+        await _access.Require(userId, agent.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
         var printer = await _context.Printers.FindAsync([printerId], cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
@@ -63,7 +67,7 @@ public sealed class AgentsService
 
     public async Task<AgentResponse> Create(Guid userId, Guid workspaceId, CreateAgentRequest request, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.ManageAgents, cancellationToken);
 
         Agent agent = new()
         {
@@ -86,7 +90,7 @@ public sealed class AgentsService
 
     public async Task<List<AgentResponse>> GetList(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.View, cancellationToken);
 
         var agents = await _context.Agents
             .AsNoTracking()
@@ -113,7 +117,7 @@ public sealed class AgentsService
         var agent = await _context.Agents.Include(x => x.Status).FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Agent), agentId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, agent.WorkspaceId, cancellationToken);
+        await _access.Require(userId, agent.WorkspaceId, Permission.ManageAgents, cancellationToken);
 
         agent.Name = request.Name;
         await _context.SaveChangesAsync(cancellationToken);

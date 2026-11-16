@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
@@ -11,12 +12,14 @@ using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Messaging;
+using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Application.Services;
 
 public sealed class PrintersService
 {
+    private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<PrintersService> _logger;
     private static readonly IReadOnlyDictionary<string, string> NoSecrets = new Dictionary<string, string>();
@@ -24,9 +27,10 @@ public sealed class PrintersService
     private readonly IMessagePublisher _publisher;
     private readonly ISecretProtector _protector;
 
-    public PrintersService(OctaGridContext context, IMessagePublisher publisher, ISecretProtector protector, ILogger<PrintersService>? logger = null)
+    public PrintersService(OctaGridContext context, WorkspaceAccess access, IMessagePublisher publisher, ISecretProtector protector, ILogger<PrintersService>? logger = null)
     {
         _context = context;
+        _access = access;
         _publisher = publisher;
         _protector = protector;
         _logger = logger ?? NullLogger<PrintersService>.Instance;
@@ -34,7 +38,7 @@ public sealed class PrintersService
 
     public async Task<PrinterResponse> Create(Guid userId, Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.ManagePrinters, cancellationToken);
 
         var validator = new CreatePrinterRequestValidator();
         var results = validator.Validate(request);
@@ -82,7 +86,7 @@ public sealed class PrintersService
         var printer = await _context.Printers.FindAsync([printerId], cancellationToken: cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
+        await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
         _context.Printers.Remove(printer);
         await _context.SaveChangesAsync(cancellationToken);
@@ -123,7 +127,7 @@ public sealed class PrintersService
 
     /// <summary>The agent that connects to a printer, which is where commands for the printer have to go.</summary>
     /// <exception cref="ValidationException">The printer has no agent.</exception>
-    public async Task<Guid> GetAgentId(Guid userId, Guid printerId, CancellationToken cancellationToken)
+    public async Task<Guid> GetAgentId(Guid userId, Guid printerId, Permission permission, CancellationToken cancellationToken)
     {
         var printer = await _context.Printers
             .AsNoTracking()
@@ -132,7 +136,7 @@ public sealed class PrintersService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
+        await _access.Require(userId, printer.WorkspaceId, permission, cancellationToken);
 
         return printer.AgentId
             ?? throw new ValidationException(nameof(Printer.AgentId), "The printer has no agent to connect to it.");
@@ -142,7 +146,7 @@ public sealed class PrintersService
     /// The agent of each printer, by printer id. Printers that do not exist or have no agent are left out.
     /// </summary>
     public async Task<IReadOnlyDictionary<Guid, Guid>> GetAgentIds(
-        Guid userId, IReadOnlyCollection<Guid> printerIds, CancellationToken cancellationToken)
+        Guid userId, IReadOnlyCollection<Guid> printerIds, Permission permission, CancellationToken cancellationToken)
     {
         var printers = await _context.Printers
             .AsNoTracking()
@@ -152,7 +156,7 @@ public sealed class PrintersService
 
         foreach (var workspaceId in printers.Select(p => p.WorkspaceId).Distinct())
         {
-            await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+            await _access.Require(userId, workspaceId, permission, cancellationToken);
         }
 
         return printers.ToDictionary(p => p.Id, p => p.AgentId);
@@ -173,7 +177,7 @@ public sealed class PrintersService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
+        await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
         var settings = new Dictionary<string, string>();
         foreach (var (key, value) in ReadSecrets(printerId, printer.ProtectedSecrets))
@@ -197,7 +201,7 @@ public sealed class PrintersService
 
     public async Task<PrinterResponse> GetPrinter(Guid userId, Guid workspaceId, Guid printerId, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.View, cancellationToken);
 
         var response = await _context.Printers
             .AsNoTracking()
@@ -219,7 +223,7 @@ public sealed class PrintersService
 
     public async Task<List<PrinterResponse>> GetPrintersList(Guid userId, Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.View, cancellationToken);
 
         var response = await _context.Printers
             .AsNoTracking()
@@ -245,7 +249,7 @@ public sealed class PrintersService
         var printer = await _context.Printers.FindAsync([printerId], cancellationToken: cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
+        await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
         if (printer.Enabled == state)
         {
@@ -266,7 +270,7 @@ public sealed class PrintersService
         var printer = await _context.Printers.FindAsync([printerId], cancellationToken: cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
+        await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
         var validator = new UpdatePrinterRequestValidator();
         var results = validator.Validate(request);
@@ -305,7 +309,7 @@ public sealed class PrintersService
         var printer = await _context.Printers.FindAsync([printerId], cancellationToken: cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, printer.WorkspaceId, cancellationToken);
+        await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
         var validator = new UpdatePrinterIdentityRequestValidator();
         var results = validator.Validate(request);

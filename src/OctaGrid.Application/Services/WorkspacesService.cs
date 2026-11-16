@@ -1,25 +1,29 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Messaging;
+using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Application.Services;
 
 public sealed class WorkspacesService
 {
+    private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<WorkspacesService> _logger;
     private readonly IMessagePublisher _publisher;
 
-    public WorkspacesService(OctaGridContext context, IMessagePublisher publisher, ILogger<WorkspacesService>? logger = null)
+    public WorkspacesService(OctaGridContext context, WorkspaceAccess access, IMessagePublisher publisher, ILogger<WorkspacesService>? logger = null)
     {
         _context = context;
+        _access = access;
         _publisher = publisher;
         _logger = logger ?? NullLogger<WorkspacesService>.Instance;
     }
@@ -110,12 +114,8 @@ public sealed class WorkspacesService
         var workspace = await _context.Workspaces.FindAsync([workspaceId], cancellationToken)
             ?? throw new NotFoundException(nameof(Workspace), workspaceId);
 
-        var userIsWorkspaceMember = await _context.WorkspaceMembers.AnyAsync(wm => wm.UserId == userId && wm.WorkspaceId == workspaceId, cancellationToken);
-        if (!userIsWorkspaceMember)
-        {
-            _logger.LogWarning("User {UserId} denied access to update workspace {WorkspaceId}", userId, workspaceId);
-            throw new AuthenticationException("User does not have access to this workspace");
-        }
+        await _access.Require(userId, workspaceId, Permission.ManageWorkspace, cancellationToken);
+
         workspace.Name = request.Name;
 
         await _context.SaveChangesAsync(cancellationToken);

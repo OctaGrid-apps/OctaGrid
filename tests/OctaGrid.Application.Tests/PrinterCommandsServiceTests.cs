@@ -12,7 +12,7 @@ public sealed class PrinterCommandsServiceTests : IDisposable
     public void Dispose() => _fixture.Dispose();
 
     private PrinterCommandsService NewService(OctaGridContext context) =>
-        new(context, _fixture.Printers(context), _fixture.Link);
+        new(TestAccess.For(context), _fixture.Printers(context), _fixture.Link);
 
     [Fact]
     public async Task A_command_goes_to_the_printers_agent()
