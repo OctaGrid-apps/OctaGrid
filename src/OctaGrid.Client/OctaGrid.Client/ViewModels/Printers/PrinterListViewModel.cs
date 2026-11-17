@@ -22,14 +22,19 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     private readonly INotificationService _notification;
     private readonly IPrintersClient _printersClient;
 
+    /// <summary>What the user may do in the selected workspace. Buttons for anything else are not shown.</summary>
+    public WorkspacePermissions Permissions { get; }
+
     public PrinterListViewModel(
         IPrintersClient printersClient,
         INotificationService notification,
         ApplicationState appState,
         IAgentCommandsService agentCommands,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        WorkspacePermissions? permissions = null)
     {
         _printersClient = printersClient;
+        Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _notification = notification;
         _appState = appState;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;

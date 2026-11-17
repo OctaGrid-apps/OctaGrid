@@ -1,4 +1,4 @@
-<ContentPage
+﻿<ContentPage
     x:Class="OctaGrid.Client.Views.DashboardsView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -49,6 +49,7 @@
                         AutomationProperties.Name="Manage dashboards"
                         Classes="icon"
                         Command="{Binding ManageDashboardsCommand}"
+                        IsVisible="{Binding Permissions.CanManageDashboards}"
                         ToolTip.Tip="Manage dashboards">
                         <PathIcon Margin="8,0" Data="{StaticResource content-settings-regular}" />
                     </Button>

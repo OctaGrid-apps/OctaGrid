@@ -1,4 +1,4 @@
-<ContentPage
+﻿<ContentPage
     x:Class="OctaGrid.Client.Views.PrinterListView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -31,7 +31,10 @@
                         Classes="title"
                         Text="Printers" />
                     <StackPanel Grid.Column="1" Classes="inline">
-                        <Button Classes="primary" Command="{Binding CreatePrinterCommand}">
+                        <Button
+                            Classes="primary"
+                            Command="{Binding CreatePrinterCommand}"
+                            IsVisible="{Binding Permissions.CanManagePrinters}">
                             <StackPanel Classes="inline">
                                 <PathIcon Width="12" Data="{StaticResource add-regular}" />
                                 <TextBlock VerticalAlignment="Center" Text="New Printer" />
@@ -52,7 +55,7 @@
 
                     <ItemsControl.DataTemplates>
                         <DataTemplate DataType="models:AddPrinterListItem">
-                            <Border>
+                            <Border IsVisible="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).Permissions.CanManagePrinters}">
                                 <Grid
                                     MinWidth="300"
                                     MinHeight="200"
@@ -90,7 +93,8 @@
                                             AutomationProperties.Name="More options"
                                             BorderBrush="Transparent"
                                             Classes="icon"
-                                            DockPanel.Dock="Right">
+                                            DockPanel.Dock="Right"
+                                            IsVisible="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).Permissions.CanManagePrinters}">
                                             <PathIcon
                                                 Width="12"
                                                 Height="12"
@@ -152,6 +156,7 @@
                                     <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
                                         <ToggleSwitch
                                             IsChecked="{Binding Enabled}"
+                                            IsEnabled="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).Permissions.CanManagePrinters}"
                                             OffContent="Disabled"
                                             OnContent="Enabled">
                                             <Interaction.Behaviors>

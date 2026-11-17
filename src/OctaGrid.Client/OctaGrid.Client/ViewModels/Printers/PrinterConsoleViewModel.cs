@@ -37,16 +37,19 @@ public partial class PrinterConsoleViewModel : LiveLogViewModel<ConsoleLine, Con
     private readonly IAgentCommandsService _commands;
     private readonly List<string> _history = [];
     private readonly ILogger<PrinterConsoleViewModel> _logger;
+    private readonly WorkspacePermissions _permissions;
     private int _historyIndex;
 
     public PrinterConsoleViewModel(
         Guid printerId,
         IAgentCommandsService commands,
         ILogger<PrinterConsoleViewModel>? logger = null,
-        bool supportsCommands = false)
+        bool supportsCommands = false,
+        WorkspacePermissions? permissions = null)
         : base(printerId, "console", PageSize, MaxShown, logger ?? NullLogger<PrinterConsoleViewModel>.Instance)
     {
         _commands = commands;
+        _permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _logger = logger ?? NullLogger<PrinterConsoleViewModel>.Instance;
         SupportsCommands = supportsCommands;
 
@@ -69,11 +72,16 @@ public partial class PrinterConsoleViewModel : LiveLogViewModel<ConsoleLine, Con
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     public partial bool IsExpertMode { get; set; }
 
-    /// <summary>The command box is offered: the printer can take commands and Expert mode is on.</summary>
-    public bool CanSend => SupportsCommands && IsExpertMode;
+    /// <summary>The command box is offered: the printer can take commands, the user may send them and Expert mode is on.</summary>
+    public bool CanSend => MayCommand && IsExpertMode;
 
-    /// <summary>The printer can take commands but Expert mode is off, so the console shows a quiet icon that says how to get the command box.</summary>
-    public bool ShowExpertModeHint => SupportsCommands && !IsExpertMode;
+    /// <summary>
+    /// The user could send commands but Expert mode is off, so the console shows a quiet icon that says how to get the
+    /// command box. Not shown to someone who may not send commands: Expert mode would not give them the box.
+    /// </summary>
+    public bool ShowExpertModeHint => MayCommand && !IsExpertMode;
+
+    private bool MayCommand => SupportsCommands && _permissions.CanSendCommands;
 
     /// <summary>What is typed in the command box.</summary>
     [ObservableProperty]

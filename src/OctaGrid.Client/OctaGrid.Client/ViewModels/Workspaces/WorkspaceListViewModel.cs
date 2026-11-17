@@ -108,7 +108,8 @@ public partial class WorkspaceListViewModel : ViewModelBase, IDialogParticipant
                 _appState.SelectedWorkspace = new Workspace()
                 {
                     Id = workspace.Id,
-                    Name = workspace.Name
+                    Name = workspace.Name,
+                    Permissions = workspace.Permissions
                 };
                 SelectedWorkspace = workspace;
             }

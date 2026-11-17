@@ -32,6 +32,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private List<PrinterDashboardCardViewModel> _allPrinters = [];
     private bool _isUpdatingFilters;
 
+    /// <summary>What the user may do in the selected workspace. Buttons for anything else are not shown.</summary>
+    public WorkspacePermissions Permissions { get; }
+
     public DashboardsViewModel(
         IDashboardsClient dashboardsClient,
         IPrintersClient printersClient,
@@ -41,9 +44,11 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         IAppSettingsStore settings,
         INotificationService? notifications = null,
         ILoggerFactory? loggerFactory = null,
-        ITemperatureHistoryStore? temperatureHistories = null)
+        ITemperatureHistoryStore? temperatureHistories = null,
+        WorkspacePermissions? permissions = null)
     {
         _settings = settings;
+        Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _temperatureHistories = temperatureHistories;
         var savedStatus = settings.ClientSettings.DashboardStatusFilter;
         StatusFilters = Enum.GetValues<UniversalPrinterState>()
@@ -208,7 +213,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                 Name = printer.Name,
                 ConnectorId = printer.ConnectorId,
                 IsConnectorAvailable = availableConnectors.Contains(printer.ConnectorId),
-            }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id))).ToList();
+            }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions)).ToList();
             foreach (var card in _allPrinters)
             {
                 card.Item.PropertyChanged += OnPrinterPropertyChanged;

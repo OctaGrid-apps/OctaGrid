@@ -33,20 +33,23 @@
                     MinWidth="{DynamicResource Space10}"
                     Classes="icon"
                     Command="{Binding ConfirmCommand}"
-                    IsEnabled="{Binding SelectedItem, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                    IsEnabled="{Binding SelectedItem, Converter={x:Static converters:ObjectConverters.IsNotNull}}"
+                    IsVisible="{Binding Permissions.CanControlPrint}">
                     <PathIcon Data="{DynamicResource print-regular}" />
                 </Button>
                 <Button
                     MinWidth="{DynamicResource Space10}"
                     Classes="icon"
                     Command="{Binding DeleteFileCommand}"
-                    IsEnabled="{Binding SelectedItem, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                    IsEnabled="{Binding SelectedItem, Converter={x:Static converters:ObjectConverters.IsNotNull}}"
+                    IsVisible="{Binding Permissions.CanManageFiles}">
                     <PathIcon Data="{DynamicResource delete-regular}" />
                 </Button>
                 <Button
                     MinWidth="{DynamicResource Space10}"
                     Classes="icon"
-                    Click="UploadFileButton_Click">
+                    Click="UploadFileButton_Click"
+                    IsVisible="{Binding Permissions.CanManageFiles}">
                     <PathIcon Data="{DynamicResource upload-regular}" />
                 </Button>
             </StackPanel>

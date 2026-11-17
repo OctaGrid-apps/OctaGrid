@@ -144,7 +144,8 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         var ws = new Workspace()
         {
             Id = workspaceResponse.Id,
-            Name = workspaceResponse.Name
+            Name = workspaceResponse.Name,
+            Permissions = workspaceResponse.Permissions
         };
         Workspaces.Add(ws);
         AppStateService.SelectedWorkspace = ws;
@@ -220,7 +221,8 @@ public partial class MainViewModel : ViewModelBase, IDialogParticipant
         Workspaces = new ObservableCollection<Workspace>(response.Select(w => new Workspace()
         {
             Id = w.Id,
-            Name = w.Name
+            Name = w.Name,
+            Permissions = w.Permissions
         }));
 
         _logger.LogDebug("Loaded {WorkspaceCount} workspace(s)", Workspaces.Count);

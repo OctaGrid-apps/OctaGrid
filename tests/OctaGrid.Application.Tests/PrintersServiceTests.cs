@@ -8,6 +8,7 @@ using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Messaging;
+using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Application.Tests;
@@ -62,7 +63,7 @@ public sealed class PrintersServiceTests : IDisposable
     private OctaGridContext NewContext() =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
 
-    private PrintersService NewService(OctaGridContext context) => new(context, _publisher, _protector);
+    private PrintersService NewService(OctaGridContext context) => new(context, TestAccess.For(context), _publisher, _protector);
 
     /// <summary>What is saved for a printer, read from its row and decrypted the way the service does it.</summary>
     private IReadOnlyDictionary<string, string> SavedSecrets(Guid printerId)
@@ -447,7 +448,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         Assert.Equal(_agentId, created.AgentId);
         await using var context = NewContext();
-        Assert.Equal(_agentId, await NewService(context).GetAgentId(_userId, created.Id, CancellationToken.None));
+        Assert.Equal(_agentId, await NewService(context).GetAgentId(_userId, created.Id, Permission.View, CancellationToken.None));
     }
 
     [Fact]
@@ -459,7 +460,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         Assert.Null(created.AgentId);
         await using var context = NewContext();
-        await Assert.ThrowsAsync<ValidationException>(() => NewService(context).GetAgentId(_userId, created.Id, CancellationToken.None));
+        await Assert.ThrowsAsync<ValidationException>(() => NewService(context).GetAgentId(_userId, created.Id, Permission.View, CancellationToken.None));
     }
 
     [Fact]
@@ -516,8 +517,8 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using var context = NewContext();
         var service = NewService(context);
-        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentId(Guid.NewGuid(), created.Id, CancellationToken.None));
-        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentIds(Guid.NewGuid(), [created.Id], CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentId(Guid.NewGuid(), created.Id, Permission.View, CancellationToken.None));
+        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentIds(Guid.NewGuid(), [created.Id], Permission.View, CancellationToken.None));
     }
 
     [Fact]
@@ -528,7 +529,7 @@ public sealed class PrintersServiceTests : IDisposable
         var unassigned = await CreatePrinter();
 
         await using var context = NewContext();
-        var agents = await NewService(context).GetAgentIds(_userId, [assigned.Id, unassigned.Id, Guid.NewGuid()], CancellationToken.None);
+        var agents = await NewService(context).GetAgentIds(_userId, [assigned.Id, unassigned.Id, Guid.NewGuid()], Permission.View, CancellationToken.None);
 
         Assert.Equal(_agentId, Assert.Single(agents, a => a.Key == assigned.Id).Value);
         Assert.Single(agents);
@@ -543,11 +544,11 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using (var context = NewContext())
         {
-            await new AgentsService(context, _publisher).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
+            await new AgentsService(context, TestAccess.For(context), _publisher).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
         }
 
         await using var verify = NewContext();
-        Assert.Equal(other, await NewService(verify).GetAgentId(_userId, created.Id, CancellationToken.None));
+        Assert.Equal(other, await NewService(verify).GetAgentId(_userId, created.Id, Permission.View, CancellationToken.None));
         var change = Assert.Single(_publisher.Published);
         Assert.Equal(EntityTypes.Printer, change.EntityType);
         Assert.Equal(created.Id, change.EntityId);
@@ -561,7 +562,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using var context = NewContext();
         await Assert.ThrowsAsync<ValidationException>(() =>
-            new AgentsService(context, _publisher).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
+            new AgentsService(context, TestAccess.For(context), _publisher).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
     }
 
     [Fact]
@@ -570,7 +571,7 @@ public sealed class PrintersServiceTests : IDisposable
         var second = AddAgent();
 
         await using var context = NewContext();
-        var agents = await new AgentsService(context, _publisher).GetList(_userId, _workspaceId, CancellationToken.None);
+        var agents = await new AgentsService(context, TestAccess.For(context), _publisher).GetList(_userId, _workspaceId, CancellationToken.None);
 
         Assert.Equal([_agentId, second], agents.Select(a => a.Id));
     }

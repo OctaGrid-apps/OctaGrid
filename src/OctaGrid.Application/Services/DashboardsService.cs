@@ -1,28 +1,32 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Dashboards;
+using OctaGrid.Protocol.Permissions;
 
 namespace OctaGrid.Application.Services;
 
 public sealed class DashboardsService
 {
+    private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<DashboardsService> _logger;
 
-    public DashboardsService(OctaGridContext context, ILogger<DashboardsService>? logger = null)
+    public DashboardsService(OctaGridContext context, WorkspaceAccess access, ILogger<DashboardsService>? logger = null)
     {
         _context = context;
+        _access = access;
         _logger = logger ?? NullLogger<DashboardsService>.Instance;
     }
 
     public async Task<DashboardResponse> Create(Guid userId, Guid workspaceId, CreateDashboardRequest request, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.ManageDashboards, cancellationToken);
 
         if (!Enum.IsDefined(request.Type))
         {
@@ -50,7 +54,7 @@ public sealed class DashboardsService
 
     public async Task<List<DashboardResponse>> GetList(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
     {
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, workspaceId, cancellationToken);
+        await _access.Require(userId, workspaceId, Permission.View, cancellationToken);
 
         var dashboards = await _context.Dashboards
             .AsNoTracking()
@@ -148,7 +152,7 @@ public sealed class DashboardsService
         var dashboard = await _context.Dashboards.FindAsync([dashboardId], cancellationToken)
             ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
 
-        await _context.WorkspaceMembers.ValidateUserAccess(userId, dashboard.WorkspaceId, cancellationToken);
+        await _access.Require(userId, dashboard.WorkspaceId, Permission.ManageDashboards, cancellationToken);
         return dashboard;
     }
 

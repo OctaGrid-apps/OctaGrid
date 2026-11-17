@@ -42,19 +42,19 @@ public sealed class DashboardsServiceTests : IDisposable
     private async Task<DashboardResponse> Create(string name, DashboardType type = DashboardType.List)
     {
         await using var context = NewContext();
-        return await new DashboardsService(context).Create(_userId, _workspaceId, new CreateDashboardRequest(name, type), CancellationToken.None);
+        return await new DashboardsService(context, TestAccess.For(context)).Create(_userId, _workspaceId, new CreateDashboardRequest(name, type), CancellationToken.None);
     }
 
     private async Task<List<DashboardResponse>> List()
     {
         await using var context = NewContext();
-        return await new DashboardsService(context).GetList(_userId, _workspaceId, CancellationToken.None);
+        return await new DashboardsService(context, TestAccess.For(context)).GetList(_userId, _workspaceId, CancellationToken.None);
     }
 
     private async Task Delete(Guid id)
     {
         await using var context = NewContext();
-        await new DashboardsService(context).Delete(_userId, id, CancellationToken.None);
+        await new DashboardsService(context, TestAccess.For(context)).Delete(_userId, id, CancellationToken.None);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class DashboardsServiceTests : IDisposable
 
         await using (var context = NewContext())
         {
-            var response = await new DashboardsService(context).SetDefault(_userId, second.Id, CancellationToken.None);
+            var response = await new DashboardsService(context, TestAccess.For(context)).SetDefault(_userId, second.Id, CancellationToken.None);
             Assert.True(response.IsDefault);
         }
 
@@ -177,7 +177,7 @@ public sealed class DashboardsServiceTests : IDisposable
         var stranger = Guid.NewGuid();
 
         await using var context = NewContext();
-        var service = new DashboardsService(context);
+        var service = new DashboardsService(context, TestAccess.For(context));
 
         await Assert.ThrowsAsync<AuthenticationException>(() => service.Delete(stranger, other.Id, CancellationToken.None));
         await Assert.ThrowsAsync<AuthenticationException>(() => service.SetDefault(stranger, other.Id, CancellationToken.None));

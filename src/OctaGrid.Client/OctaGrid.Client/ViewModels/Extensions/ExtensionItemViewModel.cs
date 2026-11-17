@@ -11,14 +11,18 @@ public partial class ExtensionItemViewModel : ObservableObject
     private readonly Action<ExtensionItemViewModel, bool> _onToggled;
     private readonly Action<ExtensionItemViewModel> _onReview;
     private readonly Action<ExtensionItemViewModel> _onRemove;
+    // Whether the user may change the agent's extensions. Without it the row only shows the extension.
+    private readonly bool _canManage;
     private bool _updating;
 
     public ExtensionItemViewModel(
         ExtensionInfo info,
         Action<ExtensionItemViewModel, bool> onToggled,
         Action<ExtensionItemViewModel> onReview,
-        Action<ExtensionItemViewModel> onRemove)
+        Action<ExtensionItemViewModel> onRemove,
+        bool canManage = true)
     {
+        _canManage = canManage;
         _onToggled = onToggled;
         _onReview = onReview;
         _onRemove = onRemove;
@@ -72,13 +76,16 @@ public partial class ExtensionItemViewModel : ObservableObject
     public bool HasUsage => UsageText is not null;
 
     /// <summary>An extension that is incompatible or failed cannot simply be switched on.</summary>
-    public bool CanToggle => Info.State is ExtensionState.Loaded or ExtensionState.Disabled;
+    public bool CanToggle => _canManage && Info.State is ExtensionState.Loaded or ExtensionState.Disabled;
 
     /// <summary>An installed extension that waits for the user to trust it before any of its code runs.</summary>
     public bool NeedsApproval => Info.State == ExtensionState.NeedsApproval;
 
     /// <summary>Installed extensions can be removed; built-in ones can only be turned off.</summary>
-    public bool CanUninstall => Info.CanUninstall;
+    public bool CanUninstall => _canManage && Info.CanUninstall;
+
+    /// <summary>The Review button is offered: the extension waits for approval and the user may give it.</summary>
+    public bool CanReview => _canManage && NeedsApproval;
 
     [RelayCommand]
     private void Review() => _onReview(this);

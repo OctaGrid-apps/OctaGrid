@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="OctaGrid.Client.Controls.PrinterDashboardCard"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -228,6 +228,7 @@
                         Classes="icon"
                         Command="{Binding StopButtonClickedCommand}"
                         IsEnabled="{Binding Item.CanStop}"
+                        IsVisible="{Binding Permissions.CanControlPrint}"
                         ToolTip.Tip="Stop print">
                         <PathIcon Data="{StaticResource stop-regular}" />
                     </Button>
@@ -239,6 +240,7 @@
                         Classes="icon"
                         Command="{Binding StartPauseButtonClickedCommand}"
                         IsEnabled="{Binding Item.CanStartPause}"
+                        IsVisible="{Binding Permissions.CanControlPrint}"
                         ToolTip.Tip="{Binding Item.StartPauseLabel}">
                         <PathIcon
                             Classes="startPause"

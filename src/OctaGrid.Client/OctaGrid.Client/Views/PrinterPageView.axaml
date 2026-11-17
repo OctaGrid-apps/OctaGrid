@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="OctaGrid.Client.Views.PrinterPageView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -113,6 +113,7 @@
                             Classes="icon"
                             Command="{Binding Card.StopButtonClickedCommand}"
                             IsEnabled="{Binding Item.CanStop}"
+                            IsVisible="{Binding Card.Permissions.CanControlPrint}"
                             ToolTip.Tip="Stop print">
                             <PathIcon Data="{StaticResource stop-regular}" />
                         </Button>
@@ -121,6 +122,7 @@
                             Classes="icon"
                             Command="{Binding Card.StartPauseButtonClickedCommand}"
                             IsEnabled="{Binding Item.CanStartPause}"
+                            IsVisible="{Binding Card.Permissions.CanControlPrint}"
                             ToolTip.Tip="{Binding Item.StartPauseLabel}">
                             <PathIcon
                                 Classes="startPause"
@@ -337,6 +339,7 @@
                                         AutomationProperties.Name="Upload a file"
                                         Classes="icon"
                                         Click="UploadFileButton_Click"
+                                        IsVisible="{Binding Card.Permissions.CanManageFiles}"
                                         ToolTip.Tip="Upload a file">
                                         <PathIcon Data="{StaticResource upload-regular}" />
                                     </Button>

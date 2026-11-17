@@ -14,7 +14,7 @@ public sealed class ExtensionsServiceTests : IDisposable
     public async Task A_change_goes_to_the_agent_that_is_named()
     {
         await using var context = _fixture.NewContext();
-        await new ExtensionsService(context, _fixture.Link)
+        await new ExtensionsService(TestAccess.For(context), _fixture.Link)
             .SetEnabled(_fixture.UserId, _fixture.AgentId, "acme.printer", enabled: false, CancellationToken.None);
 
         var (agentId, request) = Assert.Single(_fixture.Link.Sent);
@@ -26,7 +26,7 @@ public sealed class ExtensionsServiceTests : IDisposable
     public async Task A_package_is_uploaded_to_the_agent_and_then_installed()
     {
         await using var context = _fixture.NewContext();
-        var result = await new ExtensionsService(context, _fixture.Link)
+        var result = await new ExtensionsService(TestAccess.For(context), _fixture.Link)
             .Install(_fixture.UserId, _fixture.AgentId, new MemoryStream([1, 2, 3, 4, 5]), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -43,7 +43,7 @@ public sealed class ExtensionsServiceTests : IDisposable
         var foreignAgent = _fixture.AddForeignAgent();
 
         await using var context = _fixture.NewContext();
-        var service = new ExtensionsService(context, _fixture.Link);
+        var service = new ExtensionsService(TestAccess.For(context), _fixture.Link);
         var user = _fixture.UserId;
 
         await Assert.ThrowsAsync<AuthenticationException>(() => service.GetList(user, foreignAgent, CancellationToken.None));
@@ -62,7 +62,7 @@ public sealed class ExtensionsServiceTests : IDisposable
     {
         await using var context = _fixture.NewContext();
         await Assert.ThrowsAsync<NotFoundException>(
-            () => new ExtensionsService(context, _fixture.Link).GetList(_fixture.UserId, Guid.NewGuid(), CancellationToken.None));
+            () => new ExtensionsService(TestAccess.For(context), _fixture.Link).GetList(_fixture.UserId, Guid.NewGuid(), CancellationToken.None));
         Assert.Empty(_fixture.Link.Sent);
     }
 }

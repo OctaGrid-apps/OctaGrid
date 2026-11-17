@@ -1,4 +1,4 @@
-<ContentPage
+﻿<ContentPage
     x:Class="OctaGrid.Client.Views.AgentListView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -33,7 +33,8 @@
                     <Button
                         Grid.Column="1"
                         Classes="primary"
-                        Command="{Binding CreateAgentCommand}">
+                        Command="{Binding CreateAgentCommand}"
+                        IsVisible="{Binding Permissions.CanManageAgents}">
                         <StackPanel Classes="inline">
                             <PathIcon Width="12" Data="{StaticResource add-regular}" />
                             <TextBlock VerticalAlignment="Center" Text="New Agent" />
@@ -66,7 +67,8 @@
                                             AutomationProperties.Name="More options"
                                             BorderBrush="Transparent"
                                             Classes="icon"
-                                            DockPanel.Dock="Right">
+                                            DockPanel.Dock="Right"
+                                            IsVisible="{Binding $parent[ContentPage].((vm:AgentListViewModel)DataContext).Permissions.CanManageAgents}">
                                             <PathIcon
                                                 Width="12"
                                                 Height="12"

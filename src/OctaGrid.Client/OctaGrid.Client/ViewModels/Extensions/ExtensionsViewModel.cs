@@ -48,7 +48,14 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAgent))]
     [NotifyPropertyChangedFor(nameof(CanEdit))]
+    [NotifyPropertyChangedFor(nameof(CanManage))]
     public partial AgentChoice? SelectedAgent { get; set; }
+
+    /// <summary>
+    /// Whether the user may change the selected agent's extensions. Without it the extensions are only listed:
+    /// installing, turning on or off, removing and developer mode are not shown.
+    /// </summary>
+    public bool CanManage => SelectedAgent?.CanManageExtensions ?? true;
 
     public bool HasAgent => SelectedAgent is not null;
 
@@ -137,7 +144,7 @@ public partial class ExtensionsViewModel : ViewModelBase, IDialogParticipant<boo
             var existing = Items.FirstOrDefault(i => i.Id == info.Id);
             if (existing is null)
             {
-                Items.Add(new ExtensionItemViewModel(info, OnToggled, OnReview, OnRemove));
+                Items.Add(new ExtensionItemViewModel(info, OnToggled, OnReview, OnRemove, CanManage));
             }
             else
             {

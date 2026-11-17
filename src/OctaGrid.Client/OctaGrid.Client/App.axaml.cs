@@ -38,6 +38,7 @@ public partial class App : Application
             services.AddSingleton<ITemperatureHistoryStore, TemperatureHistoryStore>();
             services.AddSingleton<ApplicationState>();
             services.AddSingleton<AgentDirectory>();
+            services.AddSingleton<WorkspacePermissions>();
 
             // ViewModels: registered here so Views resolve them from the container instead of
             // `new`-ing them up, which is what lets each ViewModel declare its real dependencies
