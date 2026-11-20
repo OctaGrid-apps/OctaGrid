@@ -60,16 +60,15 @@ internal sealed class MessageHandler : IClientMessageHandler
         PostTo(new PrinterConsoleData(recorded), recorded.PrinterId);
     }
 
-    public void Handle(PrinterTelemetry telemetryMessage)
+    public void Handle(PrinterTelemetry telemetryMessage, TelemetrySample? sample)
     {
         // Recorded here and not by whatever shows the printer: the dashboard and the printer page come and go, and the
         // chart has to hold what happened while they were not there. TemperatureHistory is thread-safe, so recording
         // happens on the calling thread.
-        _temperatureHistories?.GetOrCreate(telemetryMessage.PrinterId).Record(
-            telemetryMessage.NozzleTemperature,
-            telemetryMessage.NozzleTargetTemperature,
-            telemetryMessage.BedTemperature,
-            telemetryMessage.BedTargetTemperature);
+        if (sample is not null)
+        {
+            _temperatureHistories?.GetOrCreate(telemetryMessage.PrinterId).Add(sample);
+        }
 
         PostTo(new PrinterTelemetryData(telemetryMessage), telemetryMessage.PrinterId);
     }

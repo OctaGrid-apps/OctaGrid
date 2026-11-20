@@ -30,6 +30,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private readonly IPrintersClient _printersClient;
     private readonly IAppSettingsStore _settings;
     private readonly ITemperatureHistoryStore? _temperatureHistories;
+    private readonly PrinterWatcher? _watcher;
     private List<PrinterDashboardCardViewModel> _allPrinters = [];
     private bool _isStale = true;
     private bool _isUpdatingFilters;
@@ -48,11 +49,13 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         INotificationService? notifications = null,
         ILoggerFactory? loggerFactory = null,
         ITemperatureHistoryStore? temperatureHistories = null,
-        WorkspacePermissions? permissions = null)
+        WorkspacePermissions? permissions = null,
+        PrinterWatcher? watcher = null)
     {
         _settings = settings;
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _temperatureHistories = temperatureHistories;
+        _watcher = watcher;
         var savedStatus = settings.ClientSettings.DashboardStatusFilter;
         // Connecting leads the row: it is where every printer starts, and it empties out as they report.
         StatusFilters = Enum.GetValues<UniversalPrinterState>()
@@ -243,7 +246,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                     Name = printer.Name,
                     ConnectorId = printer.ConnectorId,
                     IsConnectorAvailable = isAvailable,
-                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions);
+                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions, watcher: _watcher);
                 created.Item.PropertyChanged += OnPrinterPropertyChanged;
                 return created;
             }).ToList();

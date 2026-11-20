@@ -36,6 +36,7 @@ public partial class App : Application
             services.AddSingleton<UnhandledErrorReporter>();
             services.AddSingleton<IByteArrayImageCache, ByteArrayImageCache>();
             services.AddSingleton<ITemperatureHistoryStore, TemperatureHistoryStore>();
+            services.AddSingleton<PrinterWatcher>();
             services.AddSingleton<ApplicationState>();
             services.AddSingleton<AgentDirectory>();
             services.AddSingleton<WorkspacePermissions>();

@@ -38,6 +38,9 @@ public class TemperatureChart : Control
     private const double MinimumCeiling = 100;
     private static readonly TimeSpan MinimumSpan = TimeSpan.FromSeconds(30);
 
+    // The agent stores at most one sample a second, so the edge does not need to move more often.
+    private static readonly TimeSpan ClockInterval = TimeSpan.FromSeconds(1);
+
     // Moves the "now" edge of the time axis while no new readings arrive; runs only while the chart is on screen.
     private readonly DispatcherTimer _clock;
     private bool _isAttached;
@@ -45,7 +48,7 @@ public class TemperatureChart : Control
 
     public TemperatureChart()
     {
-        _clock = new DispatcherTimer { Interval = TemperatureHistory.MinInterval };
+        _clock = new DispatcherTimer { Interval = ClockInterval };
         _clock.Tick += (_, _) => InvalidateVisual();
     }
 

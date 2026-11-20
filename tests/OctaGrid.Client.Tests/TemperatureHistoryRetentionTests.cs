@@ -4,6 +4,7 @@ using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
+using static OctaGrid.Client.Tests.TemperatureHistoryTests;
 
 namespace OctaGrid.Client.Tests;
 
@@ -14,24 +15,6 @@ namespace OctaGrid.Client.Tests;
 [Collection(UiCollection.Name)]
 public class TemperatureHistoryRetentionTests
 {
-    private sealed class ManualTime : TimeProvider
-    {
-        private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-        public void Advance(TimeSpan by) => _now += by;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-    }
-
-    private static PrinterTelemetry Telemetry(Guid printerId, double? nozzle = null, double? nozzleTarget = null, double? bed = null, double? bedTarget = null) =>
-        new(printerId)
-        {
-            NozzleTemperature = nozzle,
-            NozzleTargetTemperature = nozzleTarget,
-            BedTemperature = bed,
-            BedTargetTemperature = bedTarget,
-        };
-
     [Fact]
     public void The_store_gives_the_same_history_for_the_same_printer_and_another_one_for_another_printer()
     {
@@ -47,7 +30,7 @@ public class TemperatureHistoryRetentionTests
     {
         var store = new TemperatureHistoryStore();
         var printer = Guid.NewGuid();
-        store.GetOrCreate(printer).Add(200, 210, 60, 60);
+        store.GetOrCreate(printer).Add(Sample(0, 200));
 
         store.Remove(printer);
 
@@ -55,51 +38,26 @@ public class TemperatureHistoryRetentionTests
     }
 
     [Fact]
-    public void A_snapshot_that_carries_only_some_temperatures_keeps_the_others_as_they_were()
-    {
-        var time = new ManualTime();
-        var history = new TemperatureHistory(time);
-        history.Record(200, 210, 60, 60);
-        time.Advance(TimeSpan.FromSeconds(1));
-
-        history.Record(205, null, null, null);
-
-        var latest = history.Snapshot()[^1];
-        Assert.Equal((205, 210, 60, 60), (latest.Nozzle, latest.NozzleTarget, latest.Bed, latest.BedTarget));
-    }
-
-    [Fact]
-    public void A_snapshot_without_any_temperature_adds_nothing_so_going_offline_draws_no_drop_to_zero()
-    {
-        var history = new TemperatureHistory(new ManualTime());
-        history.Record(200, 210, 60, 60);
-
-        Assert.False(history.Record(null, null, null, null));
-
-        Assert.Single(history.Snapshot());
-    }
-
-    [Fact]
-    public void Telemetry_is_recorded_without_anything_showing_the_printer()
+    public void The_sample_that_comes_with_telemetry_is_recorded_without_anything_showing_the_printer()
     {
         var store = new TemperatureHistoryStore();
         var handler = new MessageHandler(store);
         var printer = Guid.NewGuid();
 
-        handler.Handle(Telemetry(printer, nozzle: 24, nozzleTarget: 0, bed: 24, bedTarget: 0));
+        handler.Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, Sample(0, 24));
 
         var sample = Assert.Single(store.GetOrCreate(printer).Snapshot());
         Assert.Equal(24, sample.Nozzle);
     }
 
     [Fact]
-    public void The_offline_message_that_carries_no_temperatures_is_not_recorded()
+    public void Telemetry_the_agent_stored_no_sample_for_adds_nothing()
     {
         var store = new TemperatureHistoryStore();
         var handler = new MessageHandler(store);
         var printer = Guid.NewGuid();
 
-        handler.Handle(new PrinterTelemetry(printer));
+        handler.Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, null);
 
         Assert.Empty(store.GetOrCreate(printer).Snapshot());
     }
@@ -110,7 +68,7 @@ public class TemperatureHistoryRetentionTests
         var store = new TemperatureHistoryStore();
         var handler = new MessageHandler(store);
         var printer = Guid.NewGuid();
-        handler.Handle(Telemetry(printer, 200, 210, 60, 60));
+        handler.Handle(new PrinterTelemetry(printer), Sample(0, 200));
 
         handler.Handle(new EntityChanged(EntityTypes.Printer, printer, 1, ChangeKind.Deleted, Guid.NewGuid()));
 
@@ -120,7 +78,7 @@ public class TemperatureHistoryRetentionTests
     [Fact]
     public void A_handler_without_a_store_still_handles_telemetry()
     {
-        new MessageHandler().Handle(Telemetry(Guid.NewGuid(), 200, 210, 60, 60));
+        new MessageHandler().Handle(new PrinterTelemetry(Guid.NewGuid()), Sample(0, 200));
     }
 
     [Fact]
@@ -144,7 +102,7 @@ public class TemperatureHistoryRetentionTests
                 temperatureHistories: store);
             await viewModel.LoadDataCommand.ExecuteAsync(null);
             var before = viewModel.Printers.ToList();
-            new MessageHandler(store).Handle(Telemetry(before[0].Item.Id, 200, 210, 60, 60));
+            new MessageHandler(store).Handle(new PrinterTelemetry(before[0].Item.Id), Sample(0, 200));
 
             // The user went to another page and came back: the dashboard loads again and makes new cards.
             await viewModel.LoadDataCommand.ExecuteAsync(null);

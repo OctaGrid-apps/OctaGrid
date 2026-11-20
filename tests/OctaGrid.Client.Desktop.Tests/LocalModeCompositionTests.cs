@@ -55,7 +55,7 @@ public sealed class LocalModeCompositionTests
         {
         }
 
-        public void Handle(PrinterTelemetry telemetryMessage)
+        public void Handle(PrinterTelemetry telemetryMessage, TelemetrySample? sample)
         {
         }
 

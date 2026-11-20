@@ -3,60 +3,68 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using OctaGrid.Client.Controls;
 using OctaGrid.Client.Models;
+using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Tests;
 
 [Collection(UiCollection.Name)]
 public class TemperatureHistoryTests
 {
+    private static readonly DateTimeOffset Start = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     private sealed class ManualTime : TimeProvider
     {
-        private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        private DateTimeOffset _now = Start;
 
         public void Advance(TimeSpan by) => _now += by;
 
         public override DateTimeOffset GetUtcNow() => _now;
     }
 
-    [Fact]
-    public void Add_keeps_readings_oldest_first()
-    {
-        var time = new ManualTime();
-        var history = new TemperatureHistory(time);
+    /// <summary>A sample the agent stored <paramref name="second"/> seconds after <see cref="Start"/>.</summary>
+    internal static TelemetrySample Sample(double second, double nozzle, double nozzleTarget = 0, double bed = 0, double bedTarget = 0) =>
+        new(Start.AddSeconds(second), [
+            new TelemetryReading(TelemetryReadingKeys.Nozzle, nozzle, nozzleTarget),
+            new TelemetryReading(TelemetryReadingKeys.Bed, bed, bedTarget),
+        ]);
 
-        history.Add(20, 0, 20, 0);
-        time.Advance(TimeSpan.FromSeconds(1));
-        history.Add(30, 200, 25, 60);
+    [Fact]
+    public void Add_keeps_samples_oldest_first_with_both_sensors()
+    {
+        var history = new TemperatureHistory();
+
+        history.Add(Sample(0, 20));
+        history.Add(Sample(1, 30, nozzleTarget: 200, bed: 25, bedTarget: 60));
 
         var samples = history.Snapshot();
         Assert.Equal([20, 30], samples.Select(s => s.Nozzle));
-        Assert.Equal(200, samples[1].NozzleTarget);
-        Assert.Equal(60, samples[1].BedTarget);
+        Assert.Equal((200, 25, 60), (samples[1].NozzleTarget, samples[1].Bed, samples[1].BedTarget));
+        Assert.Equal(Start.AddSeconds(1), samples[1].Time);
     }
 
     [Fact]
-    public void Add_drops_a_reading_that_comes_too_soon_after_the_previous_one()
+    public void Add_drops_a_sample_that_is_not_later_than_the_newest_one()
     {
-        var time = new ManualTime();
-        var history = new TemperatureHistory(time);
+        var history = new TemperatureHistory();
+        var raised = 0;
+        history.Changed += (_, _) => raised++;
 
-        Assert.True(history.Add(20, 0, 20, 0));
-        time.Advance(TimeSpan.FromMilliseconds(400));
-        Assert.False(history.Add(21, 0, 20, 0));
+        Assert.True(history.Add(Sample(5, 20)));
+        Assert.False(history.Add(Sample(5, 21)));
+        Assert.False(history.Add(Sample(4, 22)));
 
-        Assert.Single(history.Snapshot());
+        Assert.Equal([20.0], history.Snapshot().Select(s => s.Nozzle));
+        Assert.Equal(1, raised);
     }
 
     [Fact]
-    public void Add_keeps_only_the_most_recent_readings_up_to_the_capacity()
+    public void Only_the_most_recent_samples_up_to_the_capacity_are_kept()
     {
-        var time = new ManualTime();
-        var history = new TemperatureHistory(time);
+        var history = new TemperatureHistory();
 
         for (var i = 0; i < TemperatureHistory.Capacity + 5; i++)
         {
-            history.Add(i, 0, 0, 0);
-            time.Advance(TemperatureHistory.MinInterval);
+            history.Add(Sample(i, i));
         }
 
         var samples = history.Snapshot();
@@ -66,31 +74,40 @@ public class TemperatureHistoryTests
     }
 
     [Fact]
-    public void Add_raises_Changed_only_when_a_reading_was_kept()
+    public void Merge_puts_the_history_before_live_samples_that_came_first_and_keeps_each_time_once()
     {
-        var time = new ManualTime();
-        var history = new TemperatureHistory(time);
-        var raised = 0;
-        history.Changed += (_, _) => raised++;
+        var history = new TemperatureHistory();
+        history.Add(Sample(10, 50));
+        history.Add(Sample(11, 51));
 
-        history.Add(20, 0, 20, 0);
-        history.Add(21, 0, 20, 0);
+        history.Merge([Sample(8, 48), Sample(9, 49), Sample(10, 50)]);
 
-        Assert.Equal(1, raised);
+        Assert.Equal([48.0, 49, 50, 51], history.Snapshot().Select(s => s.Nozzle));
+        Assert.Equal(Start.AddSeconds(11), history.LastTime);
     }
 
     [Fact]
-    public void Snapshot_is_a_copy_that_later_readings_do_not_change()
+    public void A_sensor_the_sample_does_not_carry_is_drawn_at_zero()
     {
-        var time = new ManualTime();
-        var history = new TemperatureHistory(time);
-        history.Add(20, 0, 20, 0);
+        var history = new TemperatureHistory();
+
+        history.Add(new TelemetrySample(Start, [new TelemetryReading(TelemetryReadingKeys.Bed, 60, null)]));
+
+        var sample = Assert.Single(history.Snapshot());
+        Assert.Equal((0, 0, 60, 0), (sample.Nozzle, sample.NozzleTarget, sample.Bed, sample.BedTarget));
+    }
+
+    [Fact]
+    public void Snapshot_is_a_copy_that_later_samples_do_not_change()
+    {
+        var history = new TemperatureHistory();
+        history.Add(Sample(0, 20));
         var before = history.Snapshot();
 
-        time.Advance(TemperatureHistory.MinInterval);
-        history.Add(30, 0, 20, 0);
+        history.Add(Sample(1, 30));
 
         Assert.Single(before);
+        Assert.Null(new TemperatureHistory().LastTime);
     }
 
     [Theory]
@@ -110,7 +127,7 @@ public class TemperatureHistoryTests
     {
         var time = new ManualTime();
         var history = new TemperatureHistory(time);
-        history.Add(24, 0, 24, 0);
+        history.Add(Sample(0, 24, bed: 24));
         time.Advance(TimeSpan.FromSeconds(30));
 
         var samples = TemperatureChart.WithLatestHeldUntilNow(history);
@@ -125,7 +142,7 @@ public class TemperatureHistoryTests
     [InlineData(0, 30)]
     [InlineData(10, 30)]
     [InlineData(95, 95)]
-    [InlineData(4000, 600)]
+    [InlineData(4000, 1200)]
     public void The_time_axis_fits_the_readings_between_30_seconds_and_the_history_window(double seconds, double expected)
     {
         var start = DateTimeOffset.UnixEpoch;
@@ -142,7 +159,7 @@ public class TemperatureHistoryTests
     [InlineData(30, "30 s")]
     [InlineData(119, "119 s")]
     [InlineData(120, "2 min")]
-    [InlineData(600, "10 min")]
+    [InlineData(1200, "20 min")]
     public void The_time_axis_label_uses_seconds_below_two_minutes_and_minutes_above(double seconds, string expected)
     {
         Assert.Equal(expected, TemperatureChart.FormatSpan(TimeSpan.FromSeconds(seconds)));
@@ -178,8 +195,8 @@ public class TemperatureHistoryTests
 
             for (var i = 0; i < 5; i++)
             {
-                history.Add(20 + i * 40, 215, 20 + i * 10, 60);
-                time.Advance(TemperatureHistory.MinInterval);
+                history.Add(Sample(i, 20 + i * 40, 215, 20 + i * 10, 60));
+                time.Advance(TimeSpan.FromSeconds(1));
             }
 
             Dispatcher.UIThread.RunJobs();

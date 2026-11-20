@@ -30,6 +30,7 @@ public sealed class CompositionTests : IDisposable
         services.AddSingleton<IAppSettingsStore, InMemorySettingsStore>();
         services.AddSingleton<IAgentCommandsService, DesignAgentCommands>();
         services.AddSingleton<IExtensionsClient, DesignExtensionsClient>();
+        services.AddSingleton<IPrinterTelemetryClient, DesignPrinterTelemetryClient>();
         services.AddSingleton<IUpdateService, NullUpdateService>();
 
         App.RegisterAppServices(services);

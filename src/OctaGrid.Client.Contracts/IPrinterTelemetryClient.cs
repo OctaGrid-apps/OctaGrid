@@ -14,8 +14,9 @@ public interface IPrinterTelemetryClient
     /// </summary>
     /// <param name="printerIds">Every printer the client shows; empty to show none.</param>
     /// <param name="resume">
-    /// After a reconnect: printers the client already has history for, with the time of its last sample, to get only
-    /// what came after it.
+    /// Printers the client wants the state of again although it may already show them (something new started showing
+    /// them, or the connection was restored), each with the time of the last history sample the client has, to get only
+    /// what came after it; <see cref="DateTimeOffset.MinValue"/> for all of it.
     /// </param>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <exception cref="OctaGrid.Extensions.Models.Exceptions.ForbiddenException">The user may not view one of the printers.</exception>

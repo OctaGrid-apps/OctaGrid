@@ -38,8 +38,8 @@ public sealed class PrinterWatchService
     /// <param name="watcherId">The client connection. Each connection has its own list.</param>
     /// <param name="printerIds">Every printer the connection shows; empty to show none.</param>
     /// <param name="resume">
-    /// Printers the connection already has history for, after a reconnect, with the time of its last sample: they are
-    /// returned again with only what came after it.
+    /// Printers the connection wants the state of again although it may already show them, each with the time of the last
+    /// history sample it has: they are returned with only the history after it.
     /// </param>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <exception cref="ForbiddenException">The user may not view one of the printers.</exception>

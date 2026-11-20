@@ -7,7 +7,12 @@ public interface IClientMessageHandler
 {
     void Handle(EntityChanged entity);
 
-    void Handle(PrinterTelemetry telemetryMessage);
+    /// <summary>
+    /// A watched printer reported its state. May be called from any thread.
+    /// </summary>
+    /// <param name="telemetryMessage">The printer's current state.</param>
+    /// <param name="sample">The history sample the agent stored from it, or null when it stored none.</param>
+    void Handle(PrinterTelemetry telemetryMessage, TelemetrySample? sample);
 
     /// <summary>A new event was recorded for a printer. May be called from any thread.</summary>
     void Handle(PrinterEventRecorded recorded);

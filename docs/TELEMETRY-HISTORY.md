@@ -1,6 +1,6 @@
 # Design: telemetry history and printer watching
 
-Status: steps 1 and 2 committed, step 3 built (uncommitted); steps 4 and 5 not started. Until step 4, the running app shows no live telemetry: the agent streams only watched printers and no client watches yet. Decisions taken: the agent does not save history across restarts; the chart follows Mainsail's model; the history backfill is built together with subscription-based telemetry; pre-alpha, so replaced types and messages are removed rather than kept for compatibility.
+Status: steps 1 to 3 committed, step 4 built (uncommitted); step 5 not started. Decisions taken: the agent does not save history across restarts; the chart follows Mainsail's model; the history backfill is built together with subscription-based telemetry; pre-alpha, so replaced types and messages are removed rather than kept for compatibility.
 
 ## Goal
 
@@ -86,17 +86,13 @@ As built in step 2: the wire names are `telemetry.backfill` and `telemetry.watch
 
 ### 4. The client watches what is on screen
 
-A `PrinterWatcher` service in `Client` reference-counts printers: dashboard cards and the printer page acquire a printer when shown and release it when they go. It debounces changes (several cards appear at once) and calls `WatchAsync` with the current set.
+A `PrinterWatcher` service in `Client` counts watches per printer. As built, the holder is the dashboard card: the dashboard keeps a card for every enabled printer for its lifetime (they keep receiving telemetry while another page is open), and the printer page shows the dashboard's card, so it needs no watch of its own. A card watches in its constructor and stops in `Detach`.
 
-Merging without gaps or duplicates:
+Every new watch asks for the printer's state, even when the printer is already watched: a card created for an already watched printer (refresh, connector change) would otherwise show "Connecting" until the printer's next report. It does so through `resume`, with the time of the last sample the client has (`DateTimeOffset.MinValue` for all), so only the missing history comes back. One call runs at a time and always sends the latest set; changes made meanwhile go out with the next call. A failed call is logged, and the next change asks again for the state that did not arrive.
 
-1. Live samples for a newly watched printer can arrive before `WatchAsync` returns; the store holds them.
-2. When the backfill arrives, the store takes the history, then the held samples later than its last one.
-3. From then on, live samples are added as they arrive.
+Merging without gaps or duplicates: live samples that arrive before the backfill are kept, and `TemperatureHistory.Merge` combines them with the history by time, each time once. A live sample not later than the newest kept one is dropped. The backfill's current state goes through `IClientMessageHandler` like live telemetry.
 
-After a reconnect, `PrinterWatcher` sends the set again with `resume` holding each printer's last sample time, so only the missing part comes back.
-
-`TemperatureHistoryStore` stays as the client cache, so moving between pages does not fetch again. A printer released from the watch set keeps its cached history; when it is watched again, the backfill resumes from its last sample. `TemperatureHistory` holds `TelemetrySample`s with the agent's size and drops its own clock, interval check and gap filling.
+`IClientMessageHandler.Handle` takes the telemetry and the `TelemetrySample` the agent stored, and `MessageHandler` adds only that sample to the store. `TemperatureHistoryStore` stays as the client cache, so moving between pages does not fetch again. `TemperatureHistory` keeps 1,200 samples by agent time and has no clock, interval check or gap filling of its own; it still converts samples to nozzle/bed values for the chart until step 5.
 
 ### 5. Chart, following Mainsail
 
@@ -118,7 +114,7 @@ Not part of this change; recorded so this design leaves room for it. The agent s
 1. `TelemetrySample` / `TelemetryReading`; `PrinterTelemetryLog` with merged complete samples; telemetry reaches the hub through `AgentWorker.TelemetryReported` and the dispatcher; `PrinterTelemetryReported` carries the stored sample. Agent and protocol tests.
 2. `GetPrinterBackfillRequest`, `SetWatchedPrintersRequest` and their wire-contract tests; the agent filters streamed telemetry by the watched set.
 3. `PrinterWatchService`, `IPrinterTelemetryClient`, the Local adapter (one watcher); `RoleEnforcementTests`. `RequestState`, `RequestPrinterStateRequest`, `IPrinterSession.RequestStateAsync` and `ICommandService` removed. The design-time fake of `IPrinterTelemetryClient` comes with step 4, when a view model first uses it.
-4. `PrinterWatcher` in the client; dashboard cards and the printer page acquire and release; the store holds agent samples and merges backfill and live samples.
+4. `PrinterWatcher` in the client; dashboard cards watch their printer until detached; the store holds agent samples and merges backfill and live samples; `DesignPrinterTelemetryClient` for design time.
 5. Chart: series per key, legend toggles, hover read-out.
 
 Steps 1 to 4 belong to one change. Step 5 can follow on its own.
