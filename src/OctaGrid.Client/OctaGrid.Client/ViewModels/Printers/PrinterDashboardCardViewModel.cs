@@ -51,7 +51,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     /// <summary>
     /// The recent temperatures of this printer. They are collected from telemetry by the app and handed to the card, because
-    /// the card itself is created again whenever the dashboard is shown again.
+    /// the card itself is created again when the printer changes or the workspace is reloaded.
     /// </summary>
     public TemperatureHistory TemperatureHistory { get; }
 
@@ -143,6 +143,9 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
         }
     }
+
+    /// <summary>Stops listening to the printer once the card has left the dashboard, so it is not updated in the background.</summary>
+    public void Detach() => WeakReferenceMessenger.Default.UnregisterAll(this);
 
     [RelayCommand]
     private void OpenPage() => WeakReferenceMessenger.Default.Send(new OpenPrinterPageRequested(this));

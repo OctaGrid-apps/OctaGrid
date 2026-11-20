@@ -20,6 +20,9 @@ public class DashboardFilterTests
                 .Select(p => new PrinterResponse(Guid.NewGuid(), p.Name, p.ConnectorId, new Dictionary<string, string>(), [], "", true, 1))
                 .ToList();
 
+        /// <summary>What the next load returns; tests change it to simulate printers edited elsewhere.</summary>
+        public List<PrinterResponse> Printers => _printers;
+
         public Task<List<PrinterResponse>> GetPrintersList(Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken) =>
             Task.FromResult(_printers.ToList());
 
