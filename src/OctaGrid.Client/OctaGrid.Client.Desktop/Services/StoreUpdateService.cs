@@ -1,9 +1,8 @@
-using System.Diagnostics;
 using System.Text.Json;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using Windows.Services.Store;
@@ -13,20 +12,18 @@ namespace OctaGrid.Client.Desktop.Services;
 
 public sealed class StoreUpdateService : IUpdateService
 {
-    public const string StoreProductId = "9NWQ15C73TXL";
-    private const string DisplayCatalogUri = $"https://displaycatalog.mp.microsoft.com/v7/products/{StoreProductId}?market=US&languages=en-US";
-    private const string StoreProductUri = $"ms-windows-store://pdp/?ProductId={StoreProductId}";
-
     private static readonly HttpClient HttpClient = new()
     {
         DefaultRequestHeaders = { { "User-Agent", "OctaGrid-Desktop" } }
     };
 
     private readonly ILogger<StoreUpdateService> _logger;
+    private readonly StoreProduct? _product;
 
-    public StoreUpdateService(ILogger<StoreUpdateService>? logger = null)
+    public StoreUpdateService(IOptions<StoreOptions> options, ILogger<StoreUpdateService>? logger = null)
     {
         _logger = logger ?? NullLogger<StoreUpdateService>.Instance;
+        _product = StoreProduct.From(options.Value.ProductId);
     }
 
     public UpdateChannel Channel => UpdateChannel.MicrosoftStore;
@@ -69,9 +66,15 @@ public sealed class StoreUpdateService : IUpdateService
             _logger.LogWarning(ex, "StoreContext query failed (likely sideloaded/dev build). Falling back to Display Catalog check");
         }
 
+        if (_product is null)
+        {
+            _logger.LogWarning("Microsoft Store product ID is not configured; skipping Display Catalog check");
+            return new AppUpdateInfo(false, currentVersion, currentVersion, null, null);
+        }
+
         try
         {
-            using var response = await HttpClient.GetAsync(DisplayCatalogUri, cancellationToken);
+            using var response = await HttpClient.GetAsync(_product.CatalogUri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -161,8 +164,13 @@ public sealed class StoreUpdateService : IUpdateService
         }
 
         // Fallback: Launch MS Store product page and shut down application
-        _logger.LogInformation("Launching Microsoft Store page for {ProductId} and closing application", StoreProductId);
-        await OpenStoreListingAsync();
+        _logger.LogInformation("Launching Microsoft Store page for {ProductId} and closing application", _product?.Id);
+        if (!await TryOpenStoreListingAsync())
+        {
+            _logger.LogWarning("Microsoft Store page could not be opened; the application stays open");
+            return;
+        }
+
         await Task.Delay(500, cancellationToken);
 
         if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -175,30 +183,29 @@ public sealed class StoreUpdateService : IUpdateService
         }
     }
 
-    public Task OpenStoreListingAsync()
+    public Task OpenStoreListingAsync() => TryOpenStoreListingAsync();
+
+    /// <summary>Opens the product page in the Microsoft Store app and returns whether the launch succeeded.</summary>
+    private async Task<bool> TryOpenStoreListingAsync()
     {
+        // Falls back to the Downloads and updates page when no product ID is configured.
+        var listingUri = _product?.ListingUri ?? StoreProduct.UpdatesPageUri;
+
         try
         {
-            Process.Start(new ProcessStartInfo(StoreProductUri)
+            var launched = await Windows.System.Launcher.LaunchUriAsync(listingUri);
+            if (!launched)
             {
-                UseShellExecute = true
-            });
+                _logger.LogWarning("Microsoft Store did not accept {StoreUri}", listingUri);
+            }
+
+            return launched;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to launch Microsoft Store via Process.Start, falling back to TopLevel launcher");
-
-            if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
-                if (topLevel?.Launcher != null)
-                {
-                    return topLevel.Launcher.LaunchUriAsync(new Uri(StoreProductUri));
-                }
-            }
+            _logger.LogWarning(ex, "Failed to launch Microsoft Store with {StoreUri}", listingUri);
+            return false;
         }
-
-        return Task.CompletedTask;
     }
 
     private static Version? ExtractPackageVersion(JsonElement pkg, out string? packageFullName)
