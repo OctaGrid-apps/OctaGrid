@@ -51,7 +51,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _temperatureHistories = temperatureHistories;
         var savedStatus = settings.ClientSettings.DashboardStatusFilter;
+        // Connecting leads the row: it is where every printer starts, and it empties out as they report.
         StatusFilters = Enum.GetValues<UniversalPrinterState>()
+            .OrderBy(state => state != UniversalPrinterState.Connecting)
             .Select(state => new PrinterStatusFilterViewModel(state) { IsSelected = state == savedStatus })
             .ToList();
         foreach (var filter in StatusFilters)
@@ -103,18 +105,24 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
     private UniversalPrinterState? SelectedStatus => StatusFilters.FirstOrDefault(f => f.IsSelected)?.State;
 
+    /// <summary>
+    /// The badge a printer counts toward. One that has not reported yet is still connecting, unless its connector is
+    /// not loaded: then nothing will ever report for it, and it gets no badge rather than one that never resolves.
+    /// </summary>
+    private static UniversalPrinterState? BadgeState(PrinterStatusWidget printer) =>
+        printer.IsStateKnown ? printer.State
+        : printer.IsConnectorAvailable ? UniversalPrinterState.Connecting
+        : null;
+
     private void ApplyFilter()
     {
         var byConnector = _allPrinters
             .Where(p => SelectedConnector?.ConnectorId is null || p.Item.ConnectorId == SelectedConnector.ConnectorId)
             .ToList();
 
-        // A printer whose connector is unavailable never reports, so it must not keep the empty badges on screen.
-        var statesKnown = _allPrinters.All(p => p.Item.IsStateKnown || !p.Item.IsConnectorAvailable);
         foreach (var filter in StatusFilters)
         {
-            filter.Count = byConnector.Count(p => p.Item.IsStateKnown && p.Item.State == filter.State);
-            filter.HideWhenEmpty = statesKnown;
+            filter.Count = byConnector.Count(p => BadgeState(p.Item) == filter.State);
         }
 
         // Printers that have not reported yet stay visible, so a restored filter does not blank the page at startup.

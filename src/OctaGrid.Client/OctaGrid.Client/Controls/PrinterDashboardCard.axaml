@@ -59,7 +59,7 @@
                         VerticalAlignment="Top"
                         DockPanel.Dock="Right"
                         IsVisible="{Binding Item.IsConnectorAvailable}"
-                        State="{Binding Item.State}" />
+                        State="{Binding Item.DisplayState}" />
                     <controls:ConnectorUnavailableBadge IsVisible="{Binding !Item.IsConnectorAvailable}" />
                 </StackPanel>
                 <Button

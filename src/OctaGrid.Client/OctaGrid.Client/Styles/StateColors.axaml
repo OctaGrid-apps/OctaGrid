@@ -43,6 +43,10 @@
                     <Setter Property="Background" Value="{DynamicResource State.Failed.Background}" />
                     <Setter Property="Foreground" Value="{DynamicResource State.Failed.Foreground}" />
                 </Style>
+                <Style Selector="controls|Badge.connecting">
+                    <Setter Property="Background" Value="{DynamicResource State.Connecting.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Connecting.Foreground}" />
+                </Style>
             </StackPanel.Styles>
 
             <ThemeVariantScope RequestedThemeVariant="Light">
@@ -84,6 +88,10 @@
                             Margin="0,0,8,8"
                             Classes="failed"
                             Content="Failed" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="connecting"
+                            Content="Connecting" />
                     </WrapPanel>
                 </Border>
             </ThemeVariantScope>
@@ -126,6 +134,10 @@
                             Margin="0,0,8,8"
                             Classes="failed"
                             Content="Failed" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="connecting"
+                            Content="Connecting" />
                     </WrapPanel>
                 </Border>
             </ThemeVariantScope>
@@ -171,6 +183,9 @@
 
             <SolidColorBrush x:Key="State.Offline.Background" Color="#262b31" />
             <SolidColorBrush x:Key="State.Offline.Foreground" Color="#b4bcc5" />
+
+            <SolidColorBrush x:Key="State.Connecting.Background" Color="#21293a" />
+            <SolidColorBrush x:Key="State.Connecting.Foreground" Color="#7fb2ff" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -203,6 +218,9 @@
 
             <SolidColorBrush x:Key="State.Offline.Background" Color="#E3E5E9" />
             <SolidColorBrush x:Key="State.Offline.Foreground" Color="#565E6B" />
+
+            <SolidColorBrush x:Key="State.Connecting.Background" Color="#DCE8FB" />
+            <SolidColorBrush x:Key="State.Connecting.Foreground" Color="#2457A6" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

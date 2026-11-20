@@ -270,6 +270,10 @@ public class DeviceOrchestrator : IAsyncDisposable
 
         var cts = new CancellationTokenSource();
 
+        // Until the connector reports, clients would otherwise keep the previous session's state (or none).
+        // The connector replaces this with Offline if its attempt fails.
+        _telemetry.Send(new PrinterTelemetry(profile.PrinterId) { State = UniversalPrinterState.Connecting });
+
         var task = Task.Run(async () =>
         {
             try
