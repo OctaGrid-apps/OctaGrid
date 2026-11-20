@@ -121,9 +121,6 @@ public sealed class AgentRequestDispatcher : IDisposable
                 _watched = r.PrinterIds.ToFrozenSet();
                 return Ack;
 
-            case RequestPrinterStateRequest r:
-                await _worker.TriggerInitialStateAsync(r.PrinterIds, ct);
-                return Ack;
             case ApplyPrinterProfilesRequest r:
                 await _worker.ApplyProfilesAsync(r.Profiles, ct);
                 return Ack;

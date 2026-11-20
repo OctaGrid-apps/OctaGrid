@@ -19,7 +19,6 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(GetPrinterConsoleRequest), "console.get")]
 [JsonDerivedType(typeof(SendConsoleCommandRequest), "console.send")]
 [JsonDerivedType(typeof(GetPrinterEventsRequest), "events.get")]
-[JsonDerivedType(typeof(RequestPrinterStateRequest), "state.request")]
 [JsonDerivedType(typeof(ApplyPrinterProfilesRequest), "profiles.apply")]
 [JsonDerivedType(typeof(TestConnectionRequest), "connection.test")]
 [JsonDerivedType(typeof(GetConnectorsRequest), "connectors.get")]

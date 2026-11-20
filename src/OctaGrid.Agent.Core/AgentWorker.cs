@@ -283,12 +283,6 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
-    public Task TriggerInitialStateAsync(Guid deviceId, CancellationToken cancellationToken) =>
-            _orchestrator.TriggerInitialStateAsync(deviceId, cancellationToken);
-
-    public Task TriggerInitialStateAsync(IEnumerable<Guid> devices, CancellationToken cancellationToken) =>
-            _orchestrator.TriggerInitialStateAsync(devices, cancellationToken);
-
     /// <summary>Removes an installed extension. Printers that use it stop their session.</summary>
     public async Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
     {

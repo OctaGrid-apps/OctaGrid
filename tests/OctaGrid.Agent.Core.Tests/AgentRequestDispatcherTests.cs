@@ -80,7 +80,6 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
         public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
             Task.FromResult(ConnectionTestResult.Fail("No route to host"));
 
-        public Task RequestStateAsync(CancellationToken cancellationToken) => Record("state");
 
         public Task StartPrintAsync(string fileName, CancellationToken cancellationToken) => Record($"start:{fileName}");
 

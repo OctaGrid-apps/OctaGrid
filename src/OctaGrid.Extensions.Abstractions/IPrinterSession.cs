@@ -18,7 +18,4 @@ public interface IPrinterSession : IAsyncDisposable
 
     /// <summary>A one-shot check run before a printer is saved. Must not throw for expected failures.</summary>
     Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken);
-
-    /// <summary>Asks the session to publish the printer's full current state again.</summary>
-    Task RequestStateAsync(CancellationToken cancellationToken);
 }

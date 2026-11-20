@@ -41,7 +41,6 @@ internal static class AgentMessageSamples
         new GetPrinterConsoleRequest(PrinterId, 41, 200),
         new SendConsoleCommandRequest(PrinterId, "M105"),
         new GetPrinterEventsRequest(PrinterId, null, 100),
-        new RequestPrinterStateRequest([PrinterId]),
         new ApplyPrinterProfilesRequest(
             [new PrinterProfile(PrinterId, "acme.printer", new Dictionary<string, string> { ["url"] = "10.0.0.5", ["apiKey"] = "k" })]),
         new TestConnectionRequest("acme.printer", new Dictionary<string, string> { ["url"] = "10.0.0.5" }),

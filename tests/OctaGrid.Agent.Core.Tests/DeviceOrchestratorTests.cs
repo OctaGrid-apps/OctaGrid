@@ -53,7 +53,6 @@ public class DeviceOrchestratorTests
         public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
             Task.FromResult(ConnectionTestResult.Ok());
 
-        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -81,7 +80,6 @@ public class DeviceOrchestratorTests
         public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
             Task.FromResult(ConnectionTestResult.Ok());
 
-        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -133,7 +131,6 @@ public class DeviceOrchestratorTests
         public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
             Task.FromResult(ConnectionTestResult.Ok());
 
-        public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -434,13 +431,11 @@ public class DeviceOrchestratorTests
         await orchestrator.StopPrintJobAsync(profile.PrinterId, ct);
         await orchestrator.UploadFileAsync(profile.PrinterId, new MemoryStream(), "b.gcode", ct);
         await orchestrator.DeleteFileAsync(profile.PrinterId, "c.gcode", ct);
-        await orchestrator.TriggerInitialStateAsync(profile.PrinterId, ct);
-        await orchestrator.TriggerInitialStateAsync([profile.PrinterId], ct);
         var files = await orchestrator.GetPrinterFilesAsync(profile.PrinterId, ct);
         var thumbnail = await orchestrator.GetThumbnailAsync(profile.PrinterId, "a.gcode", ct);
 
         Assert.Equal(
-            ["start:a.gcode", "pause", "resume", "stop", "upload:b.gcode", "delete:c.gcode", "state", "state", "list", "thumb:a.gcode"],
+            ["start:a.gcode", "pause", "resume", "stop", "upload:b.gcode", "delete:c.gcode", "list", "thumb:a.gcode"],
             sessions.Single().Calls);
         Assert.Single(files);
         Assert.Equal("image/png", thumbnail?.ContentType);
@@ -456,7 +451,6 @@ public class DeviceOrchestratorTests
 
         await orchestrator.StartPrintJobAsync(unknown, "a.gcode", ct);
         await orchestrator.PausePrintJobAsync(unknown, ct);
-        await orchestrator.TriggerInitialStateAsync(unknown, ct);
 
         Assert.Empty(await orchestrator.GetPrinterFilesAsync(unknown, ct));
         Assert.Null(await orchestrator.GetThumbnailAsync(unknown, "a.gcode", ct));

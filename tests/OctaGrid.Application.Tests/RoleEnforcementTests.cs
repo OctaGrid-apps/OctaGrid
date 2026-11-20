@@ -44,7 +44,7 @@ public sealed class RoleEnforcementTests : IDisposable
         ["files.upload"] = (Permission.ManageFiles, (s, u) => s.Commands.UploadFile(u, s.PrinterId, new MemoryStream([1, 2, 3]), "a.gcode", None)),
         ["files.delete"] = (Permission.ManageFiles, (s, u) => s.Commands.DeleteFile(u, s.PrinterId, "a.gcode", None)),
         ["console.send"] = (Permission.SendCommands, (s, u) => s.Commands.SendConsoleCommand(u, s.PrinterId, "M105", None)),
-        ["state.request"] = (Permission.View, (s, u) => s.Commands.RequestState(u, [s.PrinterId], None)),
+        ["telemetry.watch"] = (Permission.View, (s, u) => s.Watch.Watch(u, Guid.NewGuid(), [s.PrinterId], null, None)),
         ["connection.test-saved"] = (Permission.ManagePrinters, (s, u) => s.Commands.TestConnection(u, Connector, Url, s.PrinterId, null, None)),
         ["connection.test-new"] = (Permission.ManagePrinters, (s, u) => s.Commands.TestConnection(u, Connector, Url, null, s.AgentId, None)),
 
@@ -136,6 +136,7 @@ public sealed class RoleEnforcementTests : IDisposable
             DashboardId = dashboardId;
             Printers = fixture.Printers(context);
             Commands = new PrinterCommandsService(access, Printers, fixture.Link);
+            Watch = new PrinterWatchService(Printers, fixture.Link, new PrinterWatchRegistry());
             Extensions = new ExtensionsService(access, fixture.Link);
             Dashboards = new DashboardsService(context, access);
             Agents = new AgentsService(context, access, publisher);
@@ -157,6 +158,8 @@ public sealed class RoleEnforcementTests : IDisposable
         public Guid PrinterId { get; }
 
         public PrintersService Printers { get; }
+
+        public PrinterWatchService Watch { get; }
 
         public Guid WorkspaceId { get; }
 

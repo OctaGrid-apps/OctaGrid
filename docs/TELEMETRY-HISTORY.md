@@ -1,6 +1,6 @@
 # Design: telemetry history and printer watching
 
-Status: steps 1 and 2 built (uncommitted); steps 3 to 5 not started. Until step 4, the running app shows no live telemetry: the agent streams only watched printers and no client watches yet. Decisions taken: the agent does not save history across restarts; the chart follows Mainsail's model; the history backfill is built together with subscription-based telemetry; pre-alpha, so replaced types and messages are removed rather than kept for compatibility.
+Status: steps 1 and 2 committed, step 3 built (uncommitted); steps 4 and 5 not started. Until step 4, the running app shows no live telemetry: the agent streams only watched printers and no client watches yet. Decisions taken: the agent does not save history across restarts; the chart follows Mainsail's model; the history backfill is built together with subscription-based telemetry; pre-alpha, so replaced types and messages are removed rather than kept for compatibility.
 
 ## Goal
 
@@ -74,13 +74,13 @@ Setting the whole set (rather than subscribe/unsubscribe pairs) makes reconnecti
 **Application** (`PrinterWatchService`): takes `userId` and a `watcherId` (a client connection; Local mode has one constant id). It checks `Permission.View` for each printer, keeps each watcher's set, and groups printers by `Printer.AgentId`. It sends each agent:
 
 - `GetPrinterBackfillRequest(IReadOnlyList<PrinterBackfillQuery>)` → `PrinterBackfillReply(IReadOnlyList<PrinterBackfill>)`, where `PrinterBackfillQuery(Guid PrinterId, DateTimeOffset? After)`. The agent bounds the result to its buffer.
-- `SetWatchedPrintersRequest(IReadOnlyList<Guid> PrinterIds)` → `AgentAck`, with the union of all watchers' printers on that agent, sent only when the union changes. The agent streams telemetry only for those printers. `RemoveWatcher(watcherId)` runs when a connection closes.
+- `SetWatchedPrintersRequest(IReadOnlyList<Guid> PrinterIds)` → `AgentAck`, with the union of all watchers' printers on that agent, sent only when the union changes. The agent streams telemetry only for those printers. A connection that closes sets an empty list; the Remote-mode hub does that, and sends each agent its list again when it connects.
 
 In Remote mode the server holds the watcher sets. How the agent addresses one WebRTC peer rather than "all watchers" is part of the WebRTC design; this design only needs the agent to know which printers anyone is watching.
 
 Each new message needs a wire name, a sample in `AgentMessageSamples` and an entry in `AgentMessageSetTests`. `PrinterWatchService.Watch` gets a row in `RoleEnforcementTests`.
 
-`RequestPrinterStateRequest`, `PrinterCommandsService.RequestState` and their contract method are **removed**, along with their wire name, since nothing outside this repository speaks the protocol yet. The agent answers the backfill from the last snapshot it keeps, so `IPrinterSession.RequestStateAsync` and `DeviceOrchestrator.TriggerInitialStateAsync` lose their only caller; remove them too unless a connector turns out to need the call on its own (check the BambuLab `pushall` path first).
+`RequestPrinterStateRequest`, `PrinterCommandsService.RequestState` and their contract method are **removed**, along with their wire name, since nothing outside this repository speaks the protocol yet. The agent answers the backfill from the last snapshot it keeps, so `IPrinterSession.RequestStateAsync` and `DeviceOrchestrator.TriggerInitialStateAsync` lose their only caller; both are removed. BambuLab sends `pushall` and Moonraker subscribes on every connect, so neither needed the host to ask.
 
 As built in step 2: the wire names are `telemetry.backfill` and `telemetry.watch` (reply `backfill`). `PrinterTelemetryLog.Get` returns the `PrinterBackfill` (last snapshot and samples under one lock), and `AgentRequestDispatcher` holds the watched set and drops telemetry of printers outside it. Events and console lines still go out for every printer.
 
@@ -117,7 +117,7 @@ Not part of this change; recorded so this design leaves room for it. The agent s
 
 1. `TelemetrySample` / `TelemetryReading`; `PrinterTelemetryLog` with merged complete samples; telemetry reaches the hub through `AgentWorker.TelemetryReported` and the dispatcher; `PrinterTelemetryReported` carries the stored sample. Agent and protocol tests.
 2. `GetPrinterBackfillRequest`, `SetWatchedPrintersRequest` and their wire-contract tests; the agent filters streamed telemetry by the watched set.
-3. `PrinterWatchService`, `IPrinterTelemetryClient`, the Local adapter (one watcher) and design-time data; `RoleEnforcementTests`. `RequestState` and `RequestPrinterStateRequest` removed.
+3. `PrinterWatchService`, `IPrinterTelemetryClient`, the Local adapter (one watcher); `RoleEnforcementTests`. `RequestState`, `RequestPrinterStateRequest`, `IPrinterSession.RequestStateAsync` and `ICommandService` removed. The design-time fake of `IPrinterTelemetryClient` comes with step 4, when a view model first uses it.
 4. `PrinterWatcher` in the client; dashboard cards and the printer page acquire and release; the store holds agent samples and merges backfill and live samples.
 5. Chart: series per key, legend toggles, hover read-out.
 

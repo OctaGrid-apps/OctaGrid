@@ -55,7 +55,7 @@ public sealed class AgentMessageSetTests
             "extensions.get", "extensions.install", "extensions.set-enabled", "extensions.uninstall",
             "files.delete", "files.list", "files.store", "files.thumbnail",
             "print.pause", "print.resume", "print.start", "print.stop",
-            "profiles.apply", "state.request", "telemetry.backfill", "telemetry.watch", "upload.abort", "upload.begin", "upload.chunk",
+            "profiles.apply", "telemetry.backfill", "telemetry.watch", "upload.abort", "upload.begin", "upload.chunk",
         ];
 
         Assert.Equal(expected, WireNames(typeof(AgentRequest)).Values.Order(StringComparer.Ordinal));

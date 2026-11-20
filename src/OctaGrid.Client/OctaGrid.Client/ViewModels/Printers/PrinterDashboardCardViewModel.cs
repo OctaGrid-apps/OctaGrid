@@ -43,7 +43,6 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         _logger = _loggerFactory.CreateLogger<PrinterDashboardCardViewModel>();
 
         WeakReferenceMessenger.Default.Register<PrinterTelemetryData, Guid>(this, item.Id, HandlePrinterTelemetry);
-        _ = LoadData(CancellationToken.None);
     }
 
     [ObservableProperty]
@@ -124,24 +123,6 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.State = message.Value.State;
 
         Item.SetConditions(message.Value.Conditions);
-    }
-
-    private async Task LoadData(CancellationToken cancellationToken)
-    {
-        if (!Item.IsConnectorAvailable)
-        {
-            // No connector is loaded for this printer, so there is nothing to ask for its state.
-            return;
-        }
-
-        try
-        {
-            await _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
-        }
     }
 
     /// <summary>Stops listening to the printer once the card has left the dashboard, so it is not updated in the background.</summary>

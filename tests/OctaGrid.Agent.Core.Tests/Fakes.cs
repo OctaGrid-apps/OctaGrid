@@ -53,7 +53,6 @@ internal sealed class FakeSession : IPrinterSession, IPrintControl, IFileStorage
     public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ConnectionTestResult.Ok());
 
-    public Task RequestStateAsync(CancellationToken cancellationToken) => Record("state");
 
     public Task StartPrintAsync(string fileName, CancellationToken cancellationToken) => Record($"start:{fileName}");
 
@@ -109,7 +108,6 @@ internal sealed class MinimalSession : IPrinterSession
     public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ConnectionTestResult.Ok());
 
-    public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

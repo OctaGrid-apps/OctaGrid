@@ -186,23 +186,6 @@ public class DeviceOrchestrator : IAsyncDisposable
         }
     }
 
-    public Task TriggerInitialStateAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _sessions.TryGetValue(deviceId, out var session)
-            ? session.Session.RequestStateAsync(cancellationToken)
-            : Task.CompletedTask;
-
-    public async Task TriggerInitialStateAsync(IEnumerable<Guid> devices, CancellationToken cancellationToken)
-    {
-        // ToDo: improve
-        foreach (var deviceId in devices)
-        {
-            if (_sessions.TryGetValue(deviceId, out var session))
-            {
-                await session.Session.RequestStateAsync(cancellationToken);
-            }
-        }
-    }
-
     public async Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken)
     {
         if (TryGetCapability<IFileStorage>(deviceId, $"upload file '{fileName}'", out var files))

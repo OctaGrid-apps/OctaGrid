@@ -32,12 +32,14 @@ public static class DependencyInjection
             .AddScoped<UsersService>()
             .AddScoped<PrintersService>()
             .AddScoped<PrinterCommandsService>()
+            .AddScoped<PrinterWatchService>()
             .AddScoped<ExtensionsService>()
             .AddScoped<AgentProfilesService>()
             .AddScoped<DashboardsService>()
             .AddScoped<WorkspacesService>();
 
         services.AddSingleton<IPermissionPolicy, RolePermissionPolicy>();
+        services.AddSingleton<PrinterWatchRegistry>();
 
         // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
@@ -68,6 +70,7 @@ public static class DependencyInjection
         services.AddSingleton<IExtensionsClient, LocalExtensionsClient>();
         services.AddSingleton<IClientRuntime, LocalClientRuntime>();
         services.AddSingleton<IAgentCommandsService, LocalAgentCommands>();
+        services.AddSingleton<IPrinterTelemetryClient, LocalPrinterTelemetryClient>();
 
         return services;
     }
