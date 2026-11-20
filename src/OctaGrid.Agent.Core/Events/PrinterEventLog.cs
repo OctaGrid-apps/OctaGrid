@@ -120,14 +120,14 @@ public sealed class PrinterEventLog
     /// Compares a snapshot with the previous one for the same printer and records what changed: a new
     /// state, a condition that appeared (or changed), and one that is gone.
     /// <para>
-    /// While the state is <see cref="UniversalPrinterState.Offline"/> a condition that is missing is unknown, not
+    /// While the state is <see cref="UniversalPrinterState.Offline"/> or <see cref="UniversalPrinterState.Connecting"/> a condition that is missing is unknown, not
     /// resolved: the connector cannot see the printer, so nothing is recorded as resolved until the printer reports again.
     /// </para>
     /// </summary>
     public void Observe(PrinterTelemetry telemetry)
     {
         var clean = Sanitize(telemetry);
-        var offline = clean.State == UniversalPrinterState.Offline;
+        var offline = clean.State is UniversalPrinterState.Offline or UniversalPrinterState.Connecting;
         List<PrinterEvent> recorded;
         Guid historyId;
 
@@ -145,7 +145,8 @@ public sealed class PrinterEventLog
             recorded = [];
             var current = clean.Conditions.ToDictionary(c => c.Code, StringComparer.Ordinal);
 
-            if (clean.State != journal.State)
+            // Connecting is where every session starts, so recording it would fill the history with app restarts.
+            if (clean.State != journal.State && clean.State != UniversalPrinterState.Connecting)
             {
                 RecordLocked(journal, recorded, StateSeverity(clean.State), "state.changed", $"State changed to {clean.State}.");
             }

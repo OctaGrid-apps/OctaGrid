@@ -31,5 +31,10 @@ public enum UniversalPrinterState
 
     // The JOB ended with an error (e.g. a G-code error) but the printer itself is fine.
     [Display(Name = "Failed", Description = "Job ended with an error; printer is ready")]
-    Failed = 8
+    Failed = 8,
+
+    // The host is establishing its first connection to the printer; nothing is known about it yet. A connector
+    // that tried and failed reports Offline instead, so this never hides a printer that cannot be reached.
+    [Display(Name = "Connecting", Description = "Connecting to the printer; its state is not known yet")]
+    Connecting = 9
 }

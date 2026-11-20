@@ -14,7 +14,7 @@ public partial class DashboardsView : ContentPage
         {
             if (DataContext is DashboardsViewModel viewModel)
             {
-                await viewModel.LoadDataCommand.ExecuteAsync(null);
+                await viewModel.ShowCommand.ExecuteAsync(null);
             }
         };
     }

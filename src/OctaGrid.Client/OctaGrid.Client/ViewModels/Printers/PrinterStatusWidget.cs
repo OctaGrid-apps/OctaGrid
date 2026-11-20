@@ -189,6 +189,9 @@ public class PrinterStatusWidget : INotifyPropertyChanged
     /// <summary>False until the printer has reported a state, so the default <see cref="State" /> is not mistaken for a real Offline.</summary>
     public bool IsStateKnown { get; private set; }
 
+    /// <summary>The state to show: Connecting until the printer has reported, so the default is never shown as Offline.</summary>
+    public UniversalPrinterState DisplayState => IsStateKnown ? State : UniversalPrinterState.Connecting;
+
     public UniversalPrinterState State
     {
         get;
@@ -200,6 +203,7 @@ public class PrinterStatusWidget : INotifyPropertyChanged
             {
                 field = value;
                 OnPropertyChanged(nameof(State));
+                OnPropertyChanged(nameof(DisplayState));
                 OnPropertyChanged(nameof(IsPrinting));
                 OnPropertyChanged(nameof(IsPaused));
                 OnPropertyChanged(nameof(CanStartNewPrint));

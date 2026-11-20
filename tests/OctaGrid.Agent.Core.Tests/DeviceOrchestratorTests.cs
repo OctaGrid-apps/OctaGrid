@@ -490,13 +490,13 @@ public class DeviceOrchestratorTests
 
         await orchestrator.ApplyProfilesAsync([]);
 
-        var offline = Assert.Single(telemetry.Sent);
+        var offline = telemetry.Sent[^1];
         Assert.Equal(profile.PrinterId, offline.PrinterId);
         Assert.Equal(OctaGrid.Extensions.Models.UniversalPrinterState.Offline, offline.State);
     }
 
     [Fact]
-    public async Task Does_not_report_offline_for_a_restart_or_a_shutdown()
+    public async Task Reports_connecting_when_a_session_starts_or_restarts_but_not_offline()
     {
         var (orchestrator, _, _, telemetry) = Create();
         var id = Guid.NewGuid();
@@ -505,7 +505,12 @@ public class DeviceOrchestratorTests
         await orchestrator.ApplyProfilesAsync([Profile(id, url: "10.0.0.2")]);
         await orchestrator.DisposeAsync();
 
-        Assert.Empty(telemetry.Sent);
+        Assert.Equal(2, telemetry.Sent.Count);
+        Assert.All(telemetry.Sent, t =>
+        {
+            Assert.Equal(id, t.PrinterId);
+            Assert.Equal(OctaGrid.Extensions.Models.UniversalPrinterState.Connecting, t.State);
+        });
     }
 
     [Fact]

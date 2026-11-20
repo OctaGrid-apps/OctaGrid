@@ -308,6 +308,31 @@ public class PrinterEventLogTests
     }
 
     [Fact]
+    public void Connecting_is_not_recorded_as_a_state_change()
+    {
+        var (log, _) = Create();
+
+        log.Observe(Snapshot(UniversalPrinterState.Idle));
+        log.Observe(Snapshot(UniversalPrinterState.Connecting));
+        log.Observe(Snapshot(UniversalPrinterState.Idle));
+
+        Assert.DoesNotContain(log.Get(Printer, null, 10).Events, e => e.Message.Contains("Connecting", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void While_connecting_a_missing_condition_is_not_resolved()
+    {
+        var (log, _) = Create();
+
+        log.Observe(Snapshot(UniversalPrinterState.Printing, Condition("filament.low", "Low", PrinterSeverity.Warning)));
+        log.Observe(Snapshot(UniversalPrinterState.Connecting));
+
+        Assert.DoesNotContain(
+            log.Get(Printer, null, 20).Events,
+            e => e.Message.StartsWith("Resolved", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void What_is_remembered_while_offline_stays_bounded_whatever_the_connector_sends()
     {
         var (log, _) = Create(new PrinterEventLogOptions(MaxConditions: 3));

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Reactive.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
@@ -30,7 +31,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private readonly IAppSettingsStore _settings;
     private readonly ITemperatureHistoryStore? _temperatureHistories;
     private List<PrinterDashboardCardViewModel> _allPrinters = [];
+    private bool _isStale = true;
     private bool _isUpdatingFilters;
+    private HashSet<string> _loadedConnectors = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>What the user may do in the selected workspace. Buttons for anything else are not shown.</summary>
     public WorkspacePermissions Permissions { get; }
@@ -51,7 +54,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _temperatureHistories = temperatureHistories;
         var savedStatus = settings.ClientSettings.DashboardStatusFilter;
+        // Connecting leads the row: it is where every printer starts, and it empties out as they report.
         StatusFilters = Enum.GetValues<UniversalPrinterState>()
+            .OrderBy(state => state != UniversalPrinterState.Connecting)
             .Select(state => new PrinterStatusFilterViewModel(state) { IsSelected = state == savedStatus })
             .ToList();
         foreach (var filter in StatusFilters)
@@ -75,6 +80,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                 await LoadData(CancellationToken.None);
             }
         };
+        // Printers are added, edited and deleted on other pages; the next time this page is shown it loads them again.
+        WeakReferenceMessenger.Default.Register<PrinterEntityUpsert>(this, (_, _) => _isStale = true);
+        WeakReferenceMessenger.Default.Register<PrinterEntityDelete>(this, (_, _) => _isStale = true);
         _logger.LogDebug("DashboardsViewModel initialized");
     }
 
@@ -103,18 +111,24 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
     private UniversalPrinterState? SelectedStatus => StatusFilters.FirstOrDefault(f => f.IsSelected)?.State;
 
+    /// <summary>
+    /// The badge a printer counts toward. One that has not reported yet is still connecting, unless its connector is
+    /// not loaded: then nothing will ever report for it, and it gets no badge rather than one that never resolves.
+    /// </summary>
+    private static UniversalPrinterState? BadgeState(PrinterStatusWidget printer) =>
+        printer.IsStateKnown ? printer.State
+        : printer.IsConnectorAvailable ? UniversalPrinterState.Connecting
+        : null;
+
     private void ApplyFilter()
     {
         var byConnector = _allPrinters
             .Where(p => SelectedConnector?.ConnectorId is null || p.Item.ConnectorId == SelectedConnector.ConnectorId)
             .ToList();
 
-        // A printer whose connector is unavailable never reports, so it must not keep the empty badges on screen.
-        var statesKnown = _allPrinters.All(p => p.Item.IsStateKnown || !p.Item.IsConnectorAvailable);
         foreach (var filter in StatusFilters)
         {
-            filter.Count = byConnector.Count(p => p.Item.IsStateKnown && p.Item.State == filter.State);
-            filter.HideWhenEmpty = statesKnown;
+            filter.Count = byConnector.Count(p => BadgeState(p.Item) == filter.State);
         }
 
         // Printers that have not reported yet stay visible, so a restored filter does not blank the page at startup.
@@ -200,24 +214,48 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
             SelectedDashboard = next;
 
             _logger.LogDebug("Loading enabled printers for workspace {WorkspaceId}", workspaceId);
+            // Cleared before the request, so a change that arrives while it runs marks the page stale again.
+            _isStale = false;
             var printers = await _printersClient.GetPrintersList(workspaceId, new GetPrintersQuery(Enabled: true), cancellationToken);
-            foreach (var old in _allPrinters)
+            var availableConnectors = AvailableConnectors();
+            var existing = _allPrinters.ToDictionary(card => card.Item.Id);
+            var cards = printers.Select(printer =>
             {
-                old.Item.PropertyChanged -= OnPrinterPropertyChanged;
+                var isAvailable = availableConnectors.Contains(printer.ConnectorId);
+                // A card that still fits keeps what it already knows (state, thumbnail), so nothing has to be asked again.
+                if (existing.Remove(printer.Id, out var card)
+                    && string.Equals(card.Item.ConnectorId, printer.ConnectorId, StringComparison.OrdinalIgnoreCase)
+                    && card.Item.IsConnectorAvailable == isAvailable)
+                {
+                    card.Item.Name = printer.Name;
+                    return card;
+                }
+
+                if (card is not null)
+                {
+                    card.Detach();
+                    card.Item.PropertyChanged -= OnPrinterPropertyChanged;
+                }
+
+                var created = new PrinterDashboardCardViewModel(new PrinterStatusWidget()
+                {
+                    Id = printer.Id,
+                    Name = printer.Name,
+                    ConnectorId = printer.ConnectorId,
+                    IsConnectorAvailable = isAvailable,
+                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions);
+                created.Item.PropertyChanged += OnPrinterPropertyChanged;
+                return created;
+            }).ToList();
+
+            foreach (var removed in existing.Values)
+            {
+                removed.Detach();
+                removed.Item.PropertyChanged -= OnPrinterPropertyChanged;
             }
 
-            var availableConnectors = _agentCommands.Connectors.Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            _allPrinters = printers.Select(printer => new PrinterDashboardCardViewModel(new PrinterStatusWidget()
-            {
-                Id = printer.Id,
-                Name = printer.Name,
-                ConnectorId = printer.ConnectorId,
-                IsConnectorAvailable = availableConnectors.Contains(printer.ConnectorId),
-            }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions)).ToList();
-            foreach (var card in _allPrinters)
-            {
-                card.Item.PropertyChanged += OnPrinterPropertyChanged;
-            }
+            _allPrinters = cards;
+            _loadedConnectors = availableConnectors;
 
             BuildConnectorOptions();
             ApplyFilter();
@@ -225,14 +263,34 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         }
         catch (OperationCanceledException)
         {
+            _isStale = true;
             _logger.LogInformation("Loading dashboard data was aborted via cancellation token");
         }
         catch (Exception ex)
         {
+            _isStale = true;
             _logger.LogError(ex, "Failed to load dashboard data for workspace {WorkspaceId}", workspaceId);
             throw;
         }
     }
+
+    /// <summary>
+    /// Called whenever the page is shown. The cards keep receiving telemetry while the page is hidden, so the data is
+    /// only loaded again when something it was built from changed: the printers, or which connectors are loaded.
+    /// </summary>
+    [RelayCommand]
+    private Task Show(CancellationToken cancellationToken)
+    {
+        if (!_isStale && _loadedConnectors.SetEquals(AvailableConnectors()))
+        {
+            return Task.CompletedTask;
+        }
+
+        return LoadData(cancellationToken);
+    }
+
+    private HashSet<string> AvailableConnectors() =>
+        _agentCommands.Connectors.Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Opens the dialog that creates, renames and deletes dashboards and picks the default one.</summary>
     [RelayCommand]
@@ -318,6 +376,14 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private Task RefreshPrinters(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Refreshing printers triggered");
+        // An explicit refresh starts every card over, so each printer is asked for its state again.
+        foreach (var card in _allPrinters)
+        {
+            card.Detach();
+            card.Item.PropertyChanged -= OnPrinterPropertyChanged;
+        }
+
+        _allPrinters = [];
         return LoadData(cancellationToken);
     }
 }

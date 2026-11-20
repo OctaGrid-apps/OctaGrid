@@ -15,7 +15,7 @@ public record PrinterTelemetry(Guid PrinterId)
     /// <summary>
     /// Everything that is wrong with the printer right now. Each snapshot holds the complete set, so a
     /// resolved problem disappears by being left out. Keep it to a handful of entries. While <see cref="State"/> is
-    /// <see cref="UniversalPrinterState.Offline"/> the host treats a missing condition as unknown rather than resolved,
+    /// <see cref="UniversalPrinterState.Offline"/> or <see cref="UniversalPrinterState.Connecting"/> the host treats a missing condition as unknown rather than resolved,
     /// because a connector that cannot reach the printer cannot know that the problem went away.
     /// </summary>
     public IReadOnlyList<PrinterCondition> Conditions { get; set; } = [];

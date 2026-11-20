@@ -20,6 +20,9 @@ public class DashboardFilterTests
                 .Select(p => new PrinterResponse(Guid.NewGuid(), p.Name, p.ConnectorId, new Dictionary<string, string>(), [], "", true, 1))
                 .ToList();
 
+        /// <summary>What the next load returns; tests change it to simulate printers edited elsewhere.</summary>
+        public List<PrinterResponse> Printers => _printers;
+
         public Task<List<PrinterResponse>> GetPrintersList(Guid workspaceId, GetPrintersQuery query, CancellationToken cancellationToken) =>
             Task.FromResult(_printers.ToList());
 
@@ -100,7 +103,7 @@ public class DashboardFilterTests
     }
 
     [Fact]
-    public async Task All_badges_stay_visible_until_every_printer_has_reported_a_state()
+    public async Task Only_reported_states_get_a_badge_while_the_other_printers_are_connecting()
     {
         var vm = await Page(new InMemorySettingsStore(), reportOffline: false);
         // The design-time agent has no connectors, so mark them available: only those printers are expected to report.
@@ -109,17 +112,50 @@ public class DashboardFilterTests
             card.Item.IsConnectorAvailable = true;
         }
 
-        Assert.All(vm.StatusFilters, f => Assert.True(f.IsVisible));
+        Assert.Equal([UniversalPrinterState.Connecting], VisibleBadges(vm));
+        Assert.Equal(3, Count(vm, UniversalPrinterState.Connecting));
 
         vm.Printers[0].Item.State = UniversalPrinterState.Idle;
         vm.Printers[1].Item.State = UniversalPrinterState.Idle;
-        Assert.All(vm.StatusFilters, f => Assert.True(f.IsVisible));
+        Assert.Equal([UniversalPrinterState.Connecting, UniversalPrinterState.Idle], VisibleBadges(vm));
+        Assert.Equal(1, Count(vm, UniversalPrinterState.Connecting));
 
-        vm.Printers[2].Item.State = UniversalPrinterState.Idle;
-        Assert.Equal(
-            [UniversalPrinterState.Idle],
-            vm.StatusFilters.Where(f => f.IsVisible).Select(f => f.State));
+        vm.Printers[2].Item.State = UniversalPrinterState.Printing;
+        Assert.Equal([UniversalPrinterState.Idle, UniversalPrinterState.Printing], VisibleBadges(vm));
     }
+
+    [Fact]
+    public async Task A_printer_the_agent_reports_as_connecting_counts_as_connecting()
+    {
+        var vm = await Page(new InMemorySettingsStore());
+
+        vm.Printers[0].Item.State = UniversalPrinterState.Connecting;
+
+        Assert.Equal(1, Count(vm, UniversalPrinterState.Connecting));
+        Assert.Equal(2, Count(vm, UniversalPrinterState.Offline));
+    }
+
+    [Fact]
+    public async Task Printers_without_a_loaded_connector_are_not_counted_as_connecting()
+    {
+        var vm = await Page(new InMemorySettingsStore(), reportOffline: false);
+
+        Assert.Empty(VisibleBadges(vm));
+    }
+
+    [Fact]
+    public void A_printer_that_has_not_reported_shows_connecting_not_offline()
+    {
+        var widget = new PrinterStatusWidget();
+
+        Assert.Equal(UniversalPrinterState.Connecting, widget.DisplayState);
+
+        widget.State = UniversalPrinterState.Offline;
+        Assert.Equal(UniversalPrinterState.Offline, widget.DisplayState);
+    }
+
+    private static List<UniversalPrinterState> VisibleBadges(DashboardsViewModel vm) =>
+        vm.StatusFilters.Where(f => f.IsVisible).Select(f => f.State).ToList();
 
     [Fact]
     public void The_start_pause_label_follows_the_printer_state()

@@ -102,7 +102,7 @@
                             <controls:PrinterStateBadge
                                 VerticalAlignment="Center"
                                 IsVisible="{Binding Item.IsConnectorAvailable}"
-                                State="{Binding Item.State}" />
+                                State="{Binding Item.DisplayState}" />
                             <controls:ConnectorUnavailableBadge VerticalAlignment="Center" IsVisible="{Binding !Item.IsConnectorAvailable}" />
                         </WrapPanel>
                         <TextBlock Classes="small secondary" Text="{Binding ConnectorName}" />
