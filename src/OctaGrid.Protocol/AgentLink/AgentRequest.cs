@@ -34,4 +34,6 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(BeginUploadRequest), "upload.begin")]
 [JsonDerivedType(typeof(UploadChunkRequest), "upload.chunk")]
 [JsonDerivedType(typeof(AbortUploadRequest), "upload.abort")]
+[JsonDerivedType(typeof(GetPrinterBackfillRequest), "telemetry.backfill")]
+[JsonDerivedType(typeof(SetWatchedPrintersRequest), "telemetry.watch")]
 public abstract record AgentRequest;

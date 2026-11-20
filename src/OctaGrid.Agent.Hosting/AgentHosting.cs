@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
 using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Agent.Core.Link;
-using OctaGrid.Extensions.Abstractions;
 
 namespace OctaGrid.Agent.Hosting;
 
@@ -43,9 +42,8 @@ public static class AgentHosting
         services.AddSingleton(sp => sp.GetRequiredService<ExtensionManager>().Registry);
         services.AddSingleton<IMessageHandler, MessageHandler>();
 
-        // Telemetry from the printer sessions goes to the hub, where the host's transport picks it up.
+        // What the worker reports reaches the hub through the dispatcher; the host's transport picks it up there.
         services.AddSingleton<AgentNotificationHub>();
-        services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<AgentNotificationHub>());
         services.AddSingleton(sp => new AgentUploads(
             options().UploadsFolder ?? Path.Combine(Path.GetTempPath(), "OctaGrid", "uploads"),
             logger: sp.GetService<ILogger<AgentUploads>>()));

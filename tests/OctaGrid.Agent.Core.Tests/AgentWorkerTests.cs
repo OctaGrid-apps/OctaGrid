@@ -110,7 +110,6 @@ public class AgentWorkerTests
     {
         var connector = new FakeConnector("acme.fake", _ => new MinimalSession());
         var services = new ServiceCollection();
-        services.AddSingleton<ITelemetrySink, FakeTelemetry>();
         services.AddSingleton(new ConnectorRegistry().Add(connector));
         services.AddSingleton<IExtensionStateStore, InMemoryStateStore>();
         services.AddSingleton<ExtensionManager>();

@@ -151,16 +151,18 @@ internal sealed class InMemoryStateStore : IExtensionStateStore
 
 /// <summary>
 /// An agent worker together with the printers the test's "backend" assigns to it. <see cref="PushProfilesAsync"/>
-/// does what the backend does when the agent starts or a printer changes: it sends the current set.
+/// does what the backend does when the agent starts or a printer changes: it sends the current set. Every snapshot the
+/// worker reports is handed to <c>telemetry</c>, so tests can watch what the printers send.
 /// </summary>
 internal sealed class TestWorker : AgentWorker
 {
     private readonly Func<IReadOnlyList<PrinterProfile>> _printers;
 
     public TestWorker(ITelemetrySink telemetry, Func<IReadOnlyList<PrinterProfile>> printers, ExtensionManager extensions)
-        : base(telemetry, extensions)
+        : base(extensions)
     {
         _printers = printers;
+        TelemetryReported += reported => telemetry.Send(reported.Telemetry);
     }
 
     public Task PushProfilesAsync(CancellationToken cancellationToken) => ApplyProfilesAsync(_printers(), cancellationToken);

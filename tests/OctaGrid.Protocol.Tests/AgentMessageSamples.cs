@@ -57,6 +57,8 @@ internal static class AgentMessageSamples
         new BeginUploadRequest(1024),
         new UploadChunkRequest(UploadId, 0, [1, 2, 3]),
         new AbortUploadRequest(UploadId),
+        new GetPrinterBackfillRequest([new PrinterBackfillQuery(PrinterId, At), new PrinterBackfillQuery(Guid.Empty, null)]),
+        new SetWatchedPrintersRequest([PrinterId]),
     ];
 
     public static IReadOnlyList<AgentReply> Replies { get; } =
@@ -78,6 +80,13 @@ internal static class AgentMessageSamples
         new ExtensionChangeReply(ExtensionInstallResult.Ok("acme.printer", "Installed")),
         new DeveloperFolderReply(null),
         new UploadStartedReply(UploadId, 65536),
+        new PrinterBackfillReply(
+        [
+            new PrinterBackfill(
+                PrinterId,
+                new PrinterTelemetry(PrinterId) { State = UniversalPrinterState.Idle, NozzleTemperature = 24.5 },
+                [new TelemetrySample(At, [new TelemetryReading(TelemetryReadingKeys.Nozzle, 24.5, 0)])]),
+        ]),
     ];
 
     public static IReadOnlyList<AgentNotification> Notifications { get; } =
@@ -88,7 +97,10 @@ internal static class AgentMessageSamples
             State = UniversalPrinterState.Printing,
             Conditions = [new PrinterCondition("filament.low", PrinterSeverity.Warning, "Filament is running low")],
             PrintStatus = new PrintStatus { FileName = "benchy.gcode", Progress = 0.42 },
-        }),
+        }, new TelemetrySample(At, [
+            new TelemetryReading(TelemetryReadingKeys.Nozzle, 210.5, 210),
+            new TelemetryReading(TelemetryReadingKeys.Bed, 60.1, null),
+        ])),
         new PrinterEventRecorded(PrinterId, StreamId, new PrinterEvent(8, At, PrinterSeverity.Error, "print.failed", "Print failed")),
         new PrinterConsoleLineRecorded(PrinterId, StreamId, new ConsoleLine(43, At, "T:210.5 /210.0")),
         new ConnectorsChanged([Connector]),
