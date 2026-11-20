@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.Text.Json;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -167,7 +165,12 @@ public sealed class StoreUpdateService : IUpdateService
 
         // Fallback: Launch MS Store product page and shut down application
         _logger.LogInformation("Launching Microsoft Store page for {ProductId} and closing application", _product?.Id);
-        await OpenStoreListingAsync();
+        if (!await TryOpenStoreListingAsync())
+        {
+            _logger.LogWarning("Microsoft Store page could not be opened; the application stays open");
+            return;
+        }
+
         await Task.Delay(500, cancellationToken);
 
         if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -180,33 +183,29 @@ public sealed class StoreUpdateService : IUpdateService
         }
     }
 
-    public Task OpenStoreListingAsync()
+    public Task OpenStoreListingAsync() => TryOpenStoreListingAsync();
+
+    /// <summary>Opens the product page in the Microsoft Store app and returns whether the launch succeeded.</summary>
+    private async Task<bool> TryOpenStoreListingAsync()
     {
         // Falls back to the Downloads and updates page when no product ID is configured.
         var listingUri = _product?.ListingUri ?? StoreProduct.UpdatesPageUri;
 
         try
         {
-            Process.Start(new ProcessStartInfo(listingUri.AbsoluteUri)
+            var launched = await Windows.System.Launcher.LaunchUriAsync(listingUri);
+            if (!launched)
             {
-                UseShellExecute = true
-            });
+                _logger.LogWarning("Microsoft Store did not accept {StoreUri}", listingUri);
+            }
+
+            return launched;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to launch Microsoft Store via Process.Start, falling back to TopLevel launcher");
-
-            if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
-                if (topLevel?.Launcher != null)
-                {
-                    return topLevel.Launcher.LaunchUriAsync(listingUri);
-                }
-            }
+            _logger.LogWarning(ex, "Failed to launch Microsoft Store with {StoreUri}", listingUri);
+            return false;
         }
-
-        return Task.CompletedTask;
     }
 
     private static Version? ExtractPackageVersion(JsonElement pkg, out string? packageFullName)
