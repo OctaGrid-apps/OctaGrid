@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol;

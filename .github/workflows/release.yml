@@ -194,7 +194,20 @@ jobs:
 
       - name: Build MSIX Packages
         shell: pwsh
+        env:
+          STORE_PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID }}
         run: |
+          if (-not $env:STORE_PRODUCT_ID) {
+              Write-Error "Missing required secret STORE_PRODUCT_ID."
+              exit 1
+          }
+
+          # Store:ProductId is empty in source control and is set for release packages only.
+          $settingsPath = "src/OctaGrid.Client/OctaGrid.Client.Desktop/appsettings.json"
+          $settings = Get-Content -Path $settingsPath -Raw | ConvertFrom-Json
+          $settings.Store.ProductId = $env:STORE_PRODUCT_ID
+          $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $settingsPath -Encoding utf8
+
           $version = "${{ steps.version_info.outputs.core_version }}"
           .\build-msix.ps1 -Architectures @('x64', 'arm64') -Configuration Release -OutputDir artifacts -PackageVersion $version -Bundle -Sign
 
@@ -282,13 +295,13 @@ jobs:
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
           AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
           SELLER_ID: ${{ secrets.SELLER_ID }}
-          STORE_PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID || '9NWQ15C73TXL' }}
+          STORE_PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          if (-not $env:AZURE_AD_TENANT_ID -or -not $env:AZURE_AD_CLIENT_ID -or -not $env:AZURE_AD_CLIENT_SECRET -or -not $env:SELLER_ID) {
-              Write-Error "Missing required Microsoft Store secrets (AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, SELLER_ID). Please add them to repository secrets."
+          if (-not $env:AZURE_AD_TENANT_ID -or -not $env:AZURE_AD_CLIENT_ID -or -not $env:AZURE_AD_CLIENT_SECRET -or -not $env:SELLER_ID -or -not $env:STORE_PRODUCT_ID) {
+              Write-Error "Missing required Microsoft Store secrets (AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, SELLER_ID, STORE_PRODUCT_ID). Please add them to repository secrets."
               exit 1
           }
 

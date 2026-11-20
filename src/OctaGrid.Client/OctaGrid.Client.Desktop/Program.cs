@@ -33,6 +33,7 @@ internal sealed class Program
         try
         {
             var services = new ServiceCollection();
+            services.AddDesktopConfiguration();
             services.AddDesktopLogging();
             services.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
             services.AddSingleton<IAppSettingsStore, JsonClientSettingsStore>();

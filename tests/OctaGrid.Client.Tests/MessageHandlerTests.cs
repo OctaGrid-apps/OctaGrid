@@ -38,4 +38,44 @@ public class MessageHandlerTests
         GC.KeepAlive(listener);
         GC.KeepAlive(bystander);
     }
+
+    [Fact]
+    public async Task Telemetry_reported_on_another_thread_reaches_its_printer_on_the_ui_thread()
+    {
+        var printerId = Guid.NewGuid();
+        var onUiThread = new List<bool>();
+        var listener = new object();
+        WeakReferenceMessenger.Default.Register<PrinterTelemetryData, Guid>(listener, printerId,
+            (_, _) => onUiThread.Add(Dispatcher.UIThread.CheckAccess()));
+
+        // Simulates telemetry reported on an agent thread.
+        await Task.Run(() => new MessageHandler().Handle(new PrinterTelemetry(printerId)), TestContext.Current.CancellationToken);
+        await HeadlessUi.Run(() => Dispatcher.UIThread.RunJobs());
+
+        Assert.Equal([true], onUiThread);
+        GC.KeepAlive(listener);
+    }
+
+    [Fact]
+    public async Task A_printer_change_on_another_thread_reaches_the_printer_and_all_listeners_on_the_ui_thread()
+    {
+        var printerId = Guid.NewGuid();
+        var forPrinter = new List<bool>();
+        var forAll = new List<bool>();
+        var printerListener = new object();
+        var allListener = new object();
+        WeakReferenceMessenger.Default.Register<PrinterEntityUpsert, Guid>(printerListener, printerId,
+            (_, _) => forPrinter.Add(Dispatcher.UIThread.CheckAccess()));
+        WeakReferenceMessenger.Default.Register<PrinterEntityUpsert>(allListener,
+            (_, _) => forAll.Add(Dispatcher.UIThread.CheckAccess()));
+
+        var change = new EntityChanged(EntityTypes.Printer, printerId, 1, ChangeKind.Upserted, Guid.NewGuid());
+        await Task.Run(() => new MessageHandler().Handle(change), TestContext.Current.CancellationToken);
+        await HeadlessUi.Run(() => Dispatcher.UIThread.RunJobs());
+
+        Assert.Equal([true], forPrinter);
+        Assert.Equal([true], forAll);
+        GC.KeepAlive(printerListener);
+        GC.KeepAlive(allListener);
+    }
 }

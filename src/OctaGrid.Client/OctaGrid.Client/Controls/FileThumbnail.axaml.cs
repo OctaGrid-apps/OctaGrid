@@ -20,9 +20,7 @@ public partial class FileThumbnail : UserControl
     public static readonly DirectProperty<FileThumbnail, Bitmap?> PictureProperty =
         AvaloniaProperty.RegisterDirect<FileThumbnail, Bitmap?>(nameof(Picture), o => o.Picture);
 
-    private bool _hasImage;
     private bool _isAttached;
-    private Bitmap? _picture;
 
     public FileThumbnail()
     {
@@ -39,18 +37,18 @@ public partial class FileThumbnail : UserControl
     /// <summary>True when there is a picture to show, and not the placeholder.</summary>
     public bool HasImage
     {
-        get => _hasImage;
-        private set => SetAndRaise(HasImageProperty, ref _hasImage, value);
+        get;
+        private set => SetAndRaise(HasImageProperty, ref field, value);
     }
 
     /// <summary>The decoded picture, shared by everything in the tile that shows it; null when there is none.</summary>
     public Bitmap? Picture
     {
-        get => _picture;
+        get;
         private set
         {
-            var old = _picture;
-            if (SetAndRaise(PictureProperty, ref _picture, value))
+            var old = field;
+            if (SetAndRaise(PictureProperty, ref field, value))
             {
                 // After the bindings moved to the new picture, so nothing shows one that is already disposed.
                 old?.Dispose();

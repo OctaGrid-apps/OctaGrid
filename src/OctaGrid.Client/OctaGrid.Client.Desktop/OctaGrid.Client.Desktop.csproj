@@ -17,6 +17,8 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Meziantou.Framework.Win32.CredentialManager" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" GeneratePathProperty="true" PrivateAssets="all" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
@@ -36,5 +38,12 @@
          Desktop head's own Program.cs — never in the shared OctaGrid.Client UI project. -->
     <ProjectReference Include="..\OctaGrid.Client\OctaGrid.Client.csproj" />
     <ProjectReference Include="..\..\OctaGrid.Client.Local\OctaGrid.Client.Local.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 </Project>

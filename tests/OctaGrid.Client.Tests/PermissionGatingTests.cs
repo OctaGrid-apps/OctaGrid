@@ -93,9 +93,11 @@ public class PermissionGatingTests
     public void The_command_box_needs_the_permission_as_well_as_expert_mode()
     {
         var withoutPermission = new PrinterConsoleViewModel(
-            Guid.NewGuid(), new DesignAgentCommands(), supportsCommands: true, permissions: As(Operator)) { IsExpertMode = true };
+            Guid.NewGuid(), new DesignAgentCommands(), supportsCommands: true, permissions: As(Operator))
+        { IsExpertMode = true };
         var withPermission = new PrinterConsoleViewModel(
-            Guid.NewGuid(), new DesignAgentCommands(), supportsCommands: true, permissions: As(Permission.View, Permission.SendCommands)) { IsExpertMode = true };
+            Guid.NewGuid(), new DesignAgentCommands(), supportsCommands: true, permissions: As(Permission.View, Permission.SendCommands))
+        { IsExpertMode = true };
 
         Assert.False(withoutPermission.CanSend);
         Assert.True(withPermission.CanSend);

@@ -45,19 +45,16 @@ public class NavigationRailItem : AvaloniaObject
     public static readonly StyledProperty<bool> ShowBadgeProperty =
         AvaloniaProperty.Register<NavigationRailItem, bool>(nameof(ShowBadge));
 
-    private object? _effectiveHeader;
-    private object? _effectiveIcon;
-
     public object? EffectiveHeader
     {
-        get => _effectiveHeader;
-        private set => SetAndRaise(EffectiveHeaderProperty, ref _effectiveHeader, value);
+        get;
+        private set => SetAndRaise(EffectiveHeaderProperty, ref field, value);
     }
 
     public object? EffectiveIcon
     {
-        get => _effectiveIcon;
-        private set => SetAndRaise(EffectiveIconProperty, ref _effectiveIcon, value);
+        get;
+        private set => SetAndRaise(EffectiveIconProperty, ref field, value);
     }
 
     /// <summary>
