@@ -1,35 +1,208 @@
-﻿<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls">
+
+    <!--  Both theme variants side by side, one badge per state.  -->
+    <Design.PreviewWith>
+        <StackPanel Width="420">
+            <StackPanel.Styles>
+                <Style Selector="controls|Badge.offline">
+                    <Setter Property="Background" Value="{DynamicResource State.Offline.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Offline.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.idle">
+                    <Setter Property="Background" Value="{DynamicResource State.Idle.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Idle.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.preparing">
+                    <Setter Property="Background" Value="{DynamicResource State.Preparing.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Preparing.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.printing">
+                    <Setter Property="Background" Value="{DynamicResource State.Printing.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Printing.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.paused">
+                    <Setter Property="Background" Value="{DynamicResource State.Paused.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Paused.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.cancelled">
+                    <Setter Property="Background" Value="{DynamicResource State.Cancelled.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Cancelled.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.completed">
+                    <Setter Property="Background" Value="{DynamicResource State.Completed.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Completed.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.error">
+                    <Setter Property="Background" Value="{DynamicResource State.Error.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Error.Foreground}" />
+                </Style>
+                <Style Selector="controls|Badge.failed">
+                    <Setter Property="Background" Value="{DynamicResource State.Failed.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource State.Failed.Foreground}" />
+                </Style>
+            </StackPanel.Styles>
+
+            <ThemeVariantScope RequestedThemeVariant="Light">
+                <Border Padding="16" Background="#F3F3F3">
+                    <WrapPanel>
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="offline"
+                            Content="Offline" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="idle"
+                            Content="Idle" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="preparing"
+                            Content="Preparing" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="printing"
+                            Content="Printing" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="paused"
+                            Content="Paused" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="cancelled"
+                            Content="Cancelled" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="completed"
+                            Content="Completed" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="error"
+                            Content="Error" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="failed"
+                            Content="Failed" />
+                    </WrapPanel>
+                </Border>
+            </ThemeVariantScope>
+            <ThemeVariantScope RequestedThemeVariant="Dark">
+                <Border Padding="16" Background="#1C1C1C">
+                    <WrapPanel>
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="offline"
+                            Content="Offline" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="idle"
+                            Content="Idle" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="preparing"
+                            Content="Preparing" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="printing"
+                            Content="Printing" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="paused"
+                            Content="Paused" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="cancelled"
+                            Content="Cancelled" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="completed"
+                            Content="Completed" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="error"
+                            Content="Error" />
+                        <controls:Badge
+                            Margin="0,0,8,8"
+                            Classes="failed"
+                            Content="Failed" />
+                    </WrapPanel>
+                </Border>
+            </ThemeVariantScope>
+        </StackPanel>
+    </Design.PreviewWith>
+
     <!--  Chart series: readable on both the light and the dark theme.  -->
     <SolidColorBrush x:Key="Chart.Hotend" Color="#F2784B" />
     <SolidColorBrush x:Key="Chart.Bed" Color="#4C9AFF" />
 
-    <SolidColorBrush x:Key="State.Default.Background" Color="#0B0D16" />
-    <SolidColorBrush x:Key="State.Default.Foreground" Color="#b4bcc5" />
+    <!--
+        Printer state badges. Dark: dim tinted fill, bright text. Light: pale tinted fill,
+        deep text of the same hue (>= 4.5:1 contrast), so the badge reads as a chip, not a grey slab.
+    -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="State.Default.Background" Color="#0B0D16" />
+            <SolidColorBrush x:Key="State.Default.Foreground" Color="#b4bcc5" />
 
-    <SolidColorBrush x:Key="State.Printing.Background" Color="#1c322c" />
-    <SolidColorBrush x:Key="State.Printing.Foreground" Color="#3ddc97" />
+            <SolidColorBrush x:Key="State.Printing.Background" Color="#1c322c" />
+            <SolidColorBrush x:Key="State.Printing.Foreground" Color="#3ddc97" />
 
-    <SolidColorBrush x:Key="State.Preparing.Background" Color="#242833" />
-    <SolidColorBrush x:Key="State.Preparing.Foreground" Color="#8C9BFF" />
+            <SolidColorBrush x:Key="State.Preparing.Background" Color="#242833" />
+            <SolidColorBrush x:Key="State.Preparing.Foreground" Color="#8C9BFF" />
 
-    <SolidColorBrush x:Key="State.Paused.Background" Color="#322d21" />
-    <SolidColorBrush x:Key="State.Paused.Foreground" Color="#f5b83d" />
+            <SolidColorBrush x:Key="State.Paused.Background" Color="#322d21" />
+            <SolidColorBrush x:Key="State.Paused.Foreground" Color="#f5b83d" />
 
-    <SolidColorBrush x:Key="State.Completed.Background" Color="#243033" />
-    <SolidColorBrush x:Key="State.Completed.Foreground" Color="#8cfff5" />
+            <SolidColorBrush x:Key="State.Completed.Background" Color="#243033" />
+            <SolidColorBrush x:Key="State.Completed.Foreground" Color="#8cfff5" />
 
-    <SolidColorBrush x:Key="State.Idle.Background" Color="#292d32" />
-    <SolidColorBrush x:Key="State.Idle.Foreground" Color="#a9b8c8" />
+            <SolidColorBrush x:Key="State.Idle.Background" Color="#292d32" />
+            <SolidColorBrush x:Key="State.Idle.Foreground" Color="#a9b8c8" />
 
-    <SolidColorBrush x:Key="State.Cancelled.Background" Color="#333224" />
-    <SolidColorBrush x:Key="State.Cancelled.Foreground" Color="#FFC38C" />
+            <SolidColorBrush x:Key="State.Cancelled.Background" Color="#333224" />
+            <SolidColorBrush x:Key="State.Cancelled.Foreground" Color="#FFC38C" />
 
-    <SolidColorBrush x:Key="State.Error.Background" Color="#332426" />
-    <SolidColorBrush x:Key="State.Error.Foreground" Color="#ff8a8a" />
+            <SolidColorBrush x:Key="State.Error.Background" Color="#332426" />
+            <SolidColorBrush x:Key="State.Error.Foreground" Color="#ff8a8a" />
 
-    <SolidColorBrush x:Key="State.Failed.Background" Color="#33242e" />
-    <SolidColorBrush x:Key="State.Failed.Foreground" Color="#ff8ab4" />
+            <SolidColorBrush x:Key="State.Failed.Background" Color="#33242e" />
+            <SolidColorBrush x:Key="State.Failed.Foreground" Color="#ff8ab4" />
 
-    <SolidColorBrush x:Key="State.Offline.Background" Color="#262b31" />
-    <SolidColorBrush x:Key="State.Offline.Foreground" Color="#b4bcc5" />
+            <SolidColorBrush x:Key="State.Offline.Background" Color="#262b31" />
+            <SolidColorBrush x:Key="State.Offline.Foreground" Color="#b4bcc5" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="State.Default.Background" Color="#E4E6EA" />
+            <SolidColorBrush x:Key="State.Default.Foreground" Color="#4A5160" />
+
+            <SolidColorBrush x:Key="State.Printing.Background" Color="#D3F1E2" />
+            <SolidColorBrush x:Key="State.Printing.Foreground" Color="#0B7A4B" />
+
+            <SolidColorBrush x:Key="State.Preparing.Background" Color="#E0E4FF" />
+            <SolidColorBrush x:Key="State.Preparing.Foreground" Color="#3B49C2" />
+
+            <SolidColorBrush x:Key="State.Paused.Background" Color="#FAE9C4" />
+            <SolidColorBrush x:Key="State.Paused.Foreground" Color="#8A5700" />
+
+            <SolidColorBrush x:Key="State.Completed.Background" Color="#CFF0EE" />
+            <SolidColorBrush x:Key="State.Completed.Foreground" Color="#0A6E68" />
+
+            <SolidColorBrush x:Key="State.Idle.Background" Color="#E2E6EB" />
+            <SolidColorBrush x:Key="State.Idle.Foreground" Color="#46566A" />
+
+            <SolidColorBrush x:Key="State.Cancelled.Background" Color="#F8E1CD" />
+            <SolidColorBrush x:Key="State.Cancelled.Foreground" Color="#974E0E" />
+
+            <SolidColorBrush x:Key="State.Error.Background" Color="#F9D8D8" />
+            <SolidColorBrush x:Key="State.Error.Foreground" Color="#B02A2A" />
+
+            <SolidColorBrush x:Key="State.Failed.Background" Color="#F8D8E7" />
+            <SolidColorBrush x:Key="State.Failed.Foreground" Color="#AB2864" />
+
+            <SolidColorBrush x:Key="State.Offline.Background" Color="#E3E5E9" />
+            <SolidColorBrush x:Key="State.Offline.Foreground" Color="#565E6B" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

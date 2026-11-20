@@ -40,7 +40,10 @@
         Classes="card"
         Classes.unavailable="{Binding !Item.IsConnectorAvailable}">
         <StackPanel Classes="card-content">
-            <StackPanel Classes="inline" Orientation="Horizontal">
+            <Grid
+                Classes="inline"
+                ColumnDefinitions="Auto,Auto,*"
+                ColumnSpacing="{DynamicResource Gap.Inline}">
                 <Border
                     Width="{Binding $self.Bounds.Height}"
                     Background="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Background}}"
@@ -49,7 +52,7 @@
                     CornerRadius="{DynamicResource RadiusSm}">
                     <PathIcon Data="{StaticResource print-regular}" Foreground="{Binding Item.State, Converter={x:Static conv:StateBrushConverter.Foreground}}" />
                 </Border>
-                <StackPanel>
+                <StackPanel Grid.Column="1">
                     <TextBlock Classes="subtitle" Text="{Binding Item.Name}" />
 
                     <controls:PrinterStateBadge
@@ -59,7 +62,18 @@
                         State="{Binding Item.State}" />
                     <controls:ConnectorUnavailableBadge IsVisible="{Binding !Item.IsConnectorAvailable}" />
                 </StackPanel>
-            </StackPanel>
+                <Button
+                    Grid.Column="2"
+                    MinWidth="{DynamicResource Space10}"
+                    HorizontalAlignment="Right"
+                    HorizontalContentAlignment="Center"
+                    AutomationProperties.Name="Open printer page"
+                    Classes="icon"
+                    Command="{Binding OpenPageCommand}"
+                    ToolTip.Tip="Open printer page">
+                    <PathIcon Data="{StaticResource arrow-maximize-regular}" />
+                </Button>
+            </Grid>
 
             <Grid
                 Height="80"
@@ -196,20 +210,7 @@
             </UniformGrid>
 
             <Border BorderBrush="{DynamicResource CardBorderBrush}" Classes="divided">
-                <StackPanel
-                    Grid.Column="1"
-                    HorizontalAlignment="Right"
-                    Classes="inline">
-
-                    <Button
-                        MinWidth="{DynamicResource Space10}"
-                        HorizontalContentAlignment="Center"
-                        AutomationProperties.Name="Open printer page"
-                        Classes="icon"
-                        Command="{Binding OpenPageCommand}"
-                        ToolTip.Tip="Open printer page">
-                        <PathIcon Data="{StaticResource open-regular}" />
-                    </Button>
+                <StackPanel HorizontalAlignment="Right" Classes="inline">
 
                     <Button
                         MinWidth="{DynamicResource Space10}"
