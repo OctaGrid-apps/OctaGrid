@@ -20,7 +20,8 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
             extruder = new[] { "temperature", "target" },
             heater_bed = new[] { "temperature", "target" },
             print_stats = new[] { "filename", "state", "message", "total_duration", "print_duration", "info" },
-            display_status = new[] { "progress" }
+            display_status = new[] { "progress" },
+            gcode_move = new[] { "gcode_position" }
         }
     };
 
@@ -88,7 +89,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         // ToDo: Cache the result for the current file name
         var result = await MoonrakerFileClient.GetFileMetadataAsync(rpc, fileName, cancellationToken, _logger).ConfigureAwait(false);
 
-        listener?.OnFileMetadata(result.EstimatedTimeSeconds);
+        listener?.OnFileMetadata(fileName, result.EstimatedTimeSeconds, result.Layers);
 
         if (result.ThumbnailFilePath is null)
         {
@@ -393,11 +394,43 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     private JsonRpc RequireRpc() =>
         _jsonRpc ?? throw new NotFoundException("The printer is not connected.");
 
+    // Layers and the estimated time come from the file's metadata. Asked for here, whenever the printer reports another
+    // file, rather than only when the UI happens to fetch a thumbnail (which it skips when it has one cached).
+    private async Task LoadFileMetadataAsync(JsonRpc? rpc, MoonrakerListener? listener, string fileName, CancellationToken ct)
+    {
+        if (rpc is null || listener is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await MoonrakerFileClient.GetFileMetadataAsync(rpc, fileName, ct, _logger).ConfigureAwait(false);
+            if (result.FileName is not null)
+            {
+                listener.OnFileMetadata(fileName, result.EstimatedTimeSeconds, result.Layers);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The session ended; the next one asks again.
+        }
+    }
+
     private async Task RunSessionAsync(Guid deviceId, ClientWebSocket ws, ITelemetrySink telemetry, CancellationToken ct)
     {
-        _listener = new MoonrakerListener(deviceId, telemetry, _loggerFactory.CreateLogger<MoonrakerListener>(), _console);
+        JsonRpc? sessionRpc = null;
+        MoonrakerListener? sessionListener = null;
+        sessionListener = new MoonrakerListener(
+            deviceId,
+            telemetry,
+            _loggerFactory.CreateLogger<MoonrakerListener>(),
+            _console,
+            fileName => _ = LoadFileMetadataAsync(sessionRpc, sessionListener, fileName, ct));
+        _listener = sessionListener;
         var handler = new WebSocketMessageHandler(ws, new SystemTextJsonFormatter());
         var rpc = new JsonRpc(handler, _listener);
+        sessionRpc = rpc;
         _jsonRpc = rpc;
         rpc.StartListening();
 

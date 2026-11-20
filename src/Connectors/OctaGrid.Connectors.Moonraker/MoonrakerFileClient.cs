@@ -23,7 +23,14 @@ internal sealed class MoonrakerFileClient(string host, ILogger<MoonrakerFileClie
     private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
     private readonly ILogger<MoonrakerFileClient> _logger = logger ?? NullLogger<MoonrakerFileClient>.Instance;
 
-    public readonly record struct FileMetadataResult(string FileName, int FileSize, string? MaterialType, double? NozzleDiameter, double? EstimatedTimeSeconds, string? ThumbnailFilePath);
+    public readonly record struct FileMetadataResult(
+        string FileName,
+        int FileSize,
+        string? MaterialType,
+        double? NozzleDiameter,
+        double? EstimatedTimeSeconds,
+        string? ThumbnailFilePath,
+        LayerMetadata Layers = default);
 
     public static async Task<FileMetadataResult> GetFileMetadataAsync(
         JsonRpc rpc,
@@ -68,7 +75,12 @@ internal sealed class MoonrakerFileClient(string host, ILogger<MoonrakerFileClie
             : null;
 
         var thumbnailPath = GetBestThumbnailPath(metadata);
-        return new FileMetadataResult(fileName, size, materialType, nozzle_diameter, estimatedTime, thumbnailPath);
+        var layers = new LayerMetadata(
+            metadata.TryGetDouble("layer_count", out var layerCount) ? (int)layerCount : null,
+            metadata.TryGetDouble("layer_height", out var layerHeight) ? layerHeight : null,
+            metadata.TryGetDouble("first_layer_height", out var firstLayerHeight) ? firstLayerHeight : null,
+            metadata.TryGetDouble("object_height", out var objectHeight) ? objectHeight : null);
+        return new FileMetadataResult(fileName, size, materialType, nozzle_diameter, estimatedTime, thumbnailPath, layers);
     }
 
     public async Task<PrintThumbnail?> DownloadBestThumbnailAsync(string fileName, string thumbnailPath, CancellationToken cancellationToken)

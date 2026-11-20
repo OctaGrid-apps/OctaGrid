@@ -14,16 +14,33 @@ public class MoonrakerListener
     private readonly ILogger<MoonrakerListener> _logger;
     private readonly PrinterTelemetry _printerTelemetry;
     private readonly ITelemetrySink _telemetry;
+    private readonly Action<string>? _fileChanged;
+
+    // Status notifications and file metadata answers arrive on different threads.
+    private readonly Lock _gate = new();
+    private LayerMetadata _fileLayers;
+    private bool _infoReportsLayers;
+    private double? _z;
     private string? _printMessage;
     private string? _printState;
     private string? _webhooksMessage;
     private string? _webhooksState;
 
-    public MoonrakerListener(Guid deviceId, ITelemetrySink telemetry, ILogger<MoonrakerListener>? logger = null, IConsoleSink? console = null)
+    /// <param name="fileChanged">
+    /// Called with the new file name when the printer reports another print file, so the caller can ask for its metadata
+    /// and pass it to <see cref="OnFileMetadata" />. Called on the notification thread; it must not block.
+    /// </param>
+    public MoonrakerListener(
+        Guid deviceId,
+        ITelemetrySink telemetry,
+        ILogger<MoonrakerListener>? logger = null,
+        IConsoleSink? console = null,
+        Action<string>? fileChanged = null)
     {
         _deviceId = deviceId;
         _telemetry = telemetry;
         _console = console;
+        _fileChanged = fileChanged;
         _logger = logger ?? NullLogger<MoonrakerListener>.Instance;
         _printerTelemetry = new PrinterTelemetry(_deviceId);
     }
@@ -33,23 +50,83 @@ public class MoonrakerListener
     public string? CurrentFileName => _printerTelemetry.PrintStatus.FileName;
 
     /// <summary>
-    /// Folds server.files.metadata's "estimated_time" into telemetry. Called by MoonrakerFileClient
-    /// after a metadata query made for the thumbnail flow — this is the only place PrinterTelemetry
-    /// is mutated, so the file client itself stays free of telemetry concerns.
+    /// Folds server.files.metadata's estimated time and layer details into telemetry. Called by MoonrakerClient after a
+    /// metadata query, so the file client itself stays free of telemetry concerns.
     /// </summary>
-    public void OnFileMetadata(double? estimatedTimeSeconds)
+    public void OnFileMetadata(string fileName, double? estimatedTimeSeconds, LayerMetadata layers = default)
     {
-        if (estimatedTimeSeconds is not { } seconds)
+        lock (_gate)
         {
-            return;
+            OnFileMetadataLocked(fileName, estimatedTimeSeconds, layers);
+        }
+    }
+
+    private void OnFileMetadataLocked(string fileName, double? estimatedTimeSeconds, LayerMetadata layers)
+    {
+        var changed = false;
+
+        if (estimatedTimeSeconds is { } seconds)
+        {
+            var value = TimeOnly.FromTimeSpan(TimeSpan.FromSeconds(seconds));
+            if (_printerTelemetry.PrintStatus.EstimatedPrintTime != value)
+            {
+                _printerTelemetry.PrintStatus.EstimatedPrintTime = value;
+                changed = true;
+            }
         }
 
-        var value = TimeOnly.FromTimeSpan(TimeSpan.FromSeconds(seconds));
-        if (_printerTelemetry.PrintStatus.EstimatedPrintTime != value)
+        // The answer can arrive after the next print started; it describes another file then.
+        if (fileName == CurrentFileName)
         {
-            _printerTelemetry.PrintStatus.EstimatedPrintTime = value;
+            _fileLayers = layers;
+            changed |= ApplyFallbackLayers();
+        }
+
+        if (changed)
+        {
             _telemetry.Send(Snapshot());
         }
+    }
+
+    private bool ApplyFallbackLayers()
+    {
+        var p = _printerTelemetry.PrintStatus;
+        if (_infoReportsLayers)
+        {
+            return false;
+        }
+
+        var total = _fileLayers.LayerCount is > 0
+            ? _fileLayers.LayerCount
+            : _fileLayers is { ObjectHeight: > 0, LayerHeight: > 0 }
+                ? (int)Math.Round((_fileLayers.ObjectHeight.Value - (_fileLayers.FirstLayerHeight ?? _fileLayers.LayerHeight.Value))
+                                  / _fileLayers.LayerHeight.Value) + 1
+                : null;
+
+        int? current = null;
+        if (total is { } count)
+        {
+            if (string.Equals(_printState, "complete", StringComparison.OrdinalIgnoreCase))
+            {
+                current = count;
+            }
+            else if (_z is > 0 && _fileLayers.LayerHeight is > 0 &&
+                     (string.Equals(_printState, "printing", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(_printState, "paused", StringComparison.OrdinalIgnoreCase)))
+            {
+                var first = _fileLayers.FirstLayerHeight ?? _fileLayers.LayerHeight.Value;
+                current = Math.Clamp((int)Math.Round((_z.Value - first) / _fileLayers.LayerHeight.Value) + 1, 1, count);
+            }
+        }
+
+        if (p.LayersCount == total && p.CurrentLayer == current)
+        {
+            return false;
+        }
+
+        p.LayersCount = total;
+        p.CurrentLayer = current;
+        return true;
     }
 
     [JsonRpcMethod("notify_gcode_response")]
@@ -95,10 +172,16 @@ public class MoonrakerListener
     [JsonRpcMethod("notify_status_update")]
     public void OnStatusUpdate(JsonElement payload, double eventTime)
     {
-        if (TryApply(payload, out var changed) && changed)
+        string? newFile;
+        lock (_gate)
         {
-            _telemetry.Send(Snapshot());
+            if (TryApply(payload, out var changed, out newFile) && changed)
+            {
+                _telemetry.Send(Snapshot());
+            }
         }
+
+        NotifyFileChanged(newFile);
     }
 
     /// <summary>
@@ -107,16 +190,41 @@ public class MoonrakerListener
     /// </summary>
     public void OnStatusQueried(JsonElement payload)
     {
-        if (TryApply(payload, out _))
+        string? newFile;
+        lock (_gate)
         {
-            _telemetry.Send(Snapshot());
+            if (TryApply(payload, out _, out newFile))
+            {
+                _telemetry.Send(Snapshot());
+            }
+        }
+
+        NotifyFileChanged(newFile);
+    }
+
+    // Outside the lock: the callback starts a query whose answer comes back through OnFileMetadata.
+    private void NotifyFileChanged(string? fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+        {
+            return;
+        }
+
+        try
+        {
+            _fileChanged?.Invoke(fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to request metadata for file '{FileName}' on Moonraker device {DeviceId}", fileName, _deviceId);
         }
     }
 
     // Returns false when the payload is not a status object at all.
-    private bool TryApply(JsonElement payload, out bool changed)
+    private bool TryApply(JsonElement payload, out bool changed, out string? newFile)
     {
         changed = false;
+        newFile = null;
         var status = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("status", out var inner) ? inner : payload;
         if (status.ValueKind != JsonValueKind.Object)
         {
@@ -153,7 +261,13 @@ public class MoonrakerListener
 
         if (status.TryGetProperty("print_stats", out var print))
         {
-            changed |= print.Update("filename", t.PrintStatus.FileName, v => t.PrintStatus.FileName = v);
+            if (print.Update("filename", t.PrintStatus.FileName, v => t.PrintStatus.FileName = v))
+            {
+                changed = true;
+                _fileLayers = default;
+                newFile = t.PrintStatus.FileName;
+            }
+
             changed |= print.Update("print_duration", t.PrintStatus.PrintTime, v => t.PrintStatus.PrintTime = v);
             changed |= print.Update("total_duration", t.PrintStatus.PrintTimeTotal, v => t.PrintStatus.PrintTimeTotal = v);
             stateChanged |= print.Update("state", _printState, v => _printState = v);
@@ -170,8 +284,19 @@ public class MoonrakerListener
             {
                 changed |= info.Update("total_layer", t.PrintStatus.LayersCount, v => t.PrintStatus.LayersCount = v);
                 changed |= info.Update("current_layer", t.PrintStatus.CurrentLayer, v => t.PrintStatus.CurrentLayer = v);
+                _infoReportsLayers = info.TryGetDouble("total_layer", out var infoTotal) && infoTotal > 0;
             }
         }
+
+        if (status.TryGetProperty("gcode_move", out var move) &&
+            move.TryGetProperty("gcode_position", out var position) &&
+            position.ValueKind == JsonValueKind.Array && position.GetArrayLength() > 2 &&
+            position[2].ValueKind == JsonValueKind.Number)
+        {
+            _z = position[2].GetDouble();
+        }
+
+        changed |= ApplyFallbackLayers();
 
         // Both objects feed the conditions, so they are worked out once after both were read, and only when one of them
         // was part of this update: most updates carry temperatures only.
@@ -228,3 +353,6 @@ public class MoonrakerListener
     private PrinterTelemetry Snapshot() =>
         _printerTelemetry with { PrintStatus = _printerTelemetry.PrintStatus with { } };
 }
+
+/// <summary>What a G-code file's metadata says about its layers. Any value can be missing.</summary>
+public readonly record struct LayerMetadata(int? LayerCount = null, double? LayerHeight = null, double? FirstLayerHeight = null, double? ObjectHeight = null);
