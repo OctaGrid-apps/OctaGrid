@@ -22,16 +22,11 @@ public sealed class DashboardsServiceTests : IDisposable
         context.Database.EnsureCreated();
 
         context.Users.Add(new User { Id = _userId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
-        context.Workspaces.Add(new Workspace { Id = _workspaceId, Name = "Test workspace" });
-        context.WorkspaceMembers.Add(new WorkspaceMember
-        {
-            Id = Guid.NewGuid(),
-            WorkspaceId = _workspaceId,
-            UserId = _userId,
-            Role = Role.Owner,
-            JoinedAt = DateTimeOffset.UtcNow,
-        });
+        context.Workspaces.Add(TestData.Workspace(_workspaceId, "Test workspace", _userId));
         context.SaveChanges();
+
+        // The tests below start from a workspace without dashboards, to see the rules apply from the first one.
+        TestData.RemoveDashboards(context, _workspaceId);
     }
 
     public void Dispose() => _connection.Dispose();
@@ -55,6 +50,22 @@ public sealed class DashboardsServiceTests : IDisposable
     {
         await using var context = NewContext();
         await new DashboardsService(context, TestAccess.For(context)).Delete(_userId, id, CancellationToken.None);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task Create_with_an_empty_name_is_rejected_and_saves_nothing(string name)
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => Create(name));
+
+        Assert.Empty(await List());
+    }
+
+    [Fact]
+    public async Task Create_with_a_name_over_100_characters_is_rejected()
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => Create(new string('a', 101)));
     }
 
     [Fact]
@@ -150,7 +161,7 @@ public sealed class DashboardsServiceTests : IDisposable
 
         await using (var context = NewContext())
         {
-            context.Printers.Add(new Printer { Id = printerId, Name = "Voron", WorkspaceId = _workspaceId, ConnectorId = "x", Enabled = true });
+            context.Printers.Add(TestData.Printer(printerId, _workspaceId, "Voron"));
             context.DashboardWidgets.Add(new DashboardWidget
             {
                 Id = Guid.NewGuid(),

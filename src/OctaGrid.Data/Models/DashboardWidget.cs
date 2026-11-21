@@ -11,8 +11,6 @@ public sealed class DashboardWidget : Entity
     public int GridHeight { get; set; }
     public string ConfigJson { get; set; } = string.Empty;
 
-    // Navigation props
+    // The printer is another aggregate, referred to by id.
     public Dashboard? Dashboard { get; set; }
-
-    public Printer? Printer { get; set; }
 }

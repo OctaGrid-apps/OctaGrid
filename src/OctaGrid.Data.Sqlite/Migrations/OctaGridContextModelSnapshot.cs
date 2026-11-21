@@ -15,7 +15,7 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261121185305_InitialCreate";
+    public override string LastMigrationId => "20261121194515_InitialCreate";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -490,13 +490,11 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("OctaGrid.Data.Models.Agent", b =>
             {
-                b.HasOne("OctaGrid.Data.Models.Workspace", "Workspace")
-                    .WithMany("Agents")
+                b.HasOne("OctaGrid.Data.Models.Workspace", null)
+                    .WithMany()
                     .HasForeignKey("WorkspaceId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
-
-                b.Navigation("Workspace");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.AgentStatus", b =>
@@ -512,13 +510,11 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("OctaGrid.Data.Models.Dashboard", b =>
             {
-                b.HasOne("OctaGrid.Data.Models.Workspace", "Workspace")
+                b.HasOne("OctaGrid.Data.Models.Workspace", null)
                     .WithMany("Dashboards")
                     .HasForeignKey("WorkspaceId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
-
-                b.Navigation("Workspace");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.DashboardWidget", b =>
@@ -529,15 +525,13 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
 
-                b.HasOne("OctaGrid.Data.Models.Printer", "Printer")
+                b.HasOne("OctaGrid.Data.Models.Printer", null)
                     .WithMany()
                     .HasForeignKey("PrinterId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
 
                 b.Navigation("Dashboard");
-
-                b.Navigation("Printer");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.PrintJob", b =>
@@ -551,20 +545,16 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("OctaGrid.Data.Models.Printer", b =>
             {
-                b.HasOne("OctaGrid.Data.Models.Agent", "Agent")
-                    .WithMany("Printers")
+                b.HasOne("OctaGrid.Data.Models.Agent", null)
+                    .WithMany()
                     .HasForeignKey("AgentId")
                     .OnDelete(DeleteBehavior.SetNull);
 
-                b.HasOne("OctaGrid.Data.Models.Workspace", "Workspace")
-                    .WithMany("Printers")
+                b.HasOne("OctaGrid.Data.Models.Workspace", null)
+                    .WithMany()
                     .HasForeignKey("WorkspaceId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
-
-                b.Navigation("Agent");
-
-                b.Navigation("Workspace");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.PrinterStatus", b =>
@@ -580,8 +570,8 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("OctaGrid.Data.Models.WorkspaceMember", b =>
             {
-                b.HasOne("OctaGrid.Data.Models.User", "User")
-                    .WithMany("WorkspaceMembers")
+                b.HasOne("OctaGrid.Data.Models.User", null)
+                    .WithMany()
                     .HasForeignKey("UserId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
@@ -592,15 +582,11 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
 
-                b.Navigation("User");
-
                 b.Navigation("Workspace");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.Agent", b =>
             {
-                b.Navigation("Printers");
-
                 b.Navigation("Status");
             });
 
@@ -614,20 +600,11 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                 b.Navigation("Status");
             });
 
-        modelBuilder.Entity("OctaGrid.Data.Models.User", b =>
-            {
-                b.Navigation("WorkspaceMembers");
-            });
-
         modelBuilder.Entity("OctaGrid.Data.Models.Workspace", b =>
             {
-                b.Navigation("Agents");
-
                 b.Navigation("Dashboards");
 
                 b.Navigation("Members");
-
-                b.Navigation("Printers");
             });
 #pragma warning restore 612, 618
     }

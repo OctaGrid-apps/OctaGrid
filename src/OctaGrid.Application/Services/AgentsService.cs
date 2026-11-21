@@ -42,20 +42,14 @@ public sealed class AgentsService
         var printer = await _context.Printers.FindAsync([printerId], cancellationToken)
             ?? throw new NotFoundException(nameof(Printer), printerId);
 
-        if (agent.WorkspaceId != printer.WorkspaceId)
-        {
-            _logger.LogWarning("Rejected assigning printer {PrinterId} (workspace {PrinterWorkspaceId}) to agent {AgentId} (workspace {AgentWorkspaceId})",
-                printerId, printer.WorkspaceId, agentId, agent.WorkspaceId);
-            throw new ValidationException(nameof(Agent), "Printer and agent should be in the same workspace");
-        }
-
         if (printer.AgentId == agentId)
         {
             return;
         }
 
         var previousAgentId = printer.AgentId;
-        printer.AgentId = agentId;
+        // Rejects an agent of another workspace (ValidationException).
+        printer.AssignTo(agent);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Assigned printer {PrinterId} to agent {AgentId} (was {PreviousAgentId}) in workspace {WorkspaceId} by user {UserId}",

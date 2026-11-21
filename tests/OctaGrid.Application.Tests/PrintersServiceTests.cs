@@ -38,16 +38,8 @@ public sealed class PrintersServiceTests : IDisposable
         context.Database.EnsureCreated();
 
         context.Users.Add(new User { Id = _userId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
-        context.Workspaces.Add(new Workspace { Id = _workspaceId, Name = "Test workspace" });
+        context.Workspaces.Add(TestData.Workspace(_workspaceId, "Test workspace", _userId));
         context.Agents.Add(new Agent { Id = _agentId, Name = "Agent", WorkspaceId = _workspaceId });
-        context.WorkspaceMembers.Add(new WorkspaceMember
-        {
-            Id = Guid.NewGuid(),
-            WorkspaceId = _workspaceId,
-            UserId = _userId,
-            Role = Role.Owner,
-            JoinedAt = DateTimeOffset.UtcNow,
-        });
         context.SaveChanges();
     }
 
@@ -262,7 +254,7 @@ public sealed class PrintersServiceTests : IDisposable
         await using (var context = NewContext())
         {
             var stolen = context.Printers.AsNoTracking().Single(p => p.Id == source.Id).ProtectedSecrets;
-            context.Printers.Single(p => p.Id == target.Id).ProtectedSecrets = stolen;
+            context.Printers.Single(p => p.Id == target.Id).StoreSecrets(stolen);
             await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -434,8 +426,7 @@ public sealed class PrintersServiceTests : IDisposable
     {
         using var context = NewContext();
         // The user belongs to it too, so what is checked is the workspace match, not access.
-        var workspace = new Workspace { Name = "Other workspace" };
-        workspace.Members.Add(new WorkspaceMember { UserId = _userId, Role = Role.Owner, JoinedAt = DateTimeOffset.UtcNow });
+        var workspace = Workspace.Create("Other workspace", _userId, DateTimeOffset.UtcNow);
         context.Workspaces.Add(workspace);
         context.SaveChanges();
         return workspace.Id;

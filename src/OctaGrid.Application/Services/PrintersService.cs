@@ -22,7 +22,6 @@ public sealed class PrintersService
     private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<PrintersService> _logger;
-    private static readonly IReadOnlyDictionary<string, string> NoSecrets = new Dictionary<string, string>();
 
     private readonly IMessagePublisher _publisher;
     private readonly ISecretProtector _protector;
@@ -49,25 +48,15 @@ public sealed class PrintersService
             throw new ValidationException(failures);
         }
 
-        var secrets = ApplySecretChanges(NoSecrets, request.Secrets);
-        var agentId = await ResolveAgentAsync(workspaceId, request.AgentId, cancellationToken);
+        var agent = await ResolveAgentAsync(workspaceId, request.AgentId, cancellationToken);
 
-        var printer = new Printer
+        var printer = Printer.Create(workspaceId, request.Name, request.ConnectorId, request.Settings, request.Enabled);
+        if (agent is not null)
         {
-            // Set here, not on save, because the secrets are encrypted for this printer id.
-            Id = Guid.CreateVersion7(),
-            Name = request.Name,
-            Settings = new Dictionary<string, string>(request.Settings),
-            ConnectorId = request.ConnectorId,
-            Enabled = request.Enabled,
-            WorkspaceId = workspaceId,
-            AgentId = agentId,
-            Status = new PrinterStatus()
-            {
-                State = ConnectionState.Unknown
-            }
-        };
-        WriteSecrets(printer, secrets);
+            printer.AssignTo(agent);
+        }
+
+        WriteSecrets(printer, PrinterSecrets.None.With(request.Secrets));
 
         // The secrets are part of the row, so they are saved or not saved together with the printer.
         await _context.Printers.AddAsync(printer, cancellationToken);
@@ -115,7 +104,7 @@ public sealed class PrintersService
             .Select(p =>
             {
                 var settings = new Dictionary<string, string>(p.Settings);
-                foreach (var (key, value) in ReadSecrets(p.Id, p.ProtectedSecrets))
+                foreach (var (key, value) in ReadSecrets(p.Id, p.ProtectedSecrets).Values)
                 {
                     settings[key] = value;
                 }
@@ -204,24 +193,7 @@ public sealed class PrintersService
 
         await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
-        var settings = new Dictionary<string, string>();
-        foreach (var (key, value) in ReadSecrets(printerId, printer.ProtectedSecrets))
-        {
-            if (!entered.ContainsKey(key))
-            {
-                settings[key] = value;
-            }
-        }
-
-        foreach (var (key, value) in entered)
-        {
-            if (!string.IsNullOrEmpty(value))
-            {
-                settings[key] = value;
-            }
-        }
-
-        return settings;
+        return ReadSecrets(printerId, printer.ProtectedSecrets).With(entered).Values;
     }
 
     public async Task<PrinterResponse> GetPrinter(Guid userId, Guid workspaceId, Guid printerId, CancellationToken cancellationToken)
@@ -276,12 +248,11 @@ public sealed class PrintersService
 
         await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
-        if (printer.Enabled == state)
+        if (!printer.SetEnabled(state))
         {
             return;
         }
 
-        printer.Enabled = state;
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Printer {PrinterId} ('{PrinterName}') enabled state set to {Enabled} in workspace {WorkspaceId} by user {UserId}",
@@ -306,19 +277,14 @@ public sealed class PrintersService
             throw new ValidationException(failures);
         }
 
-        // Saved secrets belong to the connector they were entered for; another connector starts without them.
-        var connectorChanged = !string.Equals(printer.ConnectorId, request.ConnectorId, StringComparison.OrdinalIgnoreCase);
-        var saved = connectorChanged ? NoSecrets : ReadSecrets(printer.Id, printer.ProtectedSecrets);
-        if (connectorChanged || request.Secrets is { Count: > 0 })
+        // Drops the saved secrets when the connector changes: they belong to the connector they were entered for.
+        printer.Reconfigure(request.Name!, request.ConnectorId!, request.Settings!, request.Enabled);
+        if (request.Secrets is { Count: > 0 })
         {
             // Encrypting again changes the stored text even for equal values, so only do it when something changed.
-            WriteSecrets(printer, ApplySecretChanges(saved, request.Secrets));
+            WriteSecrets(printer, ReadSecrets(printer.Id, printer.ProtectedSecrets).With(request.Secrets));
         }
 
-        printer.Name = request.Name!;
-        printer.Settings = new Dictionary<string, string>(request.Settings!);
-        printer.ConnectorId = request.ConnectorId!;
-        printer.Enabled = request.Enabled;
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {ConnectorId}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
@@ -345,7 +311,7 @@ public sealed class PrintersService
             throw new ValidationException(failures);
         }
 
-        printer.Name = request.Name!;
+        printer.Rename(request.Name!);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Updated printer identity {PrinterId} to '{PrinterName}' in workspace {WorkspaceId} by user {UserId}",
@@ -360,85 +326,55 @@ public sealed class PrintersService
     /// The agent a new printer gets: the one asked for, which must be in the printer's workspace, or else the
     /// workspace's only agent. With several agents and none asked for, the printer starts without one.
     /// </summary>
-    private async Task<Guid?> ResolveAgentAsync(Guid workspaceId, Guid? requested, CancellationToken cancellationToken)
+    // The printer checks that the agent is in its workspace when it is assigned.
+    private async Task<Agent?> ResolveAgentAsync(Guid workspaceId, Guid? requested, CancellationToken cancellationToken)
     {
         if (requested is { } agentId)
         {
-            var agentWorkspaceId = await _context.Agents
+            return await _context.Agents
                 .AsNoTracking()
-                .Where(a => a.Id == agentId)
-                .Select(a => (Guid?)a.WorkspaceId)
-                .FirstOrDefaultAsync(cancellationToken)
+                .FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Agent), agentId);
-
-            if (agentWorkspaceId != workspaceId)
-            {
-                throw new ValidationException(nameof(Printer.AgentId), "The agent is in another workspace.");
-            }
-
-            return agentId;
         }
 
         var agents = await _context.Agents
             .AsNoTracking()
             .Where(a => a.WorkspaceId == workspaceId)
-            .Select(a => a.Id)
             .Take(2)
             .ToListAsync(cancellationToken);
 
         return agents.Count == 1 ? agents[0] : null;
     }
 
-    /// <summary>A key with a value is saved, a key with an empty value is removed, and a key that is left out is kept.</summary>
-    private static Dictionary<string, string> ApplySecretChanges(
-        IReadOnlyDictionary<string, string> saved, IReadOnlyDictionary<string, string>? changes)
-    {
-        var result = new Dictionary<string, string>(saved);
-        foreach (var (key, value) in changes ?? NoSecrets)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                result.Remove(key);
-            }
-            else
-            {
-                result[key] = value;
-            }
-        }
-
-        return result;
-    }
-
     /// <summary>Encrypts the secrets, key names included, into the printer row.</summary>
-    private void WriteSecrets(Printer printer, Dictionary<string, string> secrets)
-    {
-        printer.ProtectedSecrets = secrets.Count == 0
+    private void WriteSecrets(Printer printer, PrinterSecrets secrets) =>
+        printer.StoreSecrets(secrets.IsEmpty
             ? null
-            : _protector.Protect(JsonSerializer.Serialize(secrets), printer.Id.ToString("N"));
-    }
+            : _protector.Protect(JsonSerializer.Serialize(secrets.Values), printer.Id.ToString("N")));
 
     /// <summary>
     /// Decrypts a printer's secrets. When they cannot be read (the key was lost, or the database came from
     /// another machine) the printer is treated as having none, so it can still be opened and the secrets
     /// entered again; the connection then fails with the printer's own "not authorised" answer.
     /// </summary>
-    private IReadOnlyDictionary<string, string> ReadSecrets(Guid printerId, string? protectedSecrets)
+    private PrinterSecrets ReadSecrets(Guid printerId, string? protectedSecrets)
     {
         if (string.IsNullOrEmpty(protectedSecrets))
         {
-            return NoSecrets;
+            return PrinterSecrets.None;
         }
 
         try
         {
             var json = _protector.Unprotect(protectedSecrets, printerId.ToString("N"));
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? NoSecrets;
+            var values = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            return values is null ? PrinterSecrets.None : new PrinterSecrets(values);
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException)
         {
             // The exception carries no secret material, only why decryption failed.
             _logger.LogWarning(ex, "The saved secrets of printer {PrinterId} cannot be read; they have to be entered again", printerId);
-            return NoSecrets;
+            return PrinterSecrets.None;
         }
     }
 
@@ -447,7 +383,7 @@ public sealed class PrintersService
     /// text, so secrets that can no longer be decrypted are reported as not saved.
     /// </summary>
     private IReadOnlyList<string> SecretKeys(Guid printerId, string? protectedSecrets) =>
-        ReadSecrets(printerId, protectedSecrets).Keys.Order(StringComparer.Ordinal).ToList();
+        ReadSecrets(printerId, protectedSecrets).Keys;
 
     private PrinterResponse MapToResponse(Printer printer) =>
         new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, SecretKeys(printer.Id, printer.ProtectedSecrets), printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.Enabled, printer.Version, printer.AgentId);

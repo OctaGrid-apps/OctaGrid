@@ -11,6 +11,10 @@ using OctaGrid.Protocol.Permissions;
 
 namespace OctaGrid.Application.Services;
 
+/// <summary>
+/// A workspace's dashboards. Adding, removing and choosing the default go through the <see cref="Workspace"/>, which
+/// keeps the rules about the whole list; renaming touches only the dashboard.
+/// </summary>
 public sealed class DashboardsService
 {
     private readonly WorkspaceAccess _access;
@@ -28,22 +32,15 @@ public sealed class DashboardsService
     {
         await _access.Require(userId, workspaceId, Permission.ManageDashboards, cancellationToken);
 
-        if (!Enum.IsDefined(request.Type))
+        var results = new CreateDashboardRequestValidator().Validate(request);
+        if (!results.IsValid)
         {
-            throw new ValidationException(nameof(request.Type), $"Unknown dashboard type '{request.Type}'.");
+            var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
+            throw new ValidationException(failures);
         }
 
-        var isFirst = !await _context.Dashboards.AnyAsync(d => d.WorkspaceId == workspaceId, cancellationToken);
-
-        var dashboard = new Dashboard()
-        {
-            Name = request.Name,
-            Type = request.Type,
-            WorkspaceId = workspaceId,
-            IsDefault = isFirst
-        };
-
-        await _context.Dashboards.AddAsync(dashboard, cancellationToken);
+        var workspace = await LoadWorkspace(workspaceId, cancellationToken);
+        var dashboard = workspace.AddDashboard(request.Name, request.Type);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Created dashboard {DashboardId} ('{DashboardName}', type {DashboardType}) in workspace {WorkspaceId} by user {UserId}",
@@ -70,19 +67,19 @@ public sealed class DashboardsService
 
     public async Task<DashboardResponse> Update(Guid userId, Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken)
     {
-        var dashboard = await FindWithAccess(userId, dashboardId, cancellationToken);
+        var dashboard = await _context.Dashboards.FindAsync([dashboardId], cancellationToken)
+            ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
+        await _access.Require(userId, dashboard.WorkspaceId, Permission.ManageDashboards, cancellationToken);
 
         var validator = new UpdateDashboardRequestValidator();
         var results = validator.Validate(request);
-
         if (!results.IsValid)
         {
             var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
             throw new ValidationException(failures);
         }
 
-        dashboard.Name = request.Name;
-
+        dashboard.Rename(request.Name);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Updated dashboard {DashboardId} ('{Name}', IsDefault={IsDefault}) in workspace {WorkspaceId} by user {UserId}",
@@ -91,22 +88,13 @@ public sealed class DashboardsService
         return ToResponse(dashboard);
     }
 
-    /// <summary>Makes the dashboard the one the workspace opens first; the previous default stops being one.</summary>
     public async Task<DashboardResponse> SetDefault(Guid userId, Guid dashboardId, CancellationToken cancellationToken)
     {
-        var dashboard = await FindWithAccess(userId, dashboardId, cancellationToken);
-
+        var workspace = await LoadWorkspaceOf(userId, dashboardId, cancellationToken);
+        var dashboard = workspace.Dashboards.Single(d => d.Id == dashboardId);
         if (!dashboard.IsDefault)
         {
-            var others = await _context.Dashboards
-                .Where(d => d.WorkspaceId == dashboard.WorkspaceId && d.IsDefault && d.Id != dashboard.Id)
-                .ToListAsync(cancellationToken);
-            foreach (var other in others)
-            {
-                other.IsDefault = false;
-            }
-
-            dashboard.IsDefault = true;
+            workspace.SetDefaultDashboard(dashboardId);
             await _context.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Dashboard {DashboardId} ('{Name}') is now the default of workspace {WorkspaceId} (user {UserId})",
@@ -116,44 +104,35 @@ public sealed class DashboardsService
         return ToResponse(dashboard);
     }
 
-    /// <summary>
-    /// Deletes a dashboard with its widgets. The last dashboard of a workspace cannot be deleted; when the default one
-    /// is deleted, the first remaining dashboard by name becomes the default.
-    /// </summary>
     public async Task Delete(Guid userId, Guid dashboardId, CancellationToken cancellationToken)
     {
-        var dashboard = await FindWithAccess(userId, dashboardId, cancellationToken);
+        var workspace = await LoadWorkspaceOf(userId, dashboardId, cancellationToken);
+        var dashboard = workspace.RemoveDashboard(dashboardId);
 
-        var remaining = await _context.Dashboards
-            .Where(d => d.WorkspaceId == dashboard.WorkspaceId && d.Id != dashboard.Id)
-            .ToListAsync(cancellationToken);
-
-        if (remaining.Count == 0)
-        {
-            throw new ValidationException(nameof(dashboardId), "A workspace needs at least one dashboard, so the last one cannot be deleted.");
-        }
-
-        if (dashboard.IsDefault)
-        {
-            remaining.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase).First().IsDefault = true;
-        }
-
-        var widgets = await _context.DashboardWidgets.Where(w => w.DashboardId == dashboard.Id).ToListAsync(cancellationToken);
-        _context.DashboardWidgets.RemoveRange(widgets);
-        _context.Dashboards.Remove(dashboard);
+        // Its widgets go with it (cascade in the database).
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Deleted dashboard {DashboardId} ('{Name}') with {WidgetCount} widget(s) from workspace {WorkspaceId} by user {UserId}",
-            dashboard.Id, dashboard.Name, widgets.Count, dashboard.WorkspaceId, userId);
+        _logger.LogInformation("Deleted dashboard {DashboardId} ('{Name}') from workspace {WorkspaceId} by user {UserId}",
+            dashboard.Id, dashboard.Name, dashboard.WorkspaceId, userId);
     }
 
-    private async Task<Dashboard> FindWithAccess(Guid userId, Guid dashboardId, CancellationToken cancellationToken)
-    {
-        var dashboard = await _context.Dashboards.FindAsync([dashboardId], cancellationToken)
-            ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
+    private async Task<Workspace> LoadWorkspace(Guid workspaceId, CancellationToken cancellationToken) =>
+        await _context.Workspaces
+            .Include(w => w.Dashboards)
+            .FirstOrDefaultAsync(w => w.Id == workspaceId, cancellationToken)
+        ?? throw new NotFoundException(nameof(Workspace), workspaceId);
 
-        await _access.Require(userId, dashboard.WorkspaceId, Permission.ManageDashboards, cancellationToken);
-        return dashboard;
+    // Also the authorization: it fails unless the user may manage the dashboards of the dashboard's workspace.
+    private async Task<Workspace> LoadWorkspaceOf(Guid userId, Guid dashboardId, CancellationToken cancellationToken)
+    {
+        var workspaceId = await _context.Dashboards
+            .AsNoTracking()
+            .Where(d => d.Id == dashboardId)
+            .Select(d => (Guid?)d.WorkspaceId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
+        await _access.Require(userId, workspaceId, Permission.ManageDashboards, cancellationToken);
+        return await LoadWorkspace(workspaceId, cancellationToken);
     }
 
     private static DashboardResponse ToResponse(Dashboard dashboard) =>

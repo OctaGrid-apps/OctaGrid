@@ -24,8 +24,9 @@ internal sealed class AgentConfiguration : EntityConfiguration<Agent>
 
         builder.Property(u => u.LastSeenAt);
 
-        builder.HasOne(s => s.Workspace)
-            .WithMany(w => w.Agents)
+        // By id only, as between aggregates.
+        builder.HasOne<Workspace>()
+            .WithMany()
             .HasForeignKey(s => s.WorkspaceId)
             .IsRequired();
     }
