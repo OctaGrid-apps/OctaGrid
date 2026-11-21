@@ -134,7 +134,10 @@ public sealed class WorkspaceAggregateTests : IDisposable
         seenBySecond.RemoveDashboard(Named(seenBySecond, "Second").Id);
         await first.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync(TestContext.Current.CancellationToken));
+        // Reported as an AppException, so the UI can show it and a server can answer 409.
+        var conflict = await Assert.ThrowsAsync<ConflictException>(() => second.SaveChangesAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("/errors/conflict", conflict.TypeUri);
+        Assert.IsType<DbUpdateConcurrencyException>(conflict.InnerException);
         await using var check = NewContext();
         Assert.NotEmpty(await check.Dashboards.Where(d => d.WorkspaceId == workspaceId).ToListAsync(TestContext.Current.CancellationToken));
     }

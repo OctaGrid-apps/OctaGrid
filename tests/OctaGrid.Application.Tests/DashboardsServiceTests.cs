@@ -52,6 +52,22 @@ public sealed class DashboardsServiceTests : IDisposable
         await new DashboardsService(context, TestAccess.For(context)).Delete(_userId, id, CancellationToken.None);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task Create_with_an_empty_name_is_rejected_and_saves_nothing(string name)
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => Create(name));
+
+        Assert.Empty(await List());
+    }
+
+    [Fact]
+    public async Task Create_with_a_name_over_100_characters_is_rejected()
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => Create(new string('a', 101)));
+    }
+
     [Fact]
     public async Task The_first_dashboard_of_a_workspace_is_the_default_and_the_next_ones_are_not()
     {

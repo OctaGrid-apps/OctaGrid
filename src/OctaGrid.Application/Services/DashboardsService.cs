@@ -32,6 +32,13 @@ public sealed class DashboardsService
     {
         await _access.Require(userId, workspaceId, Permission.ManageDashboards, cancellationToken);
 
+        var results = new CreateDashboardRequestValidator().Validate(request);
+        if (!results.IsValid)
+        {
+            var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
+            throw new ValidationException(failures);
+        }
+
         var workspace = await LoadWorkspace(workspaceId, cancellationToken);
         var dashboard = workspace.AddDashboard(request.Name, request.Type);
         await _context.SaveChangesAsync(cancellationToken);

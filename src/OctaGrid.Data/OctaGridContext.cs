@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OctaGrid.Data.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Data;
 
@@ -20,18 +21,35 @@ public class OctaGridContext : DbContext
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
 
+    /// <exception cref="ConflictException">A row changed since it was read (its <see cref="Entity.Version"/> moved on).</exception>
     public override int SaveChanges()
     {
         ApplyEntityConventions();
         StageDomainEvents();
-        return base.SaveChanges();
+        try
+        {
+            return base.SaveChanges();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ConflictException(ex);
+        }
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    /// <exception cref="ConflictException">A row changed since it was read (its <see cref="Entity.Version"/> moved on).</exception>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyEntityConventions();
         StageDomainEvents();
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Reported as an AppException so callers show it like any other expected failure.
+            throw new ConflictException(ex);
+        }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
