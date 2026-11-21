@@ -6,11 +6,30 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OctaGrid.Data.Sqlite.Migrations;
 
 /// <inheritdoc />
-public partial class _20261114121029_InitialCreate : Migration
+public partial class _20261121185305_InitialCreate : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.CreateTable(
+            name: "OutboxMessages",
+            columns: table => new
+            {
+                Sequence = table.Column<long>(type: "INTEGER", nullable: false)
+                    .Annotation("Sqlite:Autoincrement", true),
+                EventId = table.Column<Guid>(type: "TEXT", nullable: false),
+                Type = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                Payload = table.Column<string>(type: "TEXT", nullable: false),
+                OccurredAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                ProcessedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                Attempts = table.Column<int>(type: "INTEGER", nullable: false),
+                LastError = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_OutboxMessages", x => x.Sequence);
+            });
+
         migrationBuilder.CreateTable(
             name: "PairingCodes",
             columns: table => new
@@ -249,6 +268,32 @@ public partial class _20261114121029_InitialCreate : Migration
                     onDelete: ReferentialAction.Cascade);
             });
 
+        migrationBuilder.CreateTable(
+            name: "PrintJobs",
+            columns: table => new
+            {
+                Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                WorkspaceId = table.Column<Guid>(type: "TEXT", nullable: false),
+                PrinterId = table.Column<Guid>(type: "TEXT", nullable: false),
+                FileName = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true),
+                StartedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                EndedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                Outcome = table.Column<string>(type: "TEXT", maxLength: 32, nullable: true),
+                CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                Version = table.Column<long>(type: "INTEGER", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_PrintJobs", x => x.Id);
+                table.ForeignKey(
+                    name: "FK_PrintJobs_Printers_PrinterId",
+                    column: x => x.PrinterId,
+                    principalTable: "Printers",
+                    principalColumn: "Id",
+                    onDelete: ReferentialAction.Cascade);
+            });
+
         migrationBuilder.CreateIndex(
             name: "IX_Agents_TokenPrefix",
             table: "Agents",
@@ -275,6 +320,17 @@ public partial class _20261114121029_InitialCreate : Migration
             column: "PrinterId");
 
         migrationBuilder.CreateIndex(
+            name: "IX_OutboxMessages_EventId",
+            table: "OutboxMessages",
+            column: "EventId",
+            unique: true);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_OutboxMessages_ProcessedAt",
+            table: "OutboxMessages",
+            column: "ProcessedAt");
+
+        migrationBuilder.CreateIndex(
             name: "IX_PairingCodes_AccountId_Consumed",
             table: "PairingCodes",
             columns: new[] { "AccountId", "Consumed" });
@@ -298,6 +354,16 @@ public partial class _20261114121029_InitialCreate : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Printers_WorkspaceId",
             table: "Printers",
+            column: "WorkspaceId");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_PrintJobs_PrinterId_Outcome",
+            table: "PrintJobs",
+            columns: new[] { "PrinterId", "Outcome" });
+
+        migrationBuilder.CreateIndex(
+            name: "IX_PrintJobs_WorkspaceId",
+            table: "PrintJobs",
             column: "WorkspaceId");
 
         migrationBuilder.CreateIndex(
@@ -328,10 +394,16 @@ public partial class _20261114121029_InitialCreate : Migration
             name: "DashboardWidgets");
 
         migrationBuilder.DropTable(
+            name: "OutboxMessages");
+
+        migrationBuilder.DropTable(
             name: "PairingCodes");
 
         migrationBuilder.DropTable(
             name: "PrinterStatus");
+
+        migrationBuilder.DropTable(
+            name: "PrintJobs");
 
         migrationBuilder.DropTable(
             name: "WorkspaceMembers");

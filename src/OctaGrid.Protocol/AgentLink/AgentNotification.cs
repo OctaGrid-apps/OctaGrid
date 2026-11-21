@@ -13,4 +13,5 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(PrinterEventRecorded), "printer-event")]
 [JsonDerivedType(typeof(PrinterConsoleLineRecorded), "console-line")]
 [JsonDerivedType(typeof(ConnectorsChanged), "connectors-changed")]
+[JsonDerivedType(typeof(PrinterStateChanged), "printer-state")]
 public abstract record AgentNotification;

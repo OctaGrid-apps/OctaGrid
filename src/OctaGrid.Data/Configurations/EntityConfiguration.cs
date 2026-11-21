@@ -31,6 +31,9 @@ internal abstract class EntityConfiguration<TEntity> : IEntityTypeConfiguration<
             .IsRequired()
             .IsConcurrencyToken();
 
+        // Saved to the outbox, not as part of the entity.
+        builder.Ignore(e => e.DomainEvents);
+
         ConfigureEntity(builder);
     }
 

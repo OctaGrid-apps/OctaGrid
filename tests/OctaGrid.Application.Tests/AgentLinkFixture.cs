@@ -179,5 +179,32 @@ internal sealed class RecordingAgentLink : IAgentLink
         return Task.FromResult((TReply)reply);
     }
 
-    public IDisposable Subscribe(Action<AgentNotificationEnvelope> handler) => throw new NotSupportedException();
+    private readonly List<Action<AgentNotificationEnvelope>> _subscribers = [];
+
+    public IDisposable Subscribe(Action<AgentNotificationEnvelope> handler)
+    {
+        _subscribers.Add(handler);
+        return new Unsubscriber(() => _subscribers.Remove(handler));
+    }
+
+    /// <summary>Reports a notification from an agent to whoever listens, as the real link does.</summary>
+    public void Notify(Guid agentId, AgentNotification notification)
+    {
+        foreach (var subscriber in _subscribers.ToList())
+        {
+            subscriber(new AgentNotificationEnvelope(agentId, notification));
+        }
+    }
+
+    private sealed class Unsubscriber : IDisposable
+    {
+        private readonly Action _unsubscribe;
+
+        public Unsubscriber(Action unsubscribe)
+        {
+            _unsubscribe = unsubscribe;
+        }
+
+        public void Dispose() => _unsubscribe();
+    }
 }

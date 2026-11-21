@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Hosting;
 using OctaGrid.Application.Agents;
 using OctaGrid.Application.Authorization;
+using OctaGrid.Application.Events;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -36,10 +37,14 @@ public static class DependencyInjection
             .AddScoped<ExtensionsService>()
             .AddScoped<AgentProfilesService>()
             .AddScoped<DashboardsService>()
+            .AddScoped<PrintJobsService>()
             .AddScoped<WorkspacesService>();
 
         services.AddSingleton<IPermissionPolicy, RolePermissionPolicy>();
         services.AddSingleton<PrinterWatchRegistry>();
+        // Domain events are saved to the outbox with the change that raised them and delivered from there.
+        services.AddSingleton<OutboxDispatcher>();
+        services.AddSingleton<PrintJobRecorder>();
 
         // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
