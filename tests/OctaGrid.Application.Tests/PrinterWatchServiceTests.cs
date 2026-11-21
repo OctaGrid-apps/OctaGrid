@@ -129,12 +129,39 @@ public sealed class PrinterWatchServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task A_user_outside_the_workspace_cannot_watch_its_printers_and_changes_nothing()
+    public async Task A_printer_the_user_may_not_view_comes_back_offline_and_is_not_streamed()
     {
         var printer = await _fixture.CreatePrinter();
 
-        await Assert.ThrowsAnyAsync<AppException>(() => Watch(Desktop, [printer.Id], userId: Guid.NewGuid()));
+        var backfill = Assert.Single(await Watch(Desktop, [printer.Id], userId: Guid.NewGuid()));
 
+        Assert.Equal(UniversalPrinterState.Offline, backfill.Current.State);
         Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
+    public async Task An_agent_that_refused_its_watch_list_is_sent_it_again_on_the_next_call()
+    {
+        var printer = await _fixture.CreatePrinter();
+        _fixture.Link.Refused = typeof(SetWatchedPrintersRequest);
+        await Assert.ThrowsAnyAsync<AppException>(() => Watch(Desktop, [printer.Id]));
+
+        _fixture.Link.Refused = null;
+        await Watch(Desktop, [printer.Id]);
+
+        Assert.Equal([printer.Id], Assert.Single(WatchRequests()).PrinterIds);
+    }
+
+    [Fact]
+    public async Task An_agent_that_was_not_connected_is_sent_its_watch_list_on_the_next_call()
+    {
+        var printer = await _fixture.CreatePrinter();
+        _fixture.Link.Unreachable.Add(_fixture.AgentId);
+        await Watch(Desktop, [printer.Id]);
+
+        _fixture.Link.Unreachable.Clear();
+        await Watch(Desktop, [printer.Id]);
+
+        Assert.Equal([printer.Id], Assert.Single(WatchRequests()).PrinterIds);
     }
 }

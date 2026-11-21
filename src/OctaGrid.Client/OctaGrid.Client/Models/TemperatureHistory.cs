@@ -32,8 +32,9 @@ public sealed class TemperatureHistory
     public DateTimeOffset Now => _timeProvider.GetUtcNow();
 
     /// <summary>
-    /// Adds a sample from live telemetry. One that is not later than the newest kept sample is already here (it came with
-    /// the history) and is dropped.
+    /// Adds a sample from live telemetry. One with the time of a kept sample is already here (it came with the history)
+    /// and is dropped. One older than the newest kept sample but not kept means the agent's clock stepped back: the kept
+    /// samples from that time on are dropped and the new one is added after the rest.
     /// </summary>
     /// <returns>Whether it was added.</returns>
     public bool Add(TelemetrySample sample)
@@ -44,7 +45,15 @@ public sealed class TemperatureHistory
         {
             if (_samples.Count > 0 && sample.Time <= _samples[^1].Time)
             {
-                return false;
+                var at = FirstAtOrAfter(sample.Time);
+                if (_samples[at].Time == sample.Time)
+                {
+                    return false;
+                }
+
+                // Older than the newest sample but not one we have: the agent's clock stepped back. What was kept after
+                // this time belongs to the old timeline and would hide every new sample until the clock caught up.
+                _samples.RemoveRange(at, _samples.Count - at);
             }
 
             _samples.Add(sample);
@@ -101,6 +110,26 @@ public sealed class TemperatureHistory
         {
             return _samples.ToArray();
         }
+    }
+
+    // The index of the first sample at or after the time; the samples are in time order. Callers hold the lock.
+    private int FirstAtOrAfter(DateTimeOffset time)
+    {
+        int low = 0, high = _samples.Count;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (_samples[middle].Time < time)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return low;
     }
 
     // Callers hold the lock.

@@ -32,7 +32,8 @@ public sealed class PrinterWatchService
 
     /// <summary>
     /// Replaces the printers a client connection shows, and returns the state and history of those it did not show
-    /// before. A printer without an agent, or whose agent cannot be reached, comes back offline with no history.
+    /// before. A printer the user may not view, without an agent, or whose agent cannot be reached comes back offline
+    /// with no history and is not streamed; such a printer does not fail the call for the others.
     /// </summary>
     /// <param name="userId">The user.</param>
     /// <param name="watcherId">The client connection. Each connection has its own list.</param>
@@ -42,7 +43,6 @@ public sealed class PrinterWatchService
     /// history sample it has: they are returned with only the history after it.
     /// </param>
     /// <param name="cancellationToken">Cancels the call.</param>
-    /// <exception cref="ForbiddenException">The user may not view one of the printers.</exception>
     public async Task<IReadOnlyList<PrinterBackfill>> Watch(
         Guid userId,
         Guid watcherId,
@@ -53,7 +53,7 @@ public sealed class PrinterWatchService
         ArgumentNullException.ThrowIfNull(printerIds);
 
         var wanted = printerIds.Distinct().ToList();
-        var agents = await _printers.GetAgentIds(userId, wanted, Permission.View, cancellationToken);
+        var agents = await _printers.GetAllowedAgentIds(userId, wanted, Permission.View, cancellationToken);
 
         IReadOnlySet<Guid> previous;
         await _registry.Gate.WaitAsync(cancellationToken);
@@ -62,10 +62,25 @@ public sealed class PrinterWatchService
             (previous, var changedAgents) = _registry.Replace(watcherId, agents);
 
             // Streaming starts before the history is read, so nothing falls between the two; the client drops what it
-            // gets twice by the sample time.
-            foreach (var (agentId, watched) in changedAgents)
+            // gets twice by the sample time. An agent that did not get its set is sent it again on the next call, even
+            // when nothing changed by then; one that failed with an unexpected error, and every agent after it, too.
+            var unsent = changedAgents.Keys.ToList();
+            try
             {
-                await TrySend(agentId, () => _link.SendAsync(agentId, new SetWatchedPrintersRequest(watched), cancellationToken));
+                foreach (var (agentId, watched) in changedAgents)
+                {
+                    if (await TrySend(agentId, () => _link.SendAsync(agentId, new SetWatchedPrintersRequest(watched), cancellationToken)))
+                    {
+                        unsent.Remove(agentId);
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var agentId in unsent)
+                {
+                    _registry.MarkStale(agentId);
+                }
             }
         }
         finally
@@ -95,15 +110,18 @@ public sealed class PrinterWatchService
 
     // An agent that is not connected must not stop the client from showing the printers of the others: its printers
     // show as offline. Sending the watched list to an agent when it connects belongs to the Remote-mode agent hub.
-    private async Task TrySend(Guid agentId, Func<Task> send)
+    // Returns whether it reached the agent.
+    private async Task<bool> TrySend(Guid agentId, Func<Task> send)
     {
         try
         {
             await send();
+            return true;
         }
         catch (NotFoundException)
         {
             _logger.LogInformation("Agent {AgentId} is not connected; its printers are shown as offline", agentId);
+            return false;
         }
     }
 }

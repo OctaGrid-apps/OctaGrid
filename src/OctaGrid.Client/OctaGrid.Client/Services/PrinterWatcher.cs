@@ -14,6 +14,7 @@ namespace OctaGrid.Client.Services;
 /// </summary>
 public sealed class PrinterWatcher
 {
+    private readonly PrinterTelemetryArrivals? _arrivals;
     private readonly IPrinterTelemetryClient _client;
     private readonly Dictionary<Guid, int> _counts = [];
     private readonly Lock _gate = new();
@@ -29,11 +30,13 @@ public sealed class PrinterWatcher
         IPrinterTelemetryClient client,
         IClientMessageHandler messages,
         ITemperatureHistoryStore? histories = null,
-        ILogger<PrinterWatcher>? logger = null)
+        ILogger<PrinterWatcher>? logger = null,
+        PrinterTelemetryArrivals? arrivals = null)
     {
         _client = client;
         _messages = messages;
         _histories = histories;
+        _arrivals = arrivals;
         _logger = logger ?? NullLogger<PrinterWatcher>.Instance;
     }
 
@@ -122,13 +125,19 @@ public sealed class PrinterWatcher
                 id => id,
                 id => _histories?.GetOrCreate(id).LastTime ?? DateTimeOffset.MinValue);
 
+            // Live telemetry that arrives while the call runs is newer than the state the answer carries.
+            var arrivedBefore = needState.ToDictionary(id => id, id => _arrivals?.Count(id) ?? 0);
+
             try
             {
                 var backfills = await _client.WatchAsync(printerIds, resume, CancellationToken.None);
                 foreach (var backfill in backfills)
                 {
                     _histories?.GetOrCreate(backfill.PrinterId).Merge(backfill.History);
-                    _messages.Handle(backfill.Current, sample: null);
+                    if ((_arrivals?.Count(backfill.PrinterId) ?? 0) == arrivedBefore.GetValueOrDefault(backfill.PrinterId))
+                    {
+                        _messages.Handle(backfill.Current, sample: null);
+                    }
                 }
             }
             catch (Exception ex)

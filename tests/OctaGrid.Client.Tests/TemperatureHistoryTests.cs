@@ -50,18 +50,35 @@ public class TemperatureHistoryTests
     }
 
     [Fact]
-    public void Add_drops_a_sample_that_is_not_later_than_the_newest_one()
+    public void Add_drops_a_sample_with_a_time_it_already_has()
     {
         var history = new TemperatureHistory();
         var raised = 0;
         history.Changed += (_, _) => raised++;
 
-        Assert.True(history.Add(Sample(5, 20)));
-        Assert.False(history.Add(Sample(5, 21)));
-        Assert.False(history.Add(Sample(4, 22)));
+        Assert.True(history.Add(Sample(4, 20)));
+        Assert.True(history.Add(Sample(5, 21)));
+        Assert.False(history.Add(Sample(5, 22)));
+        Assert.False(history.Add(Sample(4, 23)));
 
-        Assert.Equal([20.0], history.Snapshot().Select(s => Value(s)));
-        Assert.Equal(1, raised);
+        Assert.Equal([20.0, 21], history.Snapshot().Select(s => Value(s)));
+        Assert.Equal(2, raised);
+    }
+
+    [Fact]
+    public void After_the_agent_clock_steps_back_new_samples_replace_the_old_timeline_instead_of_being_dropped()
+    {
+        var history = new TemperatureHistory();
+        foreach (var second in new[] { 0, 1, 2, 300, 301 })
+        {
+            history.Add(Sample(second, second));
+        }
+
+        Assert.True(history.Add(Sample(3, 3)));
+        Assert.True(history.Add(Sample(4, 4)));
+
+        Assert.Equal([0.0, 1, 2, 3, 4], history.Snapshot().Select(s => Value(s)));
+        Assert.Equal(Start.AddSeconds(4), history.LastTime);
     }
 
     [Fact]

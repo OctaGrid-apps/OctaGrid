@@ -8,10 +8,17 @@ namespace OctaGrid.Application.Telemetry;
 /// </summary>
 public sealed class PrinterWatchRegistry
 {
+    private readonly HashSet<Guid> _stale = [];
     private readonly Dictionary<Guid, IReadOnlyDictionary<Guid, Guid>> _watchers = [];
 
     /// <summary>Held while the sets change and the agents are told.</summary>
     public SemaphoreSlim Gate { get; } = new(1, 1);
+
+    /// <summary>
+    /// Records that an agent may not have its current set, because sending it failed. The next <see cref="Replace"/>
+    /// returns that agent again, whether or not its set changed.
+    /// </summary>
+    public void MarkStale(Guid agentId) => _stale.Add(agentId);
 
     /// <summary>
     /// Replaces what a watcher shows.
@@ -19,8 +26,8 @@ public sealed class PrinterWatchRegistry
     /// <param name="watcherId">The client connection.</param>
     /// <param name="printerAgents">Each printer the watcher shows, with the agent it is assigned to.</param>
     /// <returns>
-    /// The printers the watcher showed before, and the agents whose set of watched printers changed, each with its new
-    /// complete set (empty when nobody watches any of its printers any more).
+    /// The printers the watcher showed before, and the agents that have to be sent their set: those whose set changed
+    /// and those marked stale, each with its complete set (empty when nobody watches any of its printers any more).
     /// </returns>
     public (IReadOnlySet<Guid> Previous, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> ChangedAgents) Replace(
         Guid watcherId, IReadOnlyDictionary<Guid, Guid> printerAgents)
@@ -39,15 +46,18 @@ public sealed class PrinterWatchRegistry
 
         var after = WatchedByAgent();
         var changed = new Dictionary<Guid, IReadOnlyList<Guid>>();
-        foreach (var agentId in before.Keys.Union(after.Keys))
+        foreach (var agentId in before.Keys.Union(after.Keys).Union(_stale))
         {
             var was = before.GetValueOrDefault(agentId) ?? [];
             var now = after.GetValueOrDefault(agentId) ?? [];
-            if (!was.SetEquals(now))
+            if (!was.SetEquals(now) || _stale.Contains(agentId))
             {
                 changed[agentId] = now.ToList();
             }
         }
+
+        // Returned to be sent; the caller marks them again if sending fails.
+        _stale.Clear();
 
         return (previous, changed);
     }

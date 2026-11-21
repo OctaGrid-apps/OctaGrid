@@ -18,12 +18,15 @@ namespace OctaGrid.Client.Services;
 /// </summary>
 internal sealed class MessageHandler : IClientMessageHandler
 {
+    private readonly PrinterTelemetryArrivals? _arrivals;
     private readonly ITemperatureHistoryStore? _temperatureHistories;
 
     /// <param name="temperatureHistories">Where the temperatures of every printer are collected for its chart; none means they are not.</param>
-    public MessageHandler(ITemperatureHistoryStore? temperatureHistories = null)
+    /// <param name="arrivals">Where telemetry arrivals are counted; none means they are not.</param>
+    public MessageHandler(ITemperatureHistoryStore? temperatureHistories = null, PrinterTelemetryArrivals? arrivals = null)
     {
         _temperatureHistories = temperatureHistories;
+        _arrivals = arrivals;
     }
 
     public void Handle(EntityChanged entity)
@@ -70,6 +73,8 @@ internal sealed class MessageHandler : IClientMessageHandler
             _temperatureHistories?.GetOrCreate(telemetryMessage.PrinterId).Add(sample);
         }
 
+        // Counted before it is posted, so a state the watcher is about to post is known to be older than this one.
+        _arrivals?.Record(telemetryMessage.PrinterId);
         PostTo(new PrinterTelemetryData(telemetryMessage), telemetryMessage.PrinterId);
     }
 

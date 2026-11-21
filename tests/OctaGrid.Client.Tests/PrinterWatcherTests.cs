@@ -11,6 +11,7 @@ namespace OctaGrid.Client.Tests;
 
 public class PrinterWatcherTests
 {
+    private readonly PrinterTelemetryArrivals _arrivals = new();
     private readonly FakeTelemetryClient _client = new();
     private readonly FakeMessages _messages = new();
     private readonly TemperatureHistoryStore _store = new();
@@ -18,7 +19,7 @@ public class PrinterWatcherTests
 
     public PrinterWatcherTests()
     {
-        _watcher = new PrinterWatcher(_client, _messages, _store);
+        _watcher = new PrinterWatcher(_client, _messages, _store, arrivals: _arrivals);
     }
 
     [Fact]
@@ -75,6 +76,21 @@ public class PrinterWatcherTests
     }
 
     [Fact]
+    public async Task The_answer_does_not_overwrite_a_state_that_arrived_live_while_it_was_on_its_way()
+    {
+        var waited = Guid.NewGuid();
+        var quiet = Guid.NewGuid();
+        _client.DuringCall = () => _arrivals.Record(waited);
+
+        _watcher.Watch(waited);
+        _watcher.Watch(quiet);
+        await _watcher.Synced;
+
+        Assert.DoesNotContain(_messages.States, s => s.PrinterId == waited);
+        Assert.Contains(_messages.States, s => s.PrinterId == quiet);
+    }
+
+    [Fact]
     public async Task State_that_did_not_arrive_is_asked_for_again_with_the_next_change()
     {
         var printer = Guid.NewGuid();
@@ -126,6 +142,9 @@ public class PrinterWatcherTests
 
         public bool Fail { get; set; }
 
+        /// <summary>Runs while a call is in progress, as live telemetry arriving before the answer.</summary>
+        public Action? DuringCall { get; set; }
+
         public IReadOnlyList<TelemetrySample> History { get; set; } = [];
 
         public Task<IReadOnlyList<PrinterBackfill>> WatchAsync(
@@ -137,6 +156,8 @@ public class PrinterWatcherTests
             {
                 _calls.Add((printerIds.ToList(), resume ?? new Dictionary<Guid, DateTimeOffset>()));
             }
+
+            DuringCall?.Invoke();
 
             if (Fail)
             {

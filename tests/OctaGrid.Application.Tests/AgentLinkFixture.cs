@@ -138,12 +138,20 @@ internal sealed class RecordingAgentLink : IAgentLink
     /// <summary>Agents that are not connected: requests to them fail as the real link fails them.</summary>
     public HashSet<Guid> Unreachable { get; } = [];
 
+    /// <summary>Requests of this type are refused by the agent with a validation error, as an agent that rejects them.</summary>
+    public Type? Refused { get; set; }
+
     public Task<TReply> SendAsync<TReply>(Guid agentId, AgentRequest<TReply> request, CancellationToken cancellationToken)
         where TReply : AgentReply
     {
         if (Unreachable.Contains(agentId))
         {
             throw new NotFoundException("Agent", agentId);
+        }
+
+        if (request.GetType() == Refused)
+        {
+            throw new ValidationException("request", "The agent refused the request.");
         }
 
         Sent.Add((agentId, request));

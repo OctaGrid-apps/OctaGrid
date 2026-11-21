@@ -19,7 +19,7 @@ public interface IPrinterTelemetryClient
     /// what came after it; <see cref="DateTimeOffset.MinValue"/> for all of it.
     /// </param>
     /// <param name="cancellationToken">Cancels the call.</param>
-    /// <exception cref="OctaGrid.Extensions.Models.Exceptions.ForbiddenException">The user may not view one of the printers.</exception>
+    /// <remarks>A printer the user may not view comes back offline instead of failing the call.</remarks>
     Task<IReadOnlyList<PrinterBackfill>> WatchAsync(
         IReadOnlyCollection<Guid> printerIds,
         IReadOnlyDictionary<Guid, DateTimeOffset>? resume,
