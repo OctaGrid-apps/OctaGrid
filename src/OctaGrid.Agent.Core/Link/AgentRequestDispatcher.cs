@@ -25,6 +25,7 @@ public sealed class AgentRequestDispatcher : IDisposable
 
     private readonly AgentNotificationHub _hub;
     private readonly ILogger<AgentRequestDispatcher> _logger;
+    private readonly PrinterStateTracker _states;
     private readonly AgentUploads _uploads;
     private readonly AgentWorker _worker;
 
@@ -32,11 +33,16 @@ public sealed class AgentRequestDispatcher : IDisposable
     private volatile FrozenSet<Guid> _watched = FrozenSet<Guid>.Empty;
 
     public AgentRequestDispatcher(
-        AgentWorker worker, AgentUploads uploads, AgentNotificationHub hub, ILogger<AgentRequestDispatcher>? logger = null)
+        AgentWorker worker,
+        AgentUploads uploads,
+        AgentNotificationHub hub,
+        ILogger<AgentRequestDispatcher>? logger = null,
+        TimeProvider? time = null)
     {
         _worker = worker;
         _uploads = uploads;
         _hub = hub;
+        _states = new PrinterStateTracker(time);
         _logger = logger ?? NullLogger<AgentRequestDispatcher>.Instance;
 
         _worker.TelemetryReported += OnTelemetryReported;
@@ -123,6 +129,7 @@ public sealed class AgentRequestDispatcher : IDisposable
 
             case ApplyPrinterProfilesRequest r:
                 await _worker.ApplyProfilesAsync(r.Profiles, ct);
+                _states.Retain(r.Profiles.Select(p => p.PrinterId).ToList());
                 return Ack;
             case TestConnectionRequest r:
                 return new ConnectionTestReply(await _worker.TestConnectionAsync(r.ConnectorId, r.Settings, ct));
@@ -174,10 +181,16 @@ public sealed class AgentRequestDispatcher : IDisposable
 
     private void OnEventRecorded(PrinterEventRecorded recorded) => _hub.Publish(recorded);
 
-    // Telemetry is the one stream sent for printers nobody shows only if asked: it is by far the largest. Events and
-    // console lines are rare and go out for every printer.
+    // Telemetry is the one stream sent for printers nobody shows only if asked: it is by far the largest. Events,
+    // console lines and state changes are rare and go out for every printer; the backend follows print jobs by
+    // the state changes.
     private void OnTelemetryReported(PrinterTelemetryReported reported)
     {
+        if (_states.Observe(reported.Telemetry) is { } changed)
+        {
+            _hub.Publish(changed);
+        }
+
         if (_watched.Contains(reported.Telemetry.PrinterId))
         {
             _hub.Publish(reported);

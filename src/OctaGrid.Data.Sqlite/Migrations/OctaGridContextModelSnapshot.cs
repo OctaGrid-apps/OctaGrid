@@ -15,7 +15,7 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261114121029_InitialCreate";
+    public override string LastMigrationId => "20261121185305_InitialCreate";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -181,6 +181,47 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                 b.ToTable("DashboardWidgets");
             });
 
+        modelBuilder.Entity("OctaGrid.Data.Models.OutboxMessage", b =>
+            {
+                b.Property<long>("Sequence")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<int>("Attempts")
+                    .HasColumnType("INTEGER");
+
+                b.Property<Guid>("EventId")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("LastError")
+                    .HasMaxLength(1000)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset>("OccurredAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Payload")
+                    .IsRequired()
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset?>("ProcessedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Type")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Sequence");
+
+                b.HasIndex("EventId")
+                    .IsUnique();
+
+                b.HasIndex("ProcessedAt");
+
+                b.ToTable("OutboxMessages");
+            });
+
         modelBuilder.Entity("OctaGrid.Data.Models.PairingCode", b =>
             {
                 b.Property<Guid>("Id")
@@ -222,6 +263,50 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                 b.HasIndex("AccountId", "Consumed");
 
                 b.ToTable("PairingCodes");
+            });
+
+        modelBuilder.Entity("OctaGrid.Data.Models.PrintJob", b =>
+            {
+                b.Property<Guid>("Id")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset?>("EndedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("FileName")
+                    .HasMaxLength(512)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Outcome")
+                    .HasMaxLength(32)
+                    .HasColumnType("TEXT");
+
+                b.Property<Guid>("PrinterId")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset>("StartedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset>("UpdatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<long>("Version")
+                    .IsConcurrencyToken()
+                    .HasColumnType("INTEGER");
+
+                b.Property<Guid>("WorkspaceId")
+                    .HasColumnType("TEXT");
+
+                b.HasKey("Id");
+
+                b.HasIndex("WorkspaceId");
+
+                b.HasIndex("PrinterId", "Outcome");
+
+                b.ToTable("PrintJobs");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.Printer", b =>
@@ -453,6 +538,15 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                 b.Navigation("Dashboard");
 
                 b.Navigation("Printer");
+            });
+
+        modelBuilder.Entity("OctaGrid.Data.Models.PrintJob", b =>
+            {
+                b.HasOne("OctaGrid.Data.Models.Printer", null)
+                    .WithMany()
+                    .HasForeignKey("PrinterId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.Printer", b =>

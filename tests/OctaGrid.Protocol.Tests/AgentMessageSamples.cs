@@ -103,5 +103,6 @@ internal static class AgentMessageSamples
         new PrinterEventRecorded(PrinterId, StreamId, new PrinterEvent(8, At, PrinterSeverity.Error, "print.failed", "Print failed")),
         new PrinterConsoleLineRecorded(PrinterId, StreamId, new ConsoleLine(43, At, "T:210.5 /210.0")),
         new ConnectorsChanged([Connector]),
+        new PrinterStateChanged(PrinterId, UniversalPrinterState.Preparing, UniversalPrinterState.Printing, "benchy.gcode", At),
     ];
 }

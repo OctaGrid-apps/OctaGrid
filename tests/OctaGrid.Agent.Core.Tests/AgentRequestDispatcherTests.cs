@@ -284,6 +284,29 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task State_changes_are_published_for_printers_nobody_watches_once_per_change()
+    {
+        var session = await StartPrinterAsync();
+
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId)
+        {
+            State = UniversalPrinterState.Printing,
+            PrintStatus = new PrintStatus { FileName = "benchy.gcode" },
+        });
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId) { State = UniversalPrinterState.Printing });
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId) { State = UniversalPrinterState.Completed });
+
+        Assert.Empty(Notified<PrinterTelemetryReported>());
+        var changes = Notified<PrinterStateChanged>().Where(n => n.PrinterId == _printer.PrinterId).ToList();
+        Assert.Equal(
+            [UniversalPrinterState.Printing, UniversalPrinterState.Completed],
+            changes.Select(c => c.Current).Where(s => s is UniversalPrinterState.Printing or UniversalPrinterState.Completed));
+        var printing = Assert.Single(changes, c => c.Current == UniversalPrinterState.Printing);
+        Assert.Equal("benchy.gcode", printing.FileName);
+        Assert.Equal(UniversalPrinterState.Printing, Assert.Single(changes, c => c.Current == UniversalPrinterState.Completed).Previous);
+    }
+
+    [Fact]
     public async Task Telemetry_is_published_with_the_history_sample_stored_from_it()
     {
         var session = await StartPrinterAsync();

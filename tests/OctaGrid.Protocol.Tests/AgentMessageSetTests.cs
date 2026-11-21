@@ -76,7 +76,7 @@ public sealed class AgentMessageSetTests
     [Fact]
     public void The_wire_names_of_notifications_do_not_change()
     {
-        string[] expected = ["connectors-changed", "console-line", "printer-event", "telemetry"];
+        string[] expected = ["connectors-changed", "console-line", "printer-event", "printer-state", "telemetry"];
 
         Assert.Equal(expected, WireNames(typeof(AgentNotification)).Values.Order(StringComparer.Ordinal));
     }

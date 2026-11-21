@@ -12,8 +12,10 @@ public class OctaGridContext : DbContext
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<Dashboard> Dashboards => Set<Dashboard>();
     public DbSet<DashboardWidget> DashboardWidgets => Set<DashboardWidget>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
     public DbSet<Printer> Printers => Set<Printer>();
+    public DbSet<PrintJob> PrintJobs => Set<PrintJob>();
     public DbSet<User> Users => Set<User>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
@@ -21,12 +23,14 @@ public class OctaGridContext : DbContext
     public override int SaveChanges()
     {
         ApplyEntityConventions();
+        StageDomainEvents();
         return base.SaveChanges();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyEntityConventions();
+        StageDomainEvents();
         return base.SaveChangesAsync(cancellationToken);
     }
 
@@ -34,6 +38,24 @@ public class OctaGridContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OctaGridContext).Assembly);
+    }
+
+    /// <summary>
+    /// Moves the events tracked entities raised into the outbox, so they are saved in the same transaction as the
+    /// change. They leave the entities here: if the save fails, the outbox rows stay tracked and go with the retry.
+    /// </summary>
+    private void StageDomainEvents()
+    {
+        var raisers = ChangeTracker.Entries<Entity>()
+            .Select(e => e.Entity)
+            .Where(e => e.DomainEvents.Count > 0)
+            .ToList();
+
+        foreach (var entity in raisers)
+        {
+            OutboxMessages.AddRange(entity.DomainEvents.Select(OutboxMessage.From));
+            entity.ClearDomainEvents();
+        }
     }
 
     /// <summary>
