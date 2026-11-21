@@ -74,7 +74,7 @@ public sealed class WorkspacesService
         var memberships = await _context.WorkspaceMembers
             .AsNoTracking()
             .Where(uw => uw.UserId == userId)
-            .Select(uw => new { uw.Workspace!.Id, uw.Workspace.Name, uw.Version, uw.Role })
+            .Select(uw => new { uw.Workspace!.Id, uw.Workspace.Name, uw.Workspace.Version, uw.Role })
             .ToListAsync(cancellationToken);
 
         // The role stays here: the client is told what the user may do, not which role that comes from.
