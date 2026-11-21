@@ -37,7 +37,6 @@ public sealed class DevSession(PrinterProfile profile) : IPrinterSession
     public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ConnectionTestResult.Ok());
 
-    public Task RequestStateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

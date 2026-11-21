@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Models.Exceptions;
@@ -27,6 +28,9 @@ public sealed class AgentRequestDispatcher : IDisposable
     private readonly AgentUploads _uploads;
     private readonly AgentWorker _worker;
 
+    // Replaced as a whole and read without a lock: telemetry arrives on connector threads while a request changes it.
+    private volatile FrozenSet<Guid> _watched = FrozenSet<Guid>.Empty;
+
     public AgentRequestDispatcher(
         AgentWorker worker, AgentUploads uploads, AgentNotificationHub hub, ILogger<AgentRequestDispatcher>? logger = null)
     {
@@ -35,6 +39,7 @@ public sealed class AgentRequestDispatcher : IDisposable
         _hub = hub;
         _logger = logger ?? NullLogger<AgentRequestDispatcher>.Instance;
 
+        _worker.TelemetryReported += OnTelemetryReported;
         _worker.EventRecorded += OnEventRecorded;
         _worker.ConsoleLineRecorded += OnConsoleLineRecorded;
         _worker.ConnectorsChanged += OnConnectorsChanged;
@@ -64,6 +69,7 @@ public sealed class AgentRequestDispatcher : IDisposable
 
     public void Dispose()
     {
+        _worker.TelemetryReported -= OnTelemetryReported;
         _worker.EventRecorded -= OnEventRecorded;
         _worker.ConsoleLineRecorded -= OnConsoleLineRecorded;
         _worker.ConnectorsChanged -= OnConnectorsChanged;
@@ -109,10 +115,12 @@ public sealed class AgentRequestDispatcher : IDisposable
                 return Ack;
             case GetPrinterEventsRequest r:
                 return new PrinterEventsReply(_worker.GetPrinterEvents(r.PrinterId, r.AfterSequence, r.Limit));
-
-            case RequestPrinterStateRequest r:
-                await _worker.TriggerInitialStateAsync(r.PrinterIds, ct);
+            case GetPrinterBackfillRequest r:
+                return new PrinterBackfillReply(r.Printers.Select(p => _worker.GetPrinterBackfill(p.PrinterId, p.After)).ToList());
+            case SetWatchedPrintersRequest r:
+                _watched = r.PrinterIds.ToFrozenSet();
                 return Ack;
+
             case ApplyPrinterProfilesRequest r:
                 await _worker.ApplyProfilesAsync(r.Profiles, ct);
                 return Ack;
@@ -165,4 +173,14 @@ public sealed class AgentRequestDispatcher : IDisposable
     private void OnConsoleLineRecorded(PrinterConsoleLineRecorded recorded) => _hub.Publish(recorded);
 
     private void OnEventRecorded(PrinterEventRecorded recorded) => _hub.Publish(recorded);
+
+    // Telemetry is the one stream sent for printers nobody shows only if asked: it is by far the largest. Events and
+    // console lines are rare and go out for every printer.
+    private void OnTelemetryReported(PrinterTelemetryReported reported)
+    {
+        if (_watched.Contains(reported.Telemetry.PrinterId))
+        {
+            _hub.Publish(reported);
+        }
+    }
 }

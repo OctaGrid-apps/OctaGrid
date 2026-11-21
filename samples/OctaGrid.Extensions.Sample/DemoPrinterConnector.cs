@@ -123,12 +123,6 @@ public sealed class DemoSession : IPrinterSession, IPrintControl, IFileStorage, 
     public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ConnectionTestResult.Ok());
 
-    public Task RequestStateAsync(CancellationToken cancellationToken)
-    {
-        Publish();
-        return Task.CompletedTask;
-    }
-
     // ---- Print control ----
 
     public Task StartPrintAsync(string fileName, CancellationToken cancellationToken)

@@ -318,15 +318,6 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         throw new NotImplementedException();
     }
 
-    // The result arrives through telemetry rather than as a return value, so — as in
-    // MoonrakerClient — the caller's token deliberately doesn't cancel it: a UI command being
-    // superseded must not abort a request that is already on its way.
-    public Task RequestStateAsync(CancellationToken cancellationToken)
-    {
-        var client = _client;
-        return client is null ? Task.CompletedTask : RequestFullStateAsync(client, CancellationToken.None);
-    }
-
     public Task UploadFileAsync(Stream content, string fileName, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();

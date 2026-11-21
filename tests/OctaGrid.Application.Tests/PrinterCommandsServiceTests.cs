@@ -74,23 +74,6 @@ public sealed class PrinterCommandsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task State_is_requested_from_each_agent_once_and_only_for_its_printers()
-    {
-        var first = await _fixture.CreatePrinter();
-        var second = await _fixture.CreatePrinter();
-        var unassigned = await _fixture.CreatePrinter();
-        _fixture.UnassignPrinter(unassigned.Id);
-
-        await using var context = _fixture.NewContext();
-        await NewService(context).RequestState(_fixture.UserId, [first.Id, second.Id, unassigned.Id], CancellationToken.None);
-
-        var (agentId, request) = Assert.Single(_fixture.Link.Sent);
-        Assert.Equal(_fixture.AgentId, agentId);
-        var ids = Assert.IsType<RequestPrinterStateRequest>(request).PrinterIds;
-        Assert.Equal(new[] { first.Id, second.Id }.Order(), ids.Order());
-    }
-
-    [Fact]
     public async Task A_saved_printer_is_tested_by_its_own_agent_with_its_saved_secrets()
     {
         var printer = await _fixture.CreatePrinter();

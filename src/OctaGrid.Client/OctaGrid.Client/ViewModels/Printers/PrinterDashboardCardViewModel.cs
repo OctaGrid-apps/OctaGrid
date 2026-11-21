@@ -20,6 +20,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     private readonly ILogger<PrinterDashboardCardViewModel> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly TimeProvider _timeProvider;
+    private readonly IDisposable? _watch;
     private string? _previousFileName;
     private DateTimeOffset _startedAt;
     private string? _startedFileName;
@@ -31,7 +32,8 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         ILoggerFactory? loggerFactory = null,
         TimeProvider? timeProvider = null,
         TemperatureHistory? temperatureHistory = null,
-        WorkspacePermissions? permissions = null)
+        WorkspacePermissions? permissions = null,
+        PrinterWatcher? watcher = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
         TemperatureHistory = temperatureHistory ?? new TemperatureHistory(_timeProvider);
@@ -43,7 +45,9 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         _logger = _loggerFactory.CreateLogger<PrinterDashboardCardViewModel>();
 
         WeakReferenceMessenger.Default.Register<PrinterTelemetryData, Guid>(this, item.Id, HandlePrinterTelemetry);
-        _ = LoadData(CancellationToken.None);
+
+        // Registered first, so the state that watching returns reaches this card.
+        _watch = watcher?.Watch(item.Id);
     }
 
     [ObservableProperty]
@@ -126,26 +130,15 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         Item.SetConditions(message.Value.Conditions);
     }
 
-    private async Task LoadData(CancellationToken cancellationToken)
+    /// <summary>
+    /// Stops listening to the printer once the card has left the dashboard, so it is not updated in the background, and
+    /// stops watching it, so the backend no longer sends its telemetry unless something else shows it.
+    /// </summary>
+    public void Detach()
     {
-        if (!Item.IsConnectorAvailable)
-        {
-            // No connector is loaded for this printer, so there is nothing to ask for its state.
-            return;
-        }
-
-        try
-        {
-            await _agentCommands.TriggerInitialStateAsync(Item.Id, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Failed to trigger initial state for printer {PrinterId}", Item.Id);
-        }
+        WeakReferenceMessenger.Default.UnregisterAll(this);
+        _watch?.Dispose();
     }
-
-    /// <summary>Stops listening to the printer once the card has left the dashboard, so it is not updated in the background.</summary>
-    public void Detach() => WeakReferenceMessenger.Default.UnregisterAll(this);
 
     [RelayCommand]
     private void OpenPage() => WeakReferenceMessenger.Default.Send(new OpenPrinterPageRequested(this));

@@ -34,7 +34,7 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
             _sessions.Add(session);
             return session;
         });
-        _worker = new AgentWorker(_hub, new ExtensionManager(new ConnectorRegistry().Add(_connector), new InMemoryStateStore()));
+        _worker = new AgentWorker(new ExtensionManager(new ConnectorRegistry().Add(_connector), new InMemoryStateStore()));
         _uploads = new AgentUploads(_uploadFolder);
         _dispatcher = new AgentRequestDispatcher(_worker, _uploads, _hub);
         _hub.Published += n =>
@@ -80,7 +80,6 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
         public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
             Task.FromResult(ConnectionTestResult.Fail("No route to host"));
 
-        public Task RequestStateAsync(CancellationToken cancellationToken) => Record("state");
 
         public Task StartPrintAsync(string fileName, CancellationToken cancellationToken) => Record($"start:{fileName}");
 
@@ -260,14 +259,83 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Telemetry_and_recorded_events_are_published_as_notifications()
+    public async Task Telemetry_of_watched_printers_and_recorded_events_are_published_as_notifications()
     {
         var session = await StartPrinterAsync();
+        await Ask(new SetWatchedPrintersRequest([_printer.PrinterId]));
 
         session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId) { State = UniversalPrinterState.Printing });
 
         Assert.Contains(Notified<PrinterTelemetryReported>(), n => n.Telemetry.State == UniversalPrinterState.Printing);
         Assert.Contains(Notified<PrinterEventRecorded>(), n => n.PrinterId == _printer.PrinterId);
+    }
+
+    [Fact]
+    public async Task Telemetry_of_printers_nobody_watches_is_not_published_but_events_are()
+    {
+        var session = await StartPrinterAsync();
+        await Ask(new SetWatchedPrintersRequest([_printer.PrinterId]));
+        await Ask(new SetWatchedPrintersRequest([]));
+
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId) { State = UniversalPrinterState.Printing });
+
+        Assert.Empty(Notified<PrinterTelemetryReported>());
+        Assert.Contains(Notified<PrinterEventRecorded>(), n => n.PrinterId == _printer.PrinterId);
+    }
+
+    [Fact]
+    public async Task Telemetry_is_published_with_the_history_sample_stored_from_it()
+    {
+        var session = await StartPrinterAsync();
+        await Ask(new SetWatchedPrintersRequest([_printer.PrinterId]));
+
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId)
+        {
+            State = UniversalPrinterState.Printing,
+            NozzleTemperature = 210,
+            BedTemperature = 60,
+        });
+
+        var reported = Assert.Single(Notified<PrinterTelemetryReported>(), n => n.Sample is not null);
+        Assert.Equal(
+            [TelemetryReadingKeys.Nozzle, TelemetryReadingKeys.Bed],
+            reported.Sample!.Readings.Select(r => r.Key));
+    }
+
+    [Fact]
+    public async Task The_backfill_holds_the_last_snapshot_and_history_even_of_printers_nobody_watched()
+    {
+        var session = await StartPrinterAsync();
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId)
+        {
+            State = UniversalPrinterState.Printing,
+            NozzleTemperature = 210,
+        });
+        var unknown = Guid.NewGuid();
+
+        var reply = await Ask(new GetPrinterBackfillRequest(
+            [new PrinterBackfillQuery(_printer.PrinterId, null), new PrinterBackfillQuery(unknown, null)]));
+
+        Assert.Equal([_printer.PrinterId, unknown], reply.Printers.Select(p => p.PrinterId));
+        var known = reply.Printers[0];
+        Assert.Equal(UniversalPrinterState.Printing, known.Current.State);
+        Assert.Equal(210, Assert.Single(Assert.Single(known.History).Readings).Value);
+        Assert.Equal(UniversalPrinterState.Offline, reply.Printers[1].Current.State);
+        Assert.Empty(reply.Printers[1].History);
+    }
+
+    [Fact]
+    public async Task The_backfill_after_the_last_sample_has_no_history()
+    {
+        var session = await StartPrinterAsync();
+        session.Telemetry!.Send(new PrinterTelemetry(_printer.PrinterId) { State = UniversalPrinterState.Idle, BedTemperature = 60 });
+        var first = await Ask(new GetPrinterBackfillRequest([new PrinterBackfillQuery(_printer.PrinterId, null)]));
+        var last = Assert.Single(first.Printers[0].History).Time;
+
+        var again = await Ask(new GetPrinterBackfillRequest([new PrinterBackfillQuery(_printer.PrinterId, last)]));
+
+        Assert.Empty(again.Printers[0].History);
+        Assert.Equal(60, again.Printers[0].Current.BedTemperature);
     }
 
     [Fact]
@@ -301,7 +369,7 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
         hub.Published += _ => throw new InvalidOperationException("broken listener");
         hub.Published += _ => received++;
 
-        hub.Send(new PrinterTelemetry(Guid.NewGuid()));
+        hub.Publish(new ConnectorsChanged([]));
 
         Assert.Equal(1, received);
     }

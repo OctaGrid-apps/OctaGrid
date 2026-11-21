@@ -5,6 +5,7 @@ using OctaGrid.Agent.Core.Events;
 using OctaGrid.Agent.Core.Extensions;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
+using OctaGrid.Protocol.AgentLink.Notifications;
 using OctaGrid.Protocol.Extensions;
 using OctaGrid.Protocol.Messaging;
 
@@ -19,12 +20,12 @@ public class AgentWorker : IAsyncDisposable
     private readonly ILogger<AgentWorker> _logger;
     private readonly DeviceOrchestrator _orchestrator;
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
+    private readonly PrinterTelemetryLog _telemetry;
     private DeveloperExtensionWatcher? _developerWatcher;
     private IReadOnlyList<PrinterProfile> _profiles = [];
 
     /// <param name="extensions">The installed extensions and which of them are enabled.</param>
     public AgentWorker(
-        ITelemetrySink telemetry,
         ExtensionManager extensions,
         ILoggerFactory? loggerFactory = null,
         TimeProvider? timeProvider = null)
@@ -34,12 +35,20 @@ public class AgentWorker : IAsyncDisposable
         _extensions = extensions;
         _events = new PrinterEventLog(timeProvider, logger: factory.CreateLogger<PrinterEventLog>());
         _console = new PrinterConsoleLog(timeProvider, logger: factory.CreateLogger<PrinterConsoleLog>());
+        _telemetry = new PrinterTelemetryLog(timeProvider);
         _orchestrator = new DeviceOrchestrator(
             extensions.Registry,
-            new EventRecordingTelemetrySink(telemetry, _events, factory.CreateLogger<EventRecordingTelemetrySink>()),
+            new EventRecordingTelemetrySink(new HistorySink(this), _events, factory.CreateLogger<EventRecordingTelemetrySink>()),
             factory,
             console: _console);
     }
+
+    /// <summary>
+    /// Raised for every snapshot a printer reports, with the history sample stored from it, so clients can show both
+    /// live. Raised on the thread of the connector that reported it; a handler that throws does not affect the connector
+    /// or the other handlers. Handlers must return quickly, because they delay that connector.
+    /// </summary>
+    public event Action<PrinterTelemetryReported>? TelemetryReported;
 
     /// <summary>
     /// Raised when the connectors this agent offers may have changed: an extension was turned on or off,
@@ -124,6 +133,12 @@ public class AgentWorker : IAsyncDisposable
     /// </summary>
     public PrinterEventPage GetPrinterEvents(Guid deviceId, long? afterSequence, int limit) =>
         _events.Get(deviceId, afterSequence, limit);
+
+    /// <summary>
+    /// The last snapshot and recent history of a printer, for a client that starts showing it. See
+    /// <see cref="PrinterTelemetryLog.Get"/>.
+    /// </summary>
+    public PrinterBackfill GetPrinterBackfill(Guid deviceId, DateTimeOffset? after) => _telemetry.Get(deviceId, after);
 
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
             _orchestrator.GetPrinterFilesAsync(deviceId, cancellationToken);
@@ -268,12 +283,6 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
-    public Task TriggerInitialStateAsync(Guid deviceId, CancellationToken cancellationToken) =>
-            _orchestrator.TriggerInitialStateAsync(deviceId, cancellationToken);
-
-    public Task TriggerInitialStateAsync(IEnumerable<Guid> devices, CancellationToken cancellationToken) =>
-            _orchestrator.TriggerInitialStateAsync(devices, cancellationToken);
-
     /// <summary>Removes an installed extension. Printers that use it stop their session.</summary>
     public async Task<ExtensionInstallResult> UninstallExtensionAsync(string extensionId, CancellationToken cancellationToken)
     {
@@ -312,6 +321,7 @@ public class AgentWorker : IAsyncDisposable
             var printerIds = profiles.Select(p => p.PrinterId).ToList();
             _events.Retain(printerIds);
             _console.Retain(printerIds);
+            _telemetry.Retain(printerIds);
         }
         finally
         {
@@ -339,4 +349,49 @@ public class AgentWorker : IAsyncDisposable
     // through so the orchestrator can report them.
     private List<PrinterProfile> WithoutDisabledConnectors(IReadOnlyList<PrinterProfile> profiles) =>
         profiles.Where(p => !_extensions.IsDisabled(p.ConnectorId)).ToList();
+
+    private void OnTelemetry(PrinterTelemetry telemetry)
+    {
+        // The history is a side feature: if recording fails, the live state must still reach the clients.
+        TelemetrySample? sample = null;
+        try
+        {
+            sample = _telemetry.Record(telemetry);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not record the telemetry history of printer {PrinterId}", telemetry.PrinterId);
+        }
+
+        if (TelemetryReported is not { } handlers)
+        {
+            return;
+        }
+
+        var reported = new PrinterTelemetryReported(telemetry, sample);
+        foreach (var handler in handlers.GetInvocationList().Cast<Action<PrinterTelemetryReported>>())
+        {
+            try
+            {
+                handler(reported);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "A handler of telemetry for printer {PrinterId} failed", telemetry.PrinterId);
+            }
+        }
+    }
+
+    /// <summary>The end of the sink chain the printer sessions write to: records history, then raises the event.</summary>
+    private sealed class HistorySink : ITelemetrySink
+    {
+        private readonly AgentWorker _worker;
+
+        public HistorySink(AgentWorker worker)
+        {
+            _worker = worker;
+        }
+
+        public void Send(PrinterTelemetry telemetry) => _worker.OnTelemetry(telemetry);
+    }
 }

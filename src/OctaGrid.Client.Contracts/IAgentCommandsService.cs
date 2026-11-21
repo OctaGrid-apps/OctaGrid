@@ -51,9 +51,5 @@ public interface IAgentCommandsService
     /// </param>
     Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken);
 
-    Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken);
-
-    Task TriggerInitialStateAsync(IEnumerable<Guid> printers, CancellationToken cancellationToken);
-
     Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken);
 }

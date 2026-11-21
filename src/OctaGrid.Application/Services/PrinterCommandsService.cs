@@ -43,20 +43,6 @@ public sealed class PrinterCommandsService
     public async Task PausePrint(Guid userId, Guid printerId, CancellationToken cancellationToken) =>
         await _link.SendAsync(await AgentOf(userId, printerId, Permission.ControlPrint, cancellationToken), new PausePrintRequest(printerId), cancellationToken);
 
-    /// <summary>
-    /// Asks the agents to report the current state of these printers. Printers without an agent are left out:
-    /// they have no state to report.
-    /// </summary>
-    public async Task RequestState(Guid userId, IReadOnlyCollection<Guid> printerIds, CancellationToken cancellationToken)
-    {
-        var agents = await _printers.GetAgentIds(userId, printerIds, Permission.View, cancellationToken);
-
-        foreach (var group in agents.GroupBy(a => a.Value, a => a.Key))
-        {
-            await _link.SendAsync(group.Key, new RequestPrinterStateRequest(group.ToList()), cancellationToken);
-        }
-    }
-
     public async Task ResumePrint(Guid userId, Guid printerId, CancellationToken cancellationToken) =>
         await _link.SendAsync(await AgentOf(userId, printerId, Permission.ControlPrint, cancellationToken), new ResumePrintRequest(printerId), cancellationToken);
 

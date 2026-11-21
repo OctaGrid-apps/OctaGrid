@@ -1,18 +1,15 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using OctaGrid.Extensions.Abstractions;
-using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.AgentLink;
-using OctaGrid.Protocol.AgentLink.Notifications;
 
 namespace OctaGrid.Agent.Core.Link;
 
 /// <summary>
-/// The one place everything an agent reports on its own passes through: telemetry from the printer sessions
-/// and what the <see cref="AgentRequestDispatcher"/> forwards (events, console lines, connector changes).
-/// Whoever connects the agent to a backend subscribes here.
+/// The one place everything an agent reports on its own passes through: what the <see cref="AgentRequestDispatcher"/>
+/// forwards from the worker (telemetry, events, console lines, connector changes). Whoever connects the agent to a
+/// backend subscribes here.
 /// </summary>
-public sealed class AgentNotificationHub : ITelemetrySink
+public sealed class AgentNotificationHub
 {
     private readonly ILogger<AgentNotificationHub> _logger;
 
@@ -24,7 +21,7 @@ public sealed class AgentNotificationHub : ITelemetrySink
     /// <summary>Raised for every notification, on the thread that reported it. May be raised from any thread.</summary>
     public event Action<AgentNotification>? Published;
 
-    /// <summary>Hands a notification to the subscribers..</summary>
+    /// <summary>Hands a notification to the subscribers.</summary>
     public void Publish(AgentNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
@@ -48,7 +45,4 @@ public sealed class AgentNotificationHub : ITelemetrySink
             }
         }
     }
-
-    /// <summary>Telemetry from a printer session becomes a notification.</summary>
-    public void Send(PrinterTelemetry telemetry) => Publish(new PrinterTelemetryReported(telemetry));
 }

@@ -1,4 +1,3 @@
-using OctaGrid.Agent.Core;
 using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Extensions.Models;
@@ -10,7 +9,7 @@ namespace OctaGrid.Client.Local;
 /// What the UI asks of printers, handed to <see cref="PrinterCommandsService"/> as the local user. The service
 /// authorizes the call and sends it to the printer's agent, the way a server does.
 /// </summary>
-internal sealed class LocalAgentCommands : IAgentCommandsService, ICommandService
+internal sealed class LocalAgentCommands : IAgentCommandsService
 {
     private readonly LocalCalls _calls;
     private readonly LocalConnectorCache _connectors;
@@ -60,15 +59,6 @@ internal sealed class LocalAgentCommands : IAgentCommandsService, ICommandServic
         string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, ConnectionTestResult>(
             (printers, userId) => printers.TestConnection(userId, connectorId, settings, printerId, _localAgent.Id, cancellationToken), cancellationToken);
-
-    public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>
-        TriggerInitialStateAsync([printerId], cancellationToken);
-
-    public Task TriggerInitialStateAsync(IEnumerable<Guid> printers, CancellationToken cancellationToken)
-    {
-        var printerIds = printers.ToList();
-        return _calls.Run<PrinterCommandsService>((service, userId) => service.RequestState(userId, printerIds, cancellationToken), cancellationToken);
-    }
 
     public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.UploadFile(userId, deviceId, stream, fileName, cancellationToken), cancellationToken);

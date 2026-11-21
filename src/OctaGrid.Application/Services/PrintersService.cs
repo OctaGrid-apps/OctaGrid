@@ -163,6 +163,31 @@ public sealed class PrintersService
     }
 
     /// <summary>
+    /// Like <see cref="GetAgentIds"/>, but printers in a workspace where the user lacks <paramref name="permission"/>
+    /// are left out instead of failing the call, for a list where one printer must not cost the user all the others.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, Guid>> GetAllowedAgentIds(
+        Guid userId, IReadOnlyCollection<Guid> printerIds, Permission permission, CancellationToken cancellationToken)
+    {
+        var printers = await _context.Printers
+            .AsNoTracking()
+            .Where(p => printerIds.Contains(p.Id) && p.AgentId != null)
+            .Select(p => new { p.Id, p.WorkspaceId, AgentId = p.AgentId!.Value })
+            .ToListAsync(cancellationToken);
+
+        var allowed = new HashSet<Guid>();
+        foreach (var workspaceId in printers.Select(p => p.WorkspaceId).Distinct())
+        {
+            if ((await _access.GetPermissions(userId, workspaceId, cancellationToken)).Contains(permission))
+            {
+                allowed.Add(workspaceId);
+            }
+        }
+
+        return printers.Where(p => allowed.Contains(p.WorkspaceId)).ToDictionary(p => p.Id, p => p.AgentId);
+    }
+
+    /// <summary>
     /// The settings to test a connection with while a saved printer is being edited. A client cannot read saved
     /// secrets back, so a secret that is left out of <paramref name="entered"/> is filled in from what is saved.
     /// A secret that is present with an empty value is one the user is removing: it stays out.

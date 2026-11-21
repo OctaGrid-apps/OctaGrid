@@ -19,7 +19,6 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(GetPrinterConsoleRequest), "console.get")]
 [JsonDerivedType(typeof(SendConsoleCommandRequest), "console.send")]
 [JsonDerivedType(typeof(GetPrinterEventsRequest), "events.get")]
-[JsonDerivedType(typeof(RequestPrinterStateRequest), "state.request")]
 [JsonDerivedType(typeof(ApplyPrinterProfilesRequest), "profiles.apply")]
 [JsonDerivedType(typeof(TestConnectionRequest), "connection.test")]
 [JsonDerivedType(typeof(GetConnectorsRequest), "connectors.get")]
@@ -34,4 +33,6 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(BeginUploadRequest), "upload.begin")]
 [JsonDerivedType(typeof(UploadChunkRequest), "upload.chunk")]
 [JsonDerivedType(typeof(AbortUploadRequest), "upload.abort")]
+[JsonDerivedType(typeof(GetPrinterBackfillRequest), "telemetry.backfill")]
+[JsonDerivedType(typeof(SetWatchedPrintersRequest), "telemetry.watch")]
 public abstract record AgentRequest;

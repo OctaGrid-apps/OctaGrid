@@ -33,7 +33,7 @@ internal sealed class LocalAgentNotifications
         switch (envelope.Notification)
         {
             case PrinterTelemetryReported telemetry:
-                _messageHandler.Handle(telemetry.Telemetry);
+                _messageHandler.Handle(telemetry.Telemetry, telemetry.Sample);
                 break;
 
             case PrinterEventRecorded recorded:

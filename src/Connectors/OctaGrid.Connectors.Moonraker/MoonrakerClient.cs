@@ -33,19 +33,11 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
     private readonly ILogger<MoonrakerClient> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly PrinterProfile _profile;
-
-    // Single-flight: while one query is pending, further triggers join it instead of queueing more
-    // requests behind it. Against a frozen Moonraker every extra request would just wait for the
-    // same timeout, and they'd pile up with each view switch.
-    private readonly Lock _queryGate = new();
-
     private readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
     private readonly string _url;
     private IConsoleSink? _console;
     private JsonRpc? _jsonRpc;
     private MoonrakerListener? _listener;
-
-    private Task? _queryInFlight;
 
     public MoonrakerClient(PrinterProfile profile, ILoggerFactory? loggerFactory = null)
     {
@@ -72,13 +64,10 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         return ValueTask.CompletedTask;
     }
 
-    // Unlike RequestStateAsync/QueryStateAsync above, this result goes straight back to the
-    // caller rather than arriving later via telemetry, so — unlike those — the caller's
-    // cancellationToken is honoured (MoonrakerFileClient still bounds the RPC with its own timeout).
+    // The caller's cancellationToken is honoured (MoonrakerFileClient still bounds the RPC with its own timeout).
     public async Task<PrintThumbnail?> GetThumbnailAsync(string fileName, CancellationToken cancellationToken)
     {
-        // Captured once, same reasoning as QueryStateAsync: the session can end (and null these)
-        // while the call is in flight.
+        // Captured once: the session can end (and null these) while the call is in flight.
         var rpc = _jsonRpc;
         var listener = _listener;
         if (rpc is null)
@@ -130,19 +119,6 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
 
         _logger.LogInformation("Pausing print job on Moonraker device {DeviceId}", DeviceId);
         await rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.print.pause", cancellationToken: cancellationToken);
-    }
-
-    public Task RequestStateAsync(CancellationToken cancellationToken)
-    {
-        lock (_queryGate)
-        {
-            if (_queryInFlight is { IsCompleted: false })
-            {
-                return _queryInFlight;
-            }
-
-            return _queryInFlight = QueryStateAsync();
-        }
     }
 
     public async Task ResumePrintAsync(CancellationToken cancellationToken)
@@ -344,51 +320,6 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         }
     }
 
-    private async Task QueryStateAsync()
-    {
-        // Capture once: the session can end (and null these) while the call is in flight.
-        var rpc = _jsonRpc;
-        var listener = _listener;
-        if (rpc is null || listener is null)
-        {
-            return;
-        }
-
-        // The result is delivered through the listener (telemetry), not returned to the caller, so
-        // the caller's token deliberately does NOT cancel the query. A UI command being superseded
-        // (view switch → Loaded fires again → toolkit cancels the previous run) must not abort a
-        // request already on the wire, or the printer state would never arrive. The query is
-        // bounded by its own timeout instead.
-        // WaitAsync(timeout) rather than a cancellation token: StreamJsonRpc keeps waiting for the
-        // server's reply after a cancel, so a token would NOT release us from a frozen peer.
-        var call = rpc.InvokeWithParameterObjectAsync<JsonElement>("printer.objects.query", SubscribeParams, CancellationToken.None);
-
-        try
-        {
-            var initialStatus = await call.WaitAsync(QueryTimeout).ConfigureAwait(false);
-            listener.OnStatusQueried(initialStatus);
-        }
-        catch (TimeoutException)
-        {
-            // The abandoned call faults when the connection is disposed below; observe it.
-            _ = call.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-
-            _logger.LogWarning("Moonraker state query timed out for device {DeviceId}; tearing down frozen RPC session", DeviceId);
-
-            // No answer within the timeout: the connection is frozen, not merely slow. Tear it down
-            // so the session ends and RunAsync reconnects + re-subscribes (which pushes fresh
-            // state), rather than leaving a dead session that every later trigger would hit too.
-            // Not thrown: callers are UI commands and can't do anything useful with it.
-            rpc.Dispose();
-        }
-        catch (Exception ex) when (ex is ConnectionLostException or ObjectDisposedException)
-        {
-            _logger.LogDebug(ex, "Moonraker state query aborted because connection dropped for device {DeviceId}", DeviceId);
-            // The connection dropped/restarted mid-request. The reconnect re-subscribes and pushes
-            // fresh state, so there is nothing to retry here.
-        }
-    }
-
     // An expected condition (the printer is off or still reconnecting), not a bug: an AppException carries a message the
     // user can be shown as is, where a bare InvalidOperationException would only say that something went wrong.
     private JsonRpc RequireRpc() =>
@@ -454,8 +385,8 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         }
         finally
         {
-            // Don't leave the fields pointing at a disposed connection: RequestStateAsync
-            // would keep invoking on it and get its pending calls cancelled.
+            // Don't leave the fields pointing at a disposed connection: commands would keep
+            // invoking on it and get their pending calls cancelled.
             _jsonRpc = null;
             _listener = null;
             rpc.Dispose();

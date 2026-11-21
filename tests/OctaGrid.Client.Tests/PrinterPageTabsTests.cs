@@ -69,10 +69,6 @@ public class PrinterPageTabsTests
         public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
             Task.FromResult<PrintThumbnail?>(null);
 
-        public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task TriggerInitialStateAsync(IEnumerable<Guid> printers, CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -6,6 +6,8 @@ using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
+using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.AgentLink;
 using OctaGrid.Protocol.AgentLink.Replies;
 using OctaGrid.Protocol.AgentLink.Requests;
@@ -133,9 +135,25 @@ internal sealed class RecordingAgentLink : IAgentLink
 
     public Guid UploadId { get; } = Guid.NewGuid();
 
+    /// <summary>Agents that are not connected: requests to them fail as the real link fails them.</summary>
+    public HashSet<Guid> Unreachable { get; } = [];
+
+    /// <summary>Requests of this type are refused by the agent with a validation error, as an agent that rejects them.</summary>
+    public Type? Refused { get; set; }
+
     public Task<TReply> SendAsync<TReply>(Guid agentId, AgentRequest<TReply> request, CancellationToken cancellationToken)
         where TReply : AgentReply
     {
+        if (Unreachable.Contains(agentId))
+        {
+            throw new NotFoundException("Agent", agentId);
+        }
+
+        if (request.GetType() == Refused)
+        {
+            throw new ValidationException("request", "The agent refused the request.");
+        }
+
         Sent.Add((agentId, request));
 
         AgentReply reply = request switch
@@ -145,6 +163,13 @@ internal sealed class RecordingAgentLink : IAgentLink
             ListPrinterFilesRequest => new PrinterFilesReply([]),
             GetExtensionsRequest => new ExtensionsReply([]),
             GetDeveloperFolderRequest => new DeveloperFolderReply(null),
+            // Each printer as running, so a test can tell an answer from the agent apart from the offline fallback.
+            GetPrinterBackfillRequest r => new PrinterBackfillReply(r.Printers
+                .Select(p => new PrinterBackfill(
+                    p.PrinterId,
+                    new PrinterTelemetry(p.PrinterId) { State = UniversalPrinterState.Idle },
+                    []))
+                .ToList()),
             TestConnectionRequest => new ConnectionTestReply(Extensions.Models.ConnectionTestResult.Ok()),
             AgentRequest<ExtensionChangeReply> => new ExtensionChangeReply(ExtensionInstallResult.Ok(null, "Done")),
             AgentRequest<AgentAck> => new AgentAck(),

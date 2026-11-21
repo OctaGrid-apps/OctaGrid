@@ -62,12 +62,6 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
     public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
         Task.FromResult(new ConnectionTestResult(true, null));
 
-    public Task TriggerInitialStateAsync(Guid printerId, CancellationToken cancellationToken) =>
-                            Task.CompletedTask;
-
-    public Task TriggerInitialStateAsync(IEnumerable<Guid> printers, CancellationToken cancellationToken) =>
-        Task.CompletedTask;
-
     public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 }

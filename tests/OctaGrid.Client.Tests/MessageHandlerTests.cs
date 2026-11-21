@@ -49,7 +49,7 @@ public class MessageHandlerTests
             (_, _) => onUiThread.Add(Dispatcher.UIThread.CheckAccess()));
 
         // Simulates telemetry reported on an agent thread.
-        await Task.Run(() => new MessageHandler().Handle(new PrinterTelemetry(printerId)), TestContext.Current.CancellationToken);
+        await Task.Run(() => new MessageHandler().Handle(new PrinterTelemetry(printerId), null), TestContext.Current.CancellationToken);
         await HeadlessUi.Run(() => Dispatcher.UIThread.RunJobs());
 
         Assert.Equal([true], onUiThread);

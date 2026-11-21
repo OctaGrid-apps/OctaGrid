@@ -2,27 +2,32 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Rendering;
 using Avalonia.Threading;
 using OctaGrid.Client.Models;
+using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Controls;
 
 /// <summary>
-/// Line chart of a <see cref="TemperatureHistory" />: hotend and bed as solid lines, their targets dashed. The
-/// time axis ends at the latest reading and grows with the history up to <see cref="TemperatureHistory.Window" />,
-/// after which the lines scroll left as new readings arrive. All colours come from properties so the theme decides them.
+/// Line chart of a <see cref="TemperatureHistory" />: one solid line per reading key (hotend, bed, and whatever else the
+/// printer reports), its target dashed in the same colour, minus the keys in <see cref="HiddenKeys" />. The time axis ends
+/// at the latest reading and grows with the history up to <see cref="TemperatureHistory.Window" />, after which the lines
+/// scroll left as new readings arrive. Pointing at the chart shows every visible value at that moment. Series colours come
+/// from the theme (<see cref="ChartSeriesBrushes" />), the rest from properties.
 /// </summary>
-public class TemperatureChart : Control
+public class TemperatureChart : Control, ICustomHitTest
 {
-    public static readonly StyledProperty<IBrush?> BedBrushProperty =
-        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(BedBrush));
-
     public static readonly StyledProperty<IBrush?> GridBrushProperty =
         AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(GridBrush));
 
-    public static readonly StyledProperty<IBrush?> HotendBrushProperty =
-        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(HotendBrush));
+    public static readonly StyledProperty<IReadOnlyCollection<string>?> HiddenKeysProperty =
+        AvaloniaProperty.Register<TemperatureChart, IReadOnlyCollection<string>?>(nameof(HiddenKeys));
+
+    public static readonly StyledProperty<IBrush?> ReadOutBackgroundProperty =
+        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(ReadOutBackground));
 
     public static readonly StyledProperty<TemperatureHistory?> SourceProperty =
         AvaloniaProperty.Register<TemperatureChart, TemperatureHistory?>(nameof(Source));
@@ -36,28 +41,36 @@ public class TemperatureChart : Control
     private const double RightMargin = 8;
     private const double LabelSize = 11;
     private const double MinimumCeiling = 100;
-    private static readonly TimeSpan MinimumSpan = TimeSpan.FromSeconds(30);
+    private const double ReadOutPadding = 6;
+    private const double ReadOutOffset = 10;
+    private const double MarkerRadius = 3;
+    private static readonly TimeSpan MinimumSpan = TimeSpan.FromMinutes(5);
+
+    // A tick lands this long after a whole second, so the rounded edge has already moved on when it redraws.
+    private static readonly TimeSpan ClockLag = TimeSpan.FromMilliseconds(20);
 
     // Moves the "now" edge of the time axis while no new readings arrive; runs only while the chart is on screen.
     private readonly DispatcherTimer _clock;
     private bool _isAttached;
+    private Point? _pointer;
     private int _redrawQueued;
 
     public TemperatureChart()
     {
-        _clock = new DispatcherTimer { Interval = TemperatureHistory.MinInterval };
-        _clock.Tick += (_, _) => InvalidateVisual();
+        _clock = new DispatcherTimer();
+        _clock.Tick += (_, _) =>
+        {
+            InvalidateVisual();
+            _clock.Interval = UntilNextSecond(Now);
+        };
     }
+
+    // The history's clock, so tests that drive it also drive the chart.
+    private DateTimeOffset Now => Source?.Now ?? DateTimeOffset.UtcNow;
 
     static TemperatureChart()
     {
-        AffectsRender<TemperatureChart>(BedBrushProperty, GridBrushProperty, HotendBrushProperty, TextBrushProperty);
-    }
-
-    public IBrush? BedBrush
-    {
-        get => GetValue(BedBrushProperty);
-        set => SetValue(BedBrushProperty, value);
+        AffectsRender<TemperatureChart>(GridBrushProperty, HiddenKeysProperty, ReadOutBackgroundProperty, TextBrushProperty);
     }
 
     public IBrush? GridBrush
@@ -66,10 +79,18 @@ public class TemperatureChart : Control
         set => SetValue(GridBrushProperty, value);
     }
 
-    public IBrush? HotendBrush
+    /// <summary>Reading keys that are not drawn. They still count for nothing else, so hiding one rescales the chart.</summary>
+    public IReadOnlyCollection<string>? HiddenKeys
     {
-        get => GetValue(HotendBrushProperty);
-        set => SetValue(HotendBrushProperty, value);
+        get => GetValue(HiddenKeysProperty);
+        set => SetValue(HiddenKeysProperty, value);
+    }
+
+    /// <summary>The background of the box that shows the values under the pointer.</summary>
+    public IBrush? ReadOutBackground
+    {
+        get => GetValue(ReadOutBackgroundProperty);
+        set => SetValue(ReadOutBackgroundProperty, value);
     }
 
     public TemperatureHistory? Source
@@ -84,13 +105,26 @@ public class TemperatureChart : Control
         set => SetValue(TextBrushProperty, value);
     }
 
-    /// <summary>The top of the value axis: a multiple of the grid step above every reading, never below 100.</summary>
-    internal static double CeilingFor(IReadOnlyList<TemperatureSample> samples)
+    /// <summary>The whole control answers the pointer, not only where a line is drawn.</summary>
+    public bool HitTest(Point point) => new Rect(Bounds.Size).Contains(point);
+
+    /// <summary>The keys in the samples: the known ones in their usual order, then the others as they first appear.</summary>
+    internal static IReadOnlyList<string> SeriesKeys(IReadOnlyList<TelemetrySample> samples)
+    {
+        var seen = samples.SelectMany(s => s.Readings).Select(r => r.Key).Distinct().ToList();
+        return ReadingLabels.KnownOrder.Where(seen.Contains).Concat(seen.Except(ReadingLabels.KnownOrder)).ToList();
+    }
+
+    /// <summary>The top of the value axis: a multiple of the grid step above every visible value and target, never below 100.</summary>
+    internal static double CeilingFor(IReadOnlyList<TelemetrySample> samples, IReadOnlyCollection<string>? hidden)
     {
         var highest = 0.0;
-        foreach (var s in samples)
+        foreach (var reading in samples.SelectMany(s => s.Readings))
         {
-            highest = Math.Max(highest, Math.Max(Math.Max(s.Nozzle, s.NozzleTarget), Math.Max(s.Bed, s.BedTarget)));
+            if (hidden?.Contains(reading.Key) != true)
+            {
+                highest = Math.Max(highest, Math.Max(reading.Value, reading.Target ?? 0));
+            }
         }
 
         var step = StepFor(highest);
@@ -98,30 +132,47 @@ public class TemperatureChart : Control
     }
 
     /// <summary>
-    /// The readings with the latest one repeated at the current time. A printer may report only when something changes,
-    /// so a reading is the temperature until the next one arrives, and an idle printer shows a flat line, not an empty chart.
+    /// The time at the right edge of the chart: the current time rounded up to a whole second, or the newest sample's
+    /// rounded the same way when that is later (an agent whose clock runs ahead). Rounded, so the chart moves once per
+    /// second however its redraws (the clock, each new sample) fall within that second; a sample arriving in between
+    /// only adds its point.
     /// </summary>
-    internal static IReadOnlyList<TemperatureSample> WithLatestHeldUntilNow(TemperatureHistory? source)
+    internal static DateTimeOffset AxisEnd(DateTimeOffset now, IReadOnlyList<TelemetrySample> samples)
     {
-        if (source is null)
-        {
-            return [];
-        }
+        var end = UpToSecond(now);
+        return samples.Count > 0 && UpToSecond(samples[^1].Time) > end ? UpToSecond(samples[^1].Time) : end;
+    }
 
-        var samples = source.Snapshot();
-        if (samples.Count == 0 || source.Now <= samples[^1].Time)
+    /// <summary>
+    /// The readings with the latest one repeated at <paramref name="end"/>. A printer may report only when something
+    /// changes, so a reading is the temperature until the next one arrives, and an idle printer shows a flat line to the
+    /// right edge, not an empty chart.
+    /// </summary>
+    internal static IReadOnlyList<TelemetrySample> WithLatestHeldUntil(IReadOnlyList<TelemetrySample> samples, DateTimeOffset end)
+    {
+        if (samples.Count == 0 || end <= samples[^1].Time)
         {
             return samples;
         }
 
-        return [.. samples, samples[^1] with { Time = source.Now }];
+        return [.. samples, samples[^1] with { Time = end }];
+    }
+
+    /// <summary>How long until just after the next whole second, when the right edge moves.</summary>
+    internal static TimeSpan UntilNextSecond(DateTimeOffset now) =>
+        TimeSpan.FromTicks(TimeSpan.TicksPerSecond - now.UtcTicks % TimeSpan.TicksPerSecond) + ClockLag;
+
+    private static DateTimeOffset UpToSecond(DateTimeOffset time)
+    {
+        var ticks = (time.UtcTicks + TimeSpan.TicksPerSecond - 1) / TimeSpan.TicksPerSecond * TimeSpan.TicksPerSecond;
+        return new DateTimeOffset(ticks, TimeSpan.Zero);
     }
 
     /// <summary>
     /// How much time the horizontal axis covers: what the readings span, so a fresh history fills the chart instead of
     /// hugging its right edge, but never less than <see cref="MinimumSpan" /> and never more than the history keeps.
     /// </summary>
-    internal static TimeSpan SpanFor(IReadOnlyList<TemperatureSample> samples)
+    internal static TimeSpan SpanFor(IReadOnlyList<TelemetrySample> samples)
     {
         var span = samples.Count > 0 ? samples[^1].Time - samples[0].Time : TimeSpan.Zero;
         return span < MinimumSpan ? MinimumSpan : span > TemperatureHistory.Window ? TemperatureHistory.Window : span;
@@ -134,6 +185,45 @@ public class TemperatureChart : Control
     /// <summary>The distance between two grid lines.</summary>
     internal static double StepFor(double highest) => highest > 150 ? 50 : 25;
 
+    /// <summary>The index of the sample closest in time; the samples are in time order and there is at least one.</summary>
+    internal static int NearestIndex(IReadOnlyList<TelemetrySample> samples, DateTimeOffset time)
+    {
+        int low = 0, high = samples.Count - 1;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (samples[middle].Time < time)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return low > 0 && time - samples[low - 1].Time < samples[low].Time - time ? low - 1 : low;
+    }
+
+    /// <summary>What the read-out says for a sample: its time, then each visible series with its target when one is set.</summary>
+    internal static IReadOnlyList<string> ReadOutLines(
+        TelemetrySample sample, IReadOnlyList<string> keys, IReadOnlyCollection<string>? hidden)
+    {
+        var lines = new List<string> { sample.Time.ToLocalTime().ToString("T", CultureInfo.CurrentCulture) };
+        foreach (var key in keys.Where(k => hidden?.Contains(k) != true))
+        {
+            if (sample.Readings.FirstOrDefault(r => r.Key == key) is not { } reading)
+            {
+                continue;
+            }
+
+            var target = reading.Target is > 0 ? $" → {reading.Target:0}°" : string.Empty;
+            lines.Add($"{ReadingLabels.For(key)}: {reading.Value:0.0}°{target}");
+        }
+
+        return lines;
+    }
+
     public override void Render(DrawingContext context)
     {
         base.Render(context);
@@ -144,8 +234,13 @@ public class TemperatureChart : Control
             return;
         }
 
-        var samples = WithLatestHeldUntilNow(Source);
-        var ceiling = CeilingFor(samples);
+        var recorded = Source?.Snapshot() ?? [];
+        var end = AxisEnd(Now, recorded);
+        var samples = WithLatestHeldUntil(recorded, end);
+        var hidden = HiddenKeys;
+        var keys = SeriesKeys(samples);
+        var visible = keys.Where(k => hidden?.Contains(k) != true).ToList();
+        var ceiling = CeilingFor(samples, hidden);
         var gridPen = new Pen(GridBrush, 1);
 
         for (var value = 0.0; value <= ceiling; value += StepFor(ceiling))
@@ -165,17 +260,43 @@ public class TemperatureChart : Control
             return;
         }
 
-        var end = samples[^1].Time;
         double X(DateTimeOffset time) => plot.Right - (end - time) / window * plot.Width;
         double Y(double value) => plot.Bottom - Math.Min(value, ceiling) / ceiling * plot.Height;
 
         using (context.PushClip(plot))
         {
-            DrawSeries(context, samples, X, Y, s => s.NozzleTarget, HotendBrush, dashed: true);
-            DrawSeries(context, samples, X, Y, s => s.BedTarget, BedBrush, dashed: true);
-            DrawSeries(context, samples, X, Y, s => s.Nozzle, HotendBrush, dashed: false);
-            DrawSeries(context, samples, X, Y, s => s.Bed, BedBrush, dashed: false);
+            // Targets first, so the measured lines are drawn over them.
+            foreach (var key in visible)
+            {
+                DrawSeries(context, samples, X, Y, s => Reading(s, key)?.Target, ChartSeriesBrushes.For(key), dashed: true);
+            }
+
+            foreach (var key in visible)
+            {
+                DrawSeries(context, samples, X, Y, s => Reading(s, key)?.Value, ChartSeriesBrushes.For(key), dashed: false);
+            }
         }
+
+        if (_pointer is { } pointer && pointer.X >= plot.Left && pointer.X <= plot.Right && visible.Count > 0)
+        {
+            var time = end - (plot.Right - pointer.X) / plot.Width * window;
+            var sample = samples[NearestIndex(samples, time)];
+            DrawReadOut(context, plot, sample, X(sample.Time), Y, keys, hidden);
+        }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        _pointer = e.GetPosition(this);
+        InvalidateVisual();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _pointer = null;
+        InvalidateVisual();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -183,6 +304,7 @@ public class TemperatureChart : Control
         base.OnAttachedToVisualTree(e);
         _isAttached = true;
         Source?.Changed += OnSourceChanged;
+        _clock.Interval = UntilNextSecond(Now);
         _clock.Start();
     }
 
@@ -211,12 +333,16 @@ public class TemperatureChart : Control
         }
     }
 
+    private static TelemetryReading? Reading(TelemetrySample sample, string key) =>
+        sample.Readings.FirstOrDefault(r => r.Key == key);
+
+    // A sample without the value leaves a gap: the line stops and starts again at the next sample that has it.
     private static void DrawSeries(
         DrawingContext context,
-        IReadOnlyList<TemperatureSample> samples,
+        IReadOnlyList<TelemetrySample> samples,
         Func<DateTimeOffset, double> x,
         Func<double, double> y,
-        Func<TemperatureSample, double> value,
+        Func<TelemetrySample, double?> value,
         IBrush? brush,
         bool dashed)
     {
@@ -224,16 +350,71 @@ public class TemperatureChart : Control
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
         {
-            ctx.BeginFigure(new Point(x(samples[0].Time), y(value(samples[0]))), false);
-            for (var i = 1; i < samples.Count; i++)
+            var inFigure = false;
+            foreach (var sample in samples)
             {
-                ctx.LineTo(new Point(x(samples[i].Time), y(value(samples[i]))));
+                if (value(sample) is not { } v)
+                {
+                    if (inFigure)
+                    {
+                        ctx.EndFigure(false);
+                        inFigure = false;
+                    }
+
+                    continue;
+                }
+
+                var point = new Point(x(sample.Time), y(v));
+                if (inFigure)
+                {
+                    ctx.LineTo(point);
+                }
+                else
+                {
+                    ctx.BeginFigure(point, false);
+                    inFigure = true;
+                }
             }
 
-            ctx.EndFigure(false);
+            if (inFigure)
+            {
+                ctx.EndFigure(false);
+            }
         }
 
         context.DrawGeometry(null, pen, geometry);
+    }
+
+    private void DrawReadOut(
+        DrawingContext context,
+        Rect plot,
+        TelemetrySample sample,
+        double x,
+        Func<double, double> y,
+        IReadOnlyList<string> keys,
+        IReadOnlyCollection<string>? hidden)
+    {
+        context.DrawLine(new Pen(TextBrush, 1), new Point(x, plot.Top), new Point(x, plot.Bottom));
+        foreach (var reading in sample.Readings.Where(r => hidden?.Contains(r.Key) != true))
+        {
+            context.DrawEllipse(ChartSeriesBrushes.For(reading.Key), null, new Point(x, y(reading.Value)), MarkerRadius, MarkerRadius);
+        }
+
+        var lines = ReadOutLines(sample, keys, hidden).Select(CreateText).ToList();
+        var width = lines.Max(l => l.Width) + 2 * ReadOutPadding;
+        var height = lines.Sum(l => l.Height) + 2 * ReadOutPadding;
+
+        // Beside the line, on whichever side has room.
+        var left = x + ReadOutOffset + width <= plot.Right ? x + ReadOutOffset : x - ReadOutOffset - width;
+        var box = new Rect(Math.Max(plot.Left, left), plot.Top + ReadOutPadding, width, height);
+        context.DrawRectangle(ReadOutBackground, new Pen(GridBrush, 1), box, ReadOutPadding / 2, ReadOutPadding / 2);
+
+        var top = box.Top + ReadOutPadding;
+        foreach (var line in lines)
+        {
+            context.DrawText(line, new Point(box.Left + ReadOutPadding, top));
+            top += line.Height;
+        }
     }
 
     private void DrawCentered(DrawingContext context, string text, Rect area)
