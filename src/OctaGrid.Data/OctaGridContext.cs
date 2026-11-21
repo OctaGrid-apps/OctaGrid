@@ -59,12 +59,43 @@ public class OctaGridContext : DbContext
     }
 
     /// <summary>
+    /// Marks a loaded <see cref="Workspace"/> as changed when one of its dashboards or members is added, changed or
+    /// removed, so its version rotates too. Its rules span all of them (always a dashboard, exactly one default), and
+    /// the version check on the workspace row is what stops two such changes made at the same time from both saving.
+    /// A child changed without its workspace loaded (renaming a dashboard) touches no rule and leaves it alone.
+    /// </summary>
+    private void TouchChangedAggregateRoots()
+    {
+        var changed = ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(e => e.Entity switch
+            {
+                Dashboard d => d.WorkspaceId,
+                WorkspaceMember m => m.WorkspaceId,
+                _ => Guid.Empty,
+            })
+            .Where(id => id != Guid.Empty)
+            .ToHashSet();
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var root in ChangeTracker.Entries<Workspace>().Where(w => w.State == EntityState.Unchanged && changed.Contains(w.Entity.Id)))
+        {
+            root.State = EntityState.Modified;
+        }
+    }
+
+    /// <summary>
     /// Assigns the GUIDv7 id, audit timestamps, and rotates the concurrency token in app code —
     /// never relying on the database provider for any of them — so behavior is identical across
     /// SQLite and Postgres.
     /// </summary>
     private void ApplyEntityConventions()
     {
+        TouchChangedAggregateRoots();
         var entries = ChangeTracker.Entries<Entity>();
         var utcNow = DateTimeOffset.UtcNow;
 

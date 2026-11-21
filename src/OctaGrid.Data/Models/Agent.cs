@@ -9,10 +9,6 @@ public sealed class Agent : Entity
     public string? PublicKey { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }
 
-    // Navigation props
-    public Workspace? Workspace { get; set; }
-
+    // Its workspace and its printers are other aggregates, referred to by id (Printer.AgentId).
     public AgentStatus? Status { get; set; }
-    /// <summary>The printers this agent connects to.</summary>
-    public ICollection<Printer> Printers { get; set; } = [];
 }

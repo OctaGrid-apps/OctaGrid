@@ -25,8 +25,9 @@ internal sealed class WorkspaceMemberConfiguration : EntityConfiguration<Workspa
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(wm => wm.User)
-            .WithMany(u => u.WorkspaceMembers)
+        // By id only: a user is another aggregate.
+        builder.HasOne<User>()
+            .WithMany()
             .HasForeignKey(wm => wm.UserId)
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);

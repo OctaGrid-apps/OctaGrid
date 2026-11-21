@@ -6,7 +6,6 @@ using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Workspaces;
@@ -38,24 +37,7 @@ public sealed class WorkspacesService
             throw new AuthenticationException("User is not found");
         }
 
-        var workspace = new Workspace()
-        {
-            Name = request.Name
-        };
-
-        workspace.Members.Add(new WorkspaceMember()
-        {
-            UserId = userId,
-            Role = Role.Owner,
-            JoinedAt = DateTimeOffset.UtcNow
-        });
-
-        workspace.Dashboards.Add(new Dashboard()
-        {
-            Name = "Default",
-            Type = DashboardType.List,
-            IsDefault = true
-        });
+        var workspace = Workspace.Create(request.Name, userId, DateTimeOffset.UtcNow);
 
         await _context.Workspaces.AddAsync(workspace, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
@@ -97,8 +79,9 @@ public sealed class WorkspacesService
                 uw.Workspace!.Name,
                 uw.Role,
                 Users = uw.Workspace.Members.Count(),
-                Agents = uw.Workspace.Agents.Count(),
-                Printers = uw.Workspace.Printers.Count()
+                // Agents and printers are aggregates of their own, found by their workspace id.
+                Agents = _context.Agents.Count(a => a.WorkspaceId == uw.WorkspaceId),
+                Printers = _context.Printers.Count(p => p.WorkspaceId == uw.WorkspaceId)
             })
             .ToListAsync(cancellationToken);
 
@@ -123,7 +106,7 @@ public sealed class WorkspacesService
 
         await _access.Require(userId, workspaceId, Permission.ManageWorkspace, cancellationToken);
 
-        workspace.Name = request.Name;
+        workspace.Rename(request.Name);
 
         await _context.SaveChangesAsync(cancellationToken);
 

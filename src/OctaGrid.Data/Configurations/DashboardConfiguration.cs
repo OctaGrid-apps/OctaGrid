@@ -18,7 +18,7 @@ internal sealed class DashboardConfiguration : EntityConfiguration<Dashboard>
             .HasConversion<string>()
             .HasMaxLength(20);
 
-        builder.HasOne(s => s.Workspace)
+        builder.HasOne<Workspace>()
             .WithMany(w => w.Dashboards)
             .HasForeignKey(s => s.WorkspaceId)
             .IsRequired();

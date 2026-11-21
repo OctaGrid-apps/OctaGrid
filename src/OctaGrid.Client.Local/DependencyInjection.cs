@@ -146,12 +146,7 @@ public static class DependencyInjection
                 logger.LogInformation("Found {Count} workspace(s) without a dashboard; provisioning default dashboard...", workspacesWithoutDashboards.Count);
                 foreach (var ws in workspacesWithoutDashboards)
                 {
-                    ws.Dashboards.Add(new Dashboard
-                    {
-                        Name = "Default",
-                        Type = DashboardType.List,
-                        IsDefault = true
-                    });
+                    ws.EnsureDashboard();
                 }
                 context.SaveChanges();
                 logger.LogInformation("Default dashboards provisioned for existing workspaces without dashboards.");
@@ -178,9 +173,7 @@ public static class DependencyInjection
 
         if (workspaceIds.Count == 0)
         {
-            var workspace = new Workspace { Name = "Default" };
-            workspace.Members.Add(new WorkspaceMember { UserId = userId, Role = Role.Owner, JoinedAt = DateTimeOffset.UtcNow });
-            workspace.Dashboards.Add(new Dashboard { Name = "Default", Type = DashboardType.List, IsDefault = true });
+            var workspace = Workspace.Create("Default", userId, DateTimeOffset.UtcNow);
             context.Workspaces.Add(workspace);
             context.SaveChanges();
 

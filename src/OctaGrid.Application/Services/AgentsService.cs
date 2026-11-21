@@ -55,7 +55,7 @@ public sealed class AgentsService
         }
 
         var previousAgentId = printer.AgentId;
-        printer.AgentId = agentId;
+        printer.AssignTo(agent);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Assigned printer {PrinterId} to agent {AgentId} (was {PreviousAgentId}) in workspace {WorkspaceId} by user {UserId}",

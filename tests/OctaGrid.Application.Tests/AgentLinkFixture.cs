@@ -33,16 +33,8 @@ internal sealed class AgentLinkFixture : IDisposable
         context.Database.EnsureCreated();
 
         context.Users.Add(new User { Id = UserId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
-        context.Workspaces.Add(new Workspace { Id = WorkspaceId, Name = "Test workspace" });
+        context.Workspaces.Add(TestData.Workspace(WorkspaceId, "Test workspace", UserId));
         context.Agents.Add(new Agent { Id = AgentId, Name = "Agent", WorkspaceId = WorkspaceId });
-        context.WorkspaceMembers.Add(new WorkspaceMember
-        {
-            Id = Guid.NewGuid(),
-            WorkspaceId = WorkspaceId,
-            UserId = UserId,
-            Role = Role.Owner,
-            JoinedAt = DateTimeOffset.UtcNow,
-        });
         context.SaveChanges();
     }
 
@@ -60,15 +52,8 @@ internal sealed class AgentLinkFixture : IDisposable
         using var context = NewContext();
         var user = new User { Id = Guid.NewGuid(), Name = role.ToString(), Email = $"{Guid.NewGuid():N}@example.com", PasswordHash = "x" };
         context.Users.Add(user);
-        context.WorkspaceMembers.Add(new WorkspaceMember
-        {
-            Id = Guid.NewGuid(),
-            WorkspaceId = WorkspaceId,
-            UserId = user.Id,
-            Role = role,
-            JoinedAt = DateTimeOffset.UtcNow,
-        });
         context.SaveChanges();
+        TestData.AddMember(context, WorkspaceId, user.Id, role);
         return user.Id;
     }
 
@@ -76,8 +61,10 @@ internal sealed class AgentLinkFixture : IDisposable
     public Guid AddForeignAgent()
     {
         using var context = NewContext();
-        var workspace = new Workspace { Id = Guid.NewGuid(), Name = "Someone else's" };
+        var owner = new User { Id = Guid.NewGuid(), Name = "Someone else", Email = $"{Guid.NewGuid():N}@example.com", PasswordHash = "x" };
+        var workspace = TestData.Workspace(Guid.NewGuid(), "Someone else's", owner.Id);
         var agent = new Agent { Id = Guid.NewGuid(), Name = "Foreign", WorkspaceId = workspace.Id };
+        context.Users.Add(owner);
         context.Workspaces.Add(workspace);
         context.Agents.Add(agent);
         context.SaveChanges();
@@ -111,7 +98,7 @@ internal sealed class AgentLinkFixture : IDisposable
     public void UnassignPrinter(Guid printerId)
     {
         using var context = NewContext();
-        context.Printers.Single(p => p.Id == printerId).AgentId = null;
+        context.Printers.Single(p => p.Id == printerId).Unassign();
         context.SaveChanges();
     }
 

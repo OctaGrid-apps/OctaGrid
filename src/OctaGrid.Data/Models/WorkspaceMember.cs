@@ -1,14 +1,29 @@
 namespace OctaGrid.Data.Models;
 
+/// <summary>
+/// A user's membership of a workspace, part of the <see cref="Workspace"/> aggregate. Refers to the user by id: a
+/// user is an aggregate of its own.
+/// </summary>
 public sealed class WorkspaceMember : Entity
 {
-    public Guid WorkspaceId { get; set; }
-    public Guid UserId { get; set; }
-    public Role Role { get; set; }
-    public DateTimeOffset JoinedAt { get; set; }
+    // For EF.
+    private WorkspaceMember()
+    {
+    }
 
-    // Navigation props
-    public Workspace? Workspace { get; set; }
+    public Guid WorkspaceId { get; private set; }
+    public Guid UserId { get; private set; }
+    public Role Role { get; private set; }
+    public DateTimeOffset JoinedAt { get; private set; }
 
-    public User? User { get; set; }
+    public Workspace? Workspace { get; private set; }
+
+    // The id is set here, not on save: several new members can be tracked at once only with ids of their own.
+    internal static WorkspaceMember Create(Guid userId, Role role, DateTimeOffset joinedAt) => new()
+    {
+        Id = Guid.CreateVersion7(),
+        UserId = userId,
+        Role = role,
+        JoinedAt = joinedAt,
+    };
 }

@@ -33,7 +33,8 @@ internal sealed class DashboardWidgetConfiguration : EntityConfiguration<Dashboa
             .HasForeignKey(s => s.DashboardId)
             .IsRequired();
 
-        builder.HasOne(s => s.Printer)
+        // By id only: a printer is another aggregate.
+        builder.HasOne<Printer>()
             .WithMany()
             .HasForeignKey(s => s.PrinterId)
             .IsRequired();
