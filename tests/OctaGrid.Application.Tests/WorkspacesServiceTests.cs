@@ -59,6 +59,18 @@ public sealed class WorkspacesServiceTests : IDisposable
         Assert.Equal(Enum.GetValues<Permission>(), updated.Permissions);
     }
 
+    [Fact]
+    public async Task A_listed_workspace_carries_the_version_of_the_workspace_not_of_the_membership()
+    {
+        await using var context = _fixture.NewContext();
+        var service = NewService(context);
+        var updated = await service.Update(_fixture.UserId, _fixture.WorkspaceId, new UpdateWorkspaceRequest("Renamed"), CancellationToken.None);
+
+        var listed = Assert.Single(await service.GetList(_fixture.UserId, CancellationToken.None));
+
+        Assert.Equal(updated.Version, listed.Version);
+    }
+
     private sealed class NullPublisher : IMessagePublisher
     {
         public void Publish(EntityChanged entity)
