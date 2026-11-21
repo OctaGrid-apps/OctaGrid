@@ -26,6 +26,9 @@ public sealed record ClientSettings
     /// <summary>Id of the connector the list dashboard is filtered by; null shows printers of every connector.</summary>
     public string? DashboardConnectorFilter { get; init; }
 
+    /// <summary>Reading keys (such as "bed") the user hid from the temperature chart; the same for every printer.</summary>
+    public IReadOnlyList<string> HiddenChartSeries { get; init; } = [];
+
     /// <summary>
     /// Shows controls that can interrupt a print or change how a printer behaves, such as sending G-code commands. Off
     /// until the user turns it on in Settings, and it stays on across restarts.

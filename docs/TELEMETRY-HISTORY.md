@@ -1,6 +1,6 @@
 # Design: telemetry history and printer watching
 
-Status: steps 1 to 3 committed, step 4 built (uncommitted); step 5 not started. Decisions taken: the agent does not save history across restarts; the chart follows Mainsail's model; the history backfill is built together with subscription-based telemetry; pre-alpha, so replaced types and messages are removed rather than kept for compatibility.
+Status: steps 1 to 4 committed, step 5 built (uncommitted). Decisions taken: the agent does not save history across restarts; the chart follows Mainsail's model; the history backfill is built together with subscription-based telemetry; pre-alpha, so replaced types and messages are removed rather than kept for compatibility.
 
 ## Goal
 
@@ -103,7 +103,7 @@ The current `TemperatureChart` already has solid lines, dashed targets, a time a
 - **Hover read-out**: a vertical line at the pointer with time, value and target of every visible series.
 - **20-minute window**, from the buffer size above.
 
-The chart stays a custom `Control` drawing from the store. These items are independent of the protocol work.
+As built: `TemperatureHistory` keeps the agent's `TelemetrySample`s as they are (the nozzle/bed conversion is gone). `TemperatureChart` draws every key not in `HiddenKeys`, a sample without a key leaves a gap in that line, and hidden series do not count towards the scale. Colours come from `Chart.Series.<key>` theme resources, other keys from `Chart.Palette.0` to `.3` by a stable hash of the key (`ChartSeriesBrushes`). `TemperatureChartViewModel` on the printer page holds the legend toggles; the hidden keys are `ClientSettings.HiddenChartSeries`, the same for every printer. The legend lists the hotend and bed, then any other key the history has when the page opens; a key that first appears later is drawn at once but gets its toggle the next time the page opens. The read-out is drawn by the chart itself: a line at the nearest sample, a dot per visible value, and a box with the time and each value with its target. The right edge is the current time rounded up to a whole second (or the newest sample's, when the agent's clock runs ahead), and the redraw timer fires just after each whole second, so the chart moves once per second however redraws and samples fall; a sample arriving in between only adds its point. The time axis spans at least 5 minutes, so a fresh history is not stretched across the whole chart.
 
 ### Tier 2, later: long-term history on the server
 

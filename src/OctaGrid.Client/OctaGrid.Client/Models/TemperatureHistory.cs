@@ -2,14 +2,6 @@ using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Models;
 
-/// <summary>One reading of the hotend and bed, with the targets that were set at that moment.</summary>
-public readonly record struct TemperatureSample(
-    DateTimeOffset Time,
-    double Nozzle,
-    double NozzleTarget,
-    double Bed,
-    double BedTarget);
-
 /// <summary>
 /// The client's copy of a printer's recent temperatures, for the chart on its page. The agent decides what is stored and
 /// when (<see cref="TelemetrySample"/>, on the agent's clock); this copy is filled from the history the agent sends when
@@ -22,7 +14,7 @@ public sealed class TemperatureHistory
     public const int Capacity = 1200;
 
     private readonly Lock _gate = new();
-    private readonly List<TemperatureSample> _samples = [];
+    private readonly List<TelemetrySample> _samples = [];
     private readonly TimeProvider _timeProvider;
 
     public TemperatureHistory(TimeProvider? timeProvider = null)
@@ -55,7 +47,7 @@ public sealed class TemperatureHistory
                 return false;
             }
 
-            _samples.Add(ToTemperatures(sample));
+            _samples.Add(sample);
             Trim();
         }
 
@@ -78,7 +70,7 @@ public sealed class TemperatureHistory
         lock (_gate)
         {
             var merged = _samples
-                .Concat(history.Select(ToTemperatures))
+                .Concat(history)
                 .DistinctBy(s => s.Time)
                 .OrderBy(s => s.Time)
                 .ToList();
@@ -103,25 +95,12 @@ public sealed class TemperatureHistory
     }
 
     /// <summary>A copy of the kept samples, oldest first.</summary>
-    public IReadOnlyList<TemperatureSample> Snapshot()
+    public IReadOnlyList<TelemetrySample> Snapshot()
     {
         lock (_gate)
         {
             return _samples.ToArray();
         }
-    }
-
-    // The chart draws the hotend and bed; a sensor the sample does not carry is drawn at zero, as before it reported.
-    private static TemperatureSample ToTemperatures(TelemetrySample sample)
-    {
-        var nozzle = sample.Readings.FirstOrDefault(r => r.Key == TelemetryReadingKeys.Nozzle);
-        var bed = sample.Readings.FirstOrDefault(r => r.Key == TelemetryReadingKeys.Bed);
-        return new TemperatureSample(
-            sample.Time,
-            nozzle?.Value ?? 0,
-            nozzle?.Target ?? 0,
-            bed?.Value ?? 0,
-            bed?.Target ?? 0);
     }
 
     // Callers hold the lock.

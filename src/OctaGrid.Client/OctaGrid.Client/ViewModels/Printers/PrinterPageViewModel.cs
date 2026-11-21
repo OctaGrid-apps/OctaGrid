@@ -47,6 +47,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         Files = card.CreateFilesViewModel();
         PrinterEvents = card.CreateEventsViewModel();
         PrinterConsole = card.CreateConsoleViewModel();
+        TemperatureChart = new TemperatureChartViewModel(card.TemperatureHistory, appSettings);
         HasConsole = card.SupportsConsole;
         PrinterConsole.IsExpertMode = appSettings.ClientSettings.IsExpertMode;
         Files.IsOffline = IsPrinterOffline;
@@ -72,6 +73,9 @@ public partial class PrinterPageViewModel : ViewModelBase
 
     /// <summary>What the printer wrote to its console, newest last. Only read; nothing can be sent from here.</summary>
     public PrinterConsoleViewModel PrinterConsole { get; }
+
+    /// <summary>The temperature chart and its legend.</summary>
+    public TemperatureChartViewModel TemperatureChart { get; }
 
     /// <summary>What happened to the printer (state changes, warnings), newest first.</summary>
     public PrinterEventsViewModel PrinterEvents { get; }

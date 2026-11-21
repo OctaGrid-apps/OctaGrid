@@ -47,7 +47,7 @@ public class TemperatureHistoryRetentionTests
         handler.Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, Sample(0, 24));
 
         var sample = Assert.Single(store.GetOrCreate(printer).Snapshot());
-        Assert.Equal(24, sample.Nozzle);
+        Assert.Equal(24, Value(sample));
     }
 
     [Fact]

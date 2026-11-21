@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Views.PrinterPageView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -296,29 +296,45 @@
                                             VerticalAlignment="Center"
                                             Classes="overline"
                                             Text="TEMPERATURE HISTORY" />
+                                        <!--  One toggle per line: unchecked hides it from the chart, for every printer  -->
                                         <StackPanel VerticalAlignment="Center" Classes="inline">
-                                            <Ellipse
-                                                Width="8"
-                                                Height="8"
+                                            <ItemsControl ItemsSource="{Binding TemperatureChart.Series}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Classes="inline" Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:TemperatureSeriesViewModel">
+                                                        <ToggleButton
+                                                            AutomationProperties.Name="{Binding Label, StringFormat='Show {0} in the chart'}"
+                                                            Classes="chip"
+                                                            IsChecked="{Binding IsVisible}">
+                                                            <StackPanel Classes="inline">
+                                                                <Ellipse
+                                                                    Width="8"
+                                                                    Height="8"
+                                                                    VerticalAlignment="Center"
+                                                                    Fill="{Binding Key, Converter={x:Static controls:ChartSeriesBrushes.Converter}}" />
+                                                                <TextBlock Classes="small" Text="{Binding Label}" />
+                                                            </StackPanel>
+                                                        </ToggleButton>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock
                                                 VerticalAlignment="Center"
-                                                Fill="{DynamicResource Chart.Hotend}" />
-                                            <TextBlock Classes="small secondary" Text="Hotend" />
-                                            <Ellipse
-                                                Width="8"
-                                                Height="8"
-                                                VerticalAlignment="Center"
-                                                Fill="{DynamicResource Chart.Bed}" />
-                                            <TextBlock Classes="small secondary" Text="Bed" />
-                                            <TextBlock Classes="small secondary" Text="(dashed: target)" />
+                                                Classes="small secondary"
+                                                Text="(dashed: target)" />
                                         </StackPanel>
                                     </WrapPanel>
                                     <controls:TemperatureChart
                                         Height="240"
-                                        AutomationProperties.Name="Temperature history of the hotend and bed over the last 10 minutes"
-                                        BedBrush="{DynamicResource Chart.Bed}"
+                                        AutomationProperties.Name="Temperature history over the last 20 minutes"
                                         GridBrush="{DynamicResource CardBorderBrush}"
-                                        HotendBrush="{DynamicResource Chart.Hotend}"
-                                        Source="{Binding Card.TemperatureHistory}"
+                                        HiddenKeys="{Binding TemperatureChart.HiddenKeys}"
+                                        ReadOutBackground="{DynamicResource OverlayDialogBackground}"
+                                        Source="{Binding TemperatureChart.History}"
                                         TextBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                                 </StackPanel>
                             </Border>

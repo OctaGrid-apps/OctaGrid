@@ -144,9 +144,16 @@
         </StackPanel>
     </Design.PreviewWith>
 
-    <!--  Chart series: readable on both the light and the dark theme.  -->
-    <SolidColorBrush x:Key="Chart.Hotend" Color="#F2784B" />
-    <SolidColorBrush x:Key="Chart.Bed" Color="#4C9AFF" />
+    <!--
+        Chart series, readable on both the light and the dark theme. Chart.Series.<reading key> for keys with their own
+        colour; any other key gets one of the palette colours (ChartSeriesBrushes).
+    -->
+    <SolidColorBrush x:Key="Chart.Series.nozzle" Color="#F2784B" />
+    <SolidColorBrush x:Key="Chart.Series.bed" Color="#4C9AFF" />
+    <SolidColorBrush x:Key="Chart.Palette.0" Color="#3FB68B" />
+    <SolidColorBrush x:Key="Chart.Palette.1" Color="#B07CE8" />
+    <SolidColorBrush x:Key="Chart.Palette.2" Color="#E0B03A" />
+    <SolidColorBrush x:Key="Chart.Palette.3" Color="#E36BA8" />
 
     <!--
         Printer state badges. Dark: dim tinted fill, bright text. Light: pale tinted fill,

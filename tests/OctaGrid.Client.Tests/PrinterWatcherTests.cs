@@ -33,7 +33,7 @@ public class PrinterWatcherTests
         var call = Assert.Single(_client.Calls);
         Assert.Equal([printer], call.PrinterIds);
         Assert.Equal(DateTimeOffset.MinValue, call.Resume[printer]);
-        Assert.Equal([200.0, 201], _store.GetOrCreate(printer).Snapshot().Select(s => s.Nozzle));
+        Assert.Equal([200.0, 201], _store.GetOrCreate(printer).Snapshot().Select(s => Value(s)));
         Assert.Equal(UniversalPrinterState.Idle, Assert.Single(_messages.States).State);
     }
 
