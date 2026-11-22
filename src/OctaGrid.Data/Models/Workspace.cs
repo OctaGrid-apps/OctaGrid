@@ -44,6 +44,11 @@ public sealed class Workspace : Entity
 
     public void Rename(string name)
     {
+        if (string.Equals(Name, name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         Name = name;
         Raise(new WorkspaceRenamed(Id, name));
     }

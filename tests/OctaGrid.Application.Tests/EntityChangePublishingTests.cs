@@ -125,6 +125,40 @@ public sealed class EntityChangePublishingTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Renaming_a_workspace_to_its_current_name_publishes_nothing()
+    {
+        await Call(sp => sp.GetRequiredService<WorkspacesService>().Update(
+            _fixture.UserId, _fixture.WorkspaceId, new UpdateWorkspaceRequest("Test workspace"), CancellationToken.None));
+
+        await Deliver();
+
+        Assert.Empty(_published.Messages);
+    }
+
+    [Fact]
+    public async Task Saving_a_printer_unchanged_publishes_nothing()
+    {
+        var created = await Call(sp => sp.GetRequiredService<PrintersService>().Create(
+            _fixture.UserId,
+            _fixture.WorkspaceId,
+            new CreatePrinterRequest("Voron", "octagrid.moonraker", new Dictionary<string, string> { ["url"] = "10.0.0.1" }, new Dictionary<string, string> { ["apiKey"] = "secret" }, true),
+            CancellationToken.None));
+        await Deliver();
+
+        // The same secret entered again is not a change either, although encrypting it again would give other text.
+        await Call(sp => sp.GetRequiredService<PrintersService>().Update(
+            _fixture.UserId,
+            created.Id,
+            new UpdatePrinterRequest(created.Name, created.ConnectorId, new Dictionary<string, string> { ["url"] = "10.0.0.1" }, new Dictionary<string, string> { ["apiKey"] = "secret" }, created.Enabled),
+            CancellationToken.None));
+        await Call(sp => sp.GetRequiredService<PrintersService>().UpdateIdentity(
+            _fixture.UserId, created.Id, new UpdatePrinterIdentityRequest(created.Name), CancellationToken.None));
+        await Deliver();
+
+        Assert.Single(_published.Messages);
+    }
+
+    [Fact]
     public async Task A_save_with_events_wakes_the_running_dispatcher()
     {
         var waiting = _published.WaitForAsync(1);
