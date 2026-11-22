@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.Messaging;
+using OctaGrid.Client.Contracts;
 using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Extensions.Models;
+using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Messaging;
 
 namespace OctaGrid.Client.Tests;
@@ -92,6 +94,77 @@ public class DashboardStateTests
 
         Assert.DoesNotContain(removed, page.Printers);
         Assert.False(removed.Item.IsStateKnown);
+    }
+
+    [Fact]
+    public async Task Loads_that_start_together_run_one_after_the_other()
+    {
+        var settings = new InMemorySettingsStore();
+        var state = new ApplicationState(settings)
+        {
+            SelectedWorkspace = new Workspace { Id = DesignOctaGridClient.DefaultWorkspaceId, Name = "Default" },
+        };
+        var dashboards = new GatedDashboardsClient();
+        var page = new DashboardsViewModel(
+            dashboards, new DashboardFilterTests.FakePrintersClient(("A", "bambu")), state, new DesignAgentCommands(), new ByteArrayImageCache(), settings);
+
+        // A second load starts while the first waits for the dashboard list.
+        var shown = page.ShowCommand.ExecuteAsync(null);
+        state.SelectedWorkspace = new Workspace { Id = DesignOctaGridClient.DefaultWorkspaceId, Name = "Renamed" };
+        dashboards.Release.SetResult();
+        await shown;
+        await dashboards.SecondList.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, dashboards.MostAtOnce);
+        Assert.Equal(1, dashboards.Created);
+    }
+
+    /// <summary>A workspace without dashboards whose list waits for <see cref="Release"/>.</summary>
+    private sealed class GatedDashboardsClient : IDashboardsClient
+    {
+        private readonly List<DashboardResponse> _items = [];
+        private int _inFlight;
+        private int _lists;
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource SecondList { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int Created { get; private set; }
+
+        public int MostAtOnce { get; private set; }
+
+        public Task<DashboardResponse> CreateDashboard(Guid workspaceId, CreateDashboardRequest request, CancellationToken cancellationToken)
+        {
+            Created++;
+            var created = new DashboardResponse(Guid.NewGuid(), request.Name, request.Type, true, 1);
+            _items.Add(created);
+            return Task.FromResult(created);
+        }
+
+        public async Task<List<DashboardResponse>> GetDashboardList(Guid workspaceId, CancellationToken cancellationToken)
+        {
+            MostAtOnce = Math.Max(MostAtOnce, ++_inFlight);
+            try
+            {
+                await Release.Task;
+                return _items.ToList();
+            }
+            finally
+            {
+                _inFlight--;
+                if (++_lists == 2)
+                {
+                    SecondList.SetResult();
+                }
+            }
+        }
+
+        public Task DeleteDashboard(Guid dashboardId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<DashboardResponse> SetDefaultDashboard(Guid dashboardId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<DashboardResponse> UpdateDashboard(Guid dashboardId, UpdateDashboardRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     [Fact]

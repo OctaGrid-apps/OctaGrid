@@ -14,4 +14,9 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(PrinterConsoleLineRecorded), "console-line")]
 [JsonDerivedType(typeof(ConnectorsChanged), "connectors-changed")]
 [JsonDerivedType(typeof(PrinterStateChanged), "printer-state")]
-public abstract record AgentNotification;
+public abstract record AgentNotification
+{
+    /// <summary>The stream the notification travels on. Not sent: it follows from the notification's type.</summary>
+    [JsonIgnore]
+    public virtual AgentNotificationChannel Channel => AgentNotificationChannel.Events;
+}

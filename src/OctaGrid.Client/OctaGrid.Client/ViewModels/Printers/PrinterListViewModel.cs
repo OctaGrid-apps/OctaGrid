@@ -16,6 +16,7 @@ namespace OctaGrid.Client.ViewModels;
 public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
 {
     private readonly IAgentCommandsService _agentCommands;
+    private readonly ConnectorCatalog? _connectors;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ApplicationState _appState;
     private readonly ILogger<PrinterListViewModel> _logger;
@@ -31,8 +32,10 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
         ApplicationState appState,
         IAgentCommandsService agentCommands,
         ILoggerFactory? loggerFactory = null,
-        WorkspacePermissions? permissions = null)
+        WorkspacePermissions? permissions = null,
+        ConnectorCatalog? connectors = null)
     {
+        _connectors = connectors;
         _printersClient = printersClient;
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _notification = notification;
@@ -48,7 +51,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     public partial ObservableCollection<IPrinterListItem> Printers { get; set; } = [];
 
     /// <summary>The connectors that are available, used to name them in the list.</summary>
-    private IReadOnlyList<ConnectorDescriptor> Connectors => _agentCommands.Connectors;
+    private IReadOnlyList<ConnectorDescriptor> Connectors => _connectors?.Connectors ?? [];
 
     [RelayCommand]
     private async Task ChangePrinterEnabled(PrinterListItem printer, CancellationToken cancellationToken)
@@ -71,7 +74,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     private async Task CreatePrinter(CancellationToken cancellationToken)
     {
         var printerViewModel = new EditPrinterViewModel(
-            new PrinterViewModel(new Printer()), _agentCommands, _loggerFactory.CreateLogger<EditPrinterViewModel>());
+            new PrinterViewModel(new Printer()), _appState.GetWorkspaceId(), _agentCommands, _connectors, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Create new printer", printerViewModel);
         if (result is null)
@@ -127,7 +130,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             ConnectorId = printer.ConnectorId,
             Enabled = printer.Enabled,
             SavedSecretKeys = printer.SecretKeys,
-        }), _agentCommands, _loggerFactory.CreateLogger<EditPrinterViewModel>());
+        }), _appState.GetWorkspaceId(), _agentCommands, _connectors, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Edit printer", printerViewModel);
         if (result is null)

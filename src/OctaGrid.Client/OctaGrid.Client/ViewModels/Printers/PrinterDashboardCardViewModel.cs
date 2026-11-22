@@ -16,6 +16,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     private static readonly TimeSpan StartGrace = TimeSpan.FromSeconds(30);
 
     private readonly IAgentCommandsService _agentCommands;
+    private readonly ConnectorCatalog? _connectors;
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILogger<PrinterDashboardCardViewModel> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -33,8 +34,10 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         TimeProvider? timeProvider = null,
         TemperatureHistory? temperatureHistory = null,
         WorkspacePermissions? permissions = null,
-        PrinterWatcher? watcher = null)
+        PrinterWatcher? watcher = null,
+        ConnectorCatalog? connectors = null)
     {
+        _connectors = connectors;
         _timeProvider = timeProvider ?? TimeProvider.System;
         TemperatureHistory = temperatureHistory ?? new TemperatureHistory(_timeProvider);
         Item = item;
@@ -64,8 +67,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     /// <summary>The connector's display name, or its id while no connector with that id is loaded.</summary>
     internal string ConnectorName =>
-        _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))?.DisplayName
-        ?? Item.ConnectorId;
+        _connectors?.Find(Item.ConnectorId)?.DisplayName ?? Item.ConnectorId;
 
     /// <summary>True when the printer's connector can report a console. Printers without one show no Console tab.</summary>
     internal bool SupportsConsole => Supports(ConnectorCapabilities.Console);
@@ -267,8 +269,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     }
 
     private bool Supports(ConnectorCapabilities capabilities) =>
-                                _agentCommands.Connectors.FirstOrDefault(c => string.Equals(c.Id, Item.ConnectorId, StringComparison.OrdinalIgnoreCase))
-            ?.Capabilities.HasFlag(capabilities) == true;
+        _connectors?.Find(Item.ConnectorId)?.Capabilities.HasFlag(capabilities) == true;
 
     private async Task TryGetThumbnail()
     {

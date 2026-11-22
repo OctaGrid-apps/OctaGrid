@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
+using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
@@ -27,7 +28,17 @@ public class PrinterPageTabsTests
 
         public List<ConnectorDescriptor> ConnectorList { get; } = [];
 
-        public IReadOnlyList<ConnectorDescriptor> Connectors => ConnectorList;
+        /// <summary>A catalog that knows <see cref="ConnectorList"/> as the connectors of one agent.</summary>
+        public ConnectorCatalog Catalog()
+        {
+            var design = new DesignOctaGridClient();
+            var catalog = new ConnectorCatalog(this, new AgentDirectory(design, design));
+            catalog.Set(Guid.NewGuid(), ConnectorList.ToList());
+            return catalog;
+        }
+
+        public Task<IReadOnlyList<ConnectorDescriptor>> GetConnectorsAsync(Guid agentId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ConnectorDescriptor>>(ConnectorList.ToList());
 
         public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken)
         {
@@ -77,7 +88,7 @@ public class PrinterPageTabsTests
 
         public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
+        public Task<ConnectionTestResult> TestConnectionAsync(Guid workspaceId, string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -115,7 +126,7 @@ public class PrinterPageTabsTests
         var commands = new FakeCommands();
         commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", capabilities, [], []));
         var item = new PrinterStatusWidget { Id = Guid.NewGuid(), Name = "Voron", State = UniversalPrinterState.Idle, ConnectorId = ConnectorId };
-        var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache());
+        var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache(), connectors: commands.Catalog());
         return (new PrinterPageViewModel(card, () => { }, new InMemorySettingsStore(), notifications), commands, item);
     }
 
@@ -258,7 +269,7 @@ public class PrinterPageTabsTests
         commands.ConnectorList.Add(new ConnectorDescriptor(
             ConnectorId, "Acme printer", "1.0.0", "Acme", ConnectorCapabilities.Console | ConnectorCapabilities.ConsoleCommands, [], []));
         var item = new PrinterStatusWidget { Id = Guid.NewGuid(), ConnectorId = ConnectorId };
-        var page = new PrinterPageViewModel(new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache()), () => { }, store);
+        var page = new PrinterPageViewModel(new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache(), connectors: commands.Catalog()), () => { }, store);
 
         Assert.True(page.PrinterConsole.IsExpertMode);
         Assert.True(page.PrinterConsole.CanSend);
@@ -279,7 +290,7 @@ public class PrinterPageTabsTests
         var commands = new FakeCommands();
         commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", ConnectorCapabilities.Console, [], []));
         var item = new PrinterStatusWidget { Id = Guid.NewGuid(), ConnectorId = ConnectorId };
-        var page = new PrinterPageViewModel(new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache()), () => { }, store);
+        var page = new PrinterPageViewModel(new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache(), connectors: commands.Catalog()), () => { }, store);
 
         Assert.True(page.HasConsole);
         Assert.False(page.PrinterConsole.SupportsCommands);

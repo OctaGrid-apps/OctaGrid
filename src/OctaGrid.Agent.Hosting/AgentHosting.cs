@@ -40,7 +40,6 @@ public static class AgentHosting
             return manager;
         });
         services.AddSingleton(sp => sp.GetRequiredService<ExtensionManager>().Registry);
-        services.AddSingleton<IMessageHandler, MessageHandler>();
 
         // What the worker reports reaches the hub through the dispatcher; the host's transport picks it up there.
         services.AddSingleton<AgentNotificationHub>();

@@ -13,16 +13,20 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
 {
     private readonly IAgentCommandsService _agentCommands;
     private readonly ILogger<EditPrinterViewModel> _logger;
+    private readonly Guid _workspaceId;
 
     public EditPrinterViewModel(
         PrinterViewModel printer,
+        Guid workspaceId,
         IAgentCommandsService agentCommands,
+        ConnectorCatalog? connectors = null,
         ILogger<EditPrinterViewModel>? logger = null)
     {
         Item = printer;
+        _workspaceId = workspaceId;
         _agentCommands = agentCommands;
         _logger = logger ?? NullLogger<EditPrinterViewModel>.Instance;
-        Connectors = agentCommands.Connectors;
+        Connectors = connectors?.Connectors ?? [];
         Item.SetConnectors(Connectors);
 
         if (string.IsNullOrWhiteSpace(Item.ConnectorId) && Connectors.Count > 0)
@@ -114,7 +118,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         try
         {
             var result = await _agentCommands.TestConnectionAsync(
-                Item.ConnectorId, Item.CollectSettings(), Item.SavedPrinterId, cancellationToken);
+                _workspaceId, Item.ConnectorId, Item.CollectSettings(), Item.SavedPrinterId, agentId: null, cancellationToken);
             TestSucceeded = result.Success;
             TestResultMessage = result.Success ? "Connected successfully." : result.Error ?? "Connection failed.";
         }

@@ -47,13 +47,12 @@ public static class DependencyInjection
         services.AddSingleton<OutboxDispatcher>();
         services.AddSingleton<IOutboxSignal>(sp => sp.GetRequiredService<OutboxDispatcher>());
         services.AddScoped<IDomainEventHandler, EntityChangePublisher>();
+        services.AddScoped<IDomainEventHandler, AgentProfilesPublisher>();
         services.AddSingleton<PrinterStateRecorder>();
 
         // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
 
-        services.AddSingleton<EntityChangeFeed>();
-        services.AddSingleton<LocalAgentSynchronizer>();
         services.AddSingleton<IMessagePublisher, LocalMessageHandler>();
 
         services.AddSingleton<OctaGridClientLocal>();
@@ -71,7 +70,6 @@ public static class DependencyInjection
 
         services.AddSingleton<LocalAgent>();
         services.AddSingleton<IAgentLink, InProcessAgentLink>();
-        services.AddSingleton<LocalConnectorCache>();
         services.AddSingleton<LocalAgentNotifications>();
         services.AddSingleton<LocalCalls>();
 

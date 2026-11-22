@@ -46,7 +46,8 @@ public class PrinterEventsViewModelTests
             return new PrinterEventPage(events, latest, Truncated, HistoryId);
         }
 
-        public IReadOnlyList<ConnectorDescriptor> Connectors => [];
+        public Task<IReadOnlyList<ConnectorDescriptor>> GetConnectorsAsync(Guid agentId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ConnectorDescriptor>>([]);
 
         public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -66,7 +67,7 @@ public class PrinterEventsViewModelTests
 
         public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ConnectionTestResult> TestConnectionAsync(Guid workspaceId, string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
     }

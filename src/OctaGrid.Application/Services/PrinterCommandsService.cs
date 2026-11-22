@@ -27,6 +27,18 @@ public sealed class PrinterCommandsService
         _link = link;
     }
 
+    /// <summary>
+    /// The connectors an agent offers, with their settings and capabilities. Each agent has its own set, because
+    /// extensions are installed per agent.
+    /// </summary>
+    /// <exception cref="NotFoundException">There is no such agent.</exception>
+    /// <exception cref="AgentUnavailableException">The agent cannot be reached.</exception>
+    public async Task<IReadOnlyList<ConnectorDescriptor>> GetConnectors(Guid userId, Guid agentId, CancellationToken cancellationToken)
+    {
+        await _access.RequireForAgent(userId, agentId, Permission.View, cancellationToken);
+        return (await _link.SendAsync(agentId, new GetConnectorsRequest(), cancellationToken)).Connectors;
+    }
+
     public async Task DeleteFile(Guid userId, Guid printerId, string fileName, CancellationToken cancellationToken) =>
         await _link.SendAsync(await AgentOf(userId, printerId, Permission.ManageFiles, cancellationToken), new DeletePrinterFileRequest(printerId, fileName), cancellationToken);
 
@@ -60,10 +72,12 @@ public sealed class PrinterCommandsService
     /// <summary>
     /// Tests connection settings. For a saved printer (<paramref name="printerId"/>) the secrets the user left
     /// untouched are filled in from the saved ones, and its own agent runs the test. A new printer, or a saved one
-    /// without an agent, is tested by <paramref name="agentId"/>, which the user must be allowed to use.
+    /// without an agent, is tested by the agent it would be created with: <paramref name="agentId"/>, or else the
+    /// only agent of <paramref name="workspaceId"/>. The user must be allowed to use that agent.
     /// </summary>
     public async Task<ConnectionTestResult> TestConnection(
         Guid userId,
+        Guid workspaceId,
         string connectorId,
         IReadOnlyDictionary<string, string> settings,
         Guid? printerId,
@@ -79,7 +93,9 @@ public sealed class PrinterCommandsService
 
         if (target is null)
         {
-            target = agentId ?? throw new ValidationException(nameof(agentId), "Choose the agent that tests the connection.");
+            target = agentId
+                ?? await _printers.AgentForNewPrinter(userId, workspaceId, cancellationToken)
+                ?? throw new ValidationException(nameof(agentId), "Choose the agent that tests the connection.");
             await _access.RequireForAgent(userId, target.Value, Permission.ManagePrinters, cancellationToken);
         }
 

@@ -7,4 +7,8 @@
     <ProjectReference Include="..\OctaGrid.Data.Sqlite\OctaGrid.Data.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="OctaGrid.Client.Desktop.Tests" />
+  </ItemGroup>
+
 </Project>

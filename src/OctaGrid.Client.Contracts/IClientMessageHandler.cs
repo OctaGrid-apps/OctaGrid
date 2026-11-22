@@ -19,4 +19,7 @@ public interface IClientMessageHandler
 
     /// <summary>A printer wrote a new line to its console. May be called from any thread.</summary>
     void Handle(PrinterConsoleLineRecorded recorded);
+
+    /// <summary>The connectors an agent offers changed. May be called from any thread.</summary>
+    void Handle(AgentConnectorsChanged changed);
 }

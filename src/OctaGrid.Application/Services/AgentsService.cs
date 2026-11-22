@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using OctaGrid.Application.Agents;
 using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data;
@@ -15,12 +16,14 @@ public sealed class AgentsService
 {
     private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
+    private readonly IAgentLink _link;
     private readonly ILogger<AgentsService> _logger;
 
-    public AgentsService(OctaGridContext context, WorkspaceAccess access, ILogger<AgentsService>? logger = null)
+    public AgentsService(OctaGridContext context, WorkspaceAccess access, IAgentLink link, ILogger<AgentsService>? logger = null)
     {
         _context = context;
         _access = access;
+        _link = link;
         _logger = logger ?? NullLogger<AgentsService>.Instance;
     }
 
@@ -72,7 +75,10 @@ public sealed class AgentsService
         _logger.LogInformation("Created agent {AgentId} ('{AgentName}') in workspace {WorkspaceId} by user {UserId}",
             agent.Id, agent.Name, workspaceId, userId);
 
-        return new AgentResponse(agent.Id, agent.Name, agent.Status.State.ToString(), agent.TokenPrefix, agent.Version);
+        return new AgentResponse(agent.Id, agent.Name, agent.Status.State.ToString(), agent.TokenPrefix, agent.Version)
+        {
+            Connection = _link.GetConnectionState(agent.Id),
+        };
     }
 
     public async Task<List<AgentResponse>> GetList(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
@@ -87,7 +93,8 @@ public sealed class AgentsService
             .Select(a => new AgentResponse(a.Id, a.Name, a.Status != null ? a.Status.State.ToString() : nameof(AgentState.Unknown), a.TokenPrefix, a.Version))
             .ToListAsync(cancellationToken);
 
-        return agents;
+        // Whether an agent is connected is known to the link, not stored.
+        return agents.Select(a => a with { Connection = _link.GetConnectionState(a.Id) }).ToList();
     }
 
     public async Task<AgentResponse> Update(Guid userId, Guid agentId, UpdateAgentRequest request, CancellationToken cancellationToken)
@@ -113,6 +120,9 @@ public sealed class AgentsService
             agent.Id, agent.Name, agent.WorkspaceId, userId);
 
         var state = agent.Status is null ? nameof(AgentState.Unknown) : agent.Status.State.ToString();
-        return new AgentResponse(agent.Id, agent.Name, state, agent.TokenPrefix, agent.Version);
+        return new AgentResponse(agent.Id, agent.Name, state, agent.TokenPrefix, agent.Version)
+        {
+            Connection = _link.GetConnectionState(agent.Id),
+        };
     }
 }

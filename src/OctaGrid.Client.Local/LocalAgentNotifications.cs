@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Agents;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.AgentLink;
@@ -8,26 +10,54 @@ namespace OctaGrid.Client.Local;
 
 /// <summary>
 /// Passes what the local agent reports on to the UI: telemetry, recorded events and console lines go to the
-/// client's message handler, and a changed connector list refreshes the <see cref="LocalConnectorCache"/>.
+/// client's message handler, and a changed connector list tells the client to read the agent's connectors again.
+/// Telemetry and events are read from separate channels, so a burst of telemetry never delays an event.
 /// </summary>
 internal sealed class LocalAgentNotifications
 {
-    private readonly LocalConnectorCache _connectors;
     private readonly IAgentLink _link;
+    private readonly ILogger<LocalAgentNotifications> _logger;
     private readonly IClientMessageHandler _messageHandler;
 
-    public LocalAgentNotifications(IAgentLink link, IClientMessageHandler messageHandler, LocalConnectorCache connectors)
+    public LocalAgentNotifications(
+        IAgentLink link, IClientMessageHandler messageHandler, ILogger<LocalAgentNotifications>? logger = null)
     {
         _link = link;
         _messageHandler = messageHandler;
-        _connectors = connectors;
+        _logger = logger ?? NullLogger<LocalAgentNotifications>.Instance;
     }
 
     /// <summary>Starts listening.</summary>
-    /// <returns>Dispose it to stop.</returns>
-    public IDisposable Start() => _link.Subscribe(Handle);
+    /// <returns>The subscriptions; pass them to <see cref="RunAsync"/>, and dispose them to stop.</returns>
+    public Listening Start() => new(_link.Subscribe(AgentNotificationChannel.Events), _link.Subscribe(AgentNotificationChannel.Telemetry));
 
-    // Called on the agent's threads; the message handler is written for that.
+    /// <summary>Hands on what arrives until cancelled or until <paramref name="listening"/> is disposed.</summary>
+    public Task RunAsync(Listening listening, CancellationToken cancellationToken) =>
+        Task.WhenAll(ReadAsync(listening.Events, cancellationToken), ReadAsync(listening.Telemetry, cancellationToken));
+
+    private async Task ReadAsync(AgentNotificationSubscription subscription, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var envelope in subscription.Reader.ReadAllAsync(cancellationToken))
+            {
+                try
+                {
+                    Handle(envelope);
+                }
+                catch (Exception ex)
+                {
+                    // An error here would end the runtime's background work along with this reader.
+                    _logger.LogError(ex, "Could not hand on {Notification} from agent {AgentId}",
+                        envelope.Notification.GetType().Name, envelope.AgentId);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
     private void Handle(AgentNotificationEnvelope envelope)
     {
         switch (envelope.Notification)
@@ -44,9 +74,29 @@ internal sealed class LocalAgentNotifications
                 _messageHandler.Handle(recorded);
                 break;
 
-            case ConnectorsChanged changed:
-                _connectors.Set(changed.Connectors);
+            case ConnectorsChanged:
+                _messageHandler.Handle(new AgentConnectorsChanged(envelope.AgentId));
                 break;
+        }
+    }
+
+    /// <summary>The two subscriptions of a running listener.</summary>
+    public sealed class Listening : IDisposable
+    {
+        public Listening(AgentNotificationSubscription events, AgentNotificationSubscription telemetry)
+        {
+            Events = events;
+            Telemetry = telemetry;
+        }
+
+        public AgentNotificationSubscription Events { get; }
+
+        public AgentNotificationSubscription Telemetry { get; }
+
+        public void Dispose()
+        {
+            Events.Dispose();
+            Telemetry.Dispose();
         }
     }
 }

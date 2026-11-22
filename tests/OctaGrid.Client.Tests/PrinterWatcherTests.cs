@@ -206,5 +206,9 @@ public class PrinterWatcherTests
         public void Handle(PrinterConsoleLineRecorded recorded)
         {
         }
+
+        public void Handle(AgentConnectorsChanged changed)
+        {
+        }
     }
 }

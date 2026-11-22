@@ -1,9 +1,10 @@
-﻿<ContentPage
+<ContentPage
     x:Class="OctaGrid.Client.Views.AgentListView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:agents="using:OctaGrid.Protocol.Agents"
     xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:conv="using:OctaGrid.Client.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:designtime="using:OctaGrid.Client.DesignTime"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -100,7 +101,7 @@
                                     <Grid
                                         ColumnDefinitions="Auto,*"
                                         ColumnSpacing="{DynamicResource Gap.CardContent}"
-                                        RowDefinitions="Auto,Auto"
+                                        RowDefinitions="Auto,Auto,Auto"
                                         RowSpacing="{DynamicResource Gap.KeyValue}">
                                         <TextBlock Classes="small secondary" Text="Status" />
                                         <TextBlock
@@ -118,6 +119,16 @@
                                             HorizontalAlignment="Right"
                                             Classes="small"
                                             Text="{Binding Token, TargetNullValue='---'}" />
+                                        <TextBlock
+                                            Grid.Row="2"
+                                            Classes="small secondary"
+                                            Text="Connection" />
+                                        <TextBlock
+                                            Grid.Row="2"
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            Classes="small"
+                                            Text="{Binding Connection, Converter={x:Static conv:AgentConnectionTextConverter.Instance}}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
