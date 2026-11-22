@@ -2,11 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Authorization;
-using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Workspaces;
 
@@ -17,13 +15,11 @@ public sealed class WorkspacesService
     private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<WorkspacesService> _logger;
-    private readonly IMessagePublisher _publisher;
 
-    public WorkspacesService(OctaGridContext context, WorkspaceAccess access, IMessagePublisher publisher, ILogger<WorkspacesService>? logger = null)
+    public WorkspacesService(OctaGridContext context, WorkspaceAccess access, ILogger<WorkspacesService>? logger = null)
     {
         _context = context;
         _access = access;
-        _publisher = publisher;
         _logger = logger ?? NullLogger<WorkspacesService>.Instance;
     }
 
@@ -112,8 +108,6 @@ public sealed class WorkspacesService
 
         _logger.LogInformation("Updated workspace {WorkspaceId} name to '{WorkspaceName}' by user {UserId}",
             workspace.Id, workspace.Name, userId);
-
-        _publisher.Publish(new EntityChanged(EntityTypes.Workspace, workspace.Id, workspace.Version, ChangeKind.Upserted, workspace.Id));
 
         return new WorkspaceResponse(
             workspace.Id, workspace.Name, workspace.Version, await _access.GetPermissions(userId, workspaceId, cancellationToken));

@@ -12,6 +12,11 @@ namespace OctaGrid.Data.Events;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(PrintJobStarted), "print-job.started")]
 [JsonDerivedType(typeof(PrintJobFinished), "print-job.finished")]
+[JsonDerivedType(typeof(PrinterAdded), "printer.added")]
+[JsonDerivedType(typeof(PrinterChanged), "printer.changed")]
+[JsonDerivedType(typeof(PrinterAgentChanged), "printer.agent-changed")]
+[JsonDerivedType(typeof(PrinterRemoved), "printer.removed")]
+[JsonDerivedType(typeof(WorkspaceRenamed), "workspace.renamed")]
 public abstract record DomainEvent
 {
     private static readonly IReadOnlyDictionary<Type, string> TypeNames = typeof(DomainEvent)
@@ -21,8 +26,17 @@ public abstract record DomainEvent
     /// <summary>Identifies the event, so a handler that gets it twice can tell.</summary>
     public Guid EventId { get; init; } = Guid.CreateVersion7();
 
-    /// <summary>When the fact happened.</summary>
-    public required DateTimeOffset OccurredAt { get; init; }
+    /// <summary>
+    /// When the fact happened. Set by <see cref="OctaGridContext"/> to the save time,
+    /// unless the aggregate sets it (for example, the time an agent reported a state).
+    /// </summary>
+    public DateTimeOffset OccurredAt { get; init; }
+
+    /// <summary>
+    /// The <see cref="Models.Entity.Version"/> of the entity that raised the event, as saved with it.
+    /// Set by <see cref="OctaGridContext"/>.
+    /// </summary>
+    public long AggregateVersion { get; init; }
 
     /// <summary>The stored name of this event's type.</summary>
     [JsonIgnore]

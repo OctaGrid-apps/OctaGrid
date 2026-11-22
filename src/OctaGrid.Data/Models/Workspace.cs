@@ -1,3 +1,4 @@
+using OctaGrid.Data.Events;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Dashboards;
 
@@ -41,7 +42,11 @@ public sealed class Workspace : Entity
         return workspace;
     }
 
-    public void Rename(string name) => Name = name;
+    public void Rename(string name)
+    {
+        Name = name;
+        Raise(new WorkspaceRenamed(Id, name));
+    }
 
     /// <summary>Adds a member. Needs the members loaded.</summary>
     /// <exception cref="ValidationException">The user is already a member.</exception>

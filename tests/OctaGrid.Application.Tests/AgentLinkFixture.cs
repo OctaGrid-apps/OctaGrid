@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using OctaGrid.Application.Agents;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
-using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models;
@@ -89,10 +88,10 @@ internal sealed class AgentLinkFixture : IDisposable
 
     public void Dispose() => _connection.Dispose();
 
-    public OctaGridContext NewContext() =>
-        new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
+    public OctaGridContext NewContext(IOutboxSignal? outboxSignal = null) =>
+        new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options, outboxSignal);
 
-    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), new NullPublisher(), _protector);
+    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), _protector);
 
     public static PrinterRouting Routing(OctaGridContext context) => new(context, TestAccess.For(context));
 
@@ -107,13 +106,6 @@ internal sealed class AgentLinkFixture : IDisposable
     private sealed class FixedKeySource : ISecretKeySource
     {
         public byte[] GetOrCreateKey() => Enumerable.Range(1, AesGcmSecretProtector.KeySize).Select(i => (byte)i).ToArray();
-    }
-
-    private sealed class NullPublisher : IMessagePublisher
-    {
-        public void Publish(EntityChanged entity)
-        {
-        }
     }
 }
 

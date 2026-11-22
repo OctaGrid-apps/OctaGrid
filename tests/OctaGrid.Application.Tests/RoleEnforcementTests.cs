@@ -7,7 +7,6 @@ using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Dashboards;
-using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Printers;
 using OctaGrid.Protocol.Workspaces;
@@ -130,7 +129,6 @@ public sealed class RoleEnforcementTests : IDisposable
         public Scene(AgentLinkFixture fixture, OctaGridContext context, Guid printerId, Guid dashboardId)
         {
             var access = TestAccess.For(context);
-            var publisher = new NullPublisher();
             WorkspaceId = fixture.WorkspaceId;
             AgentId = fixture.AgentId;
             PrinterId = printerId;
@@ -141,8 +139,8 @@ public sealed class RoleEnforcementTests : IDisposable
             Watch = new PrinterWatchService(routing, fixture.Link, new PrinterWatchRegistry());
             Extensions = new ExtensionsService(access, fixture.Link);
             Dashboards = new DashboardsService(context, access);
-            Agents = new AgentsService(context, access, publisher);
-            Workspaces = new WorkspacesService(context, access, publisher);
+            Agents = new AgentsService(context, access);
+            Workspaces = new WorkspacesService(context, access);
         }
 
         public Guid AgentId { get; }
@@ -166,12 +164,5 @@ public sealed class RoleEnforcementTests : IDisposable
         public Guid WorkspaceId { get; }
 
         public WorkspacesService Workspaces { get; }
-    }
-
-    private sealed class NullPublisher : IMessagePublisher
-    {
-        public void Publish(EntityChanged entity)
-        {
-        }
     }
 }

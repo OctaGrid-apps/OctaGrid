@@ -1,9 +1,7 @@
 using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Services;
-using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
-using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Workspaces;
 
@@ -18,7 +16,7 @@ public sealed class WorkspacesServiceTests : IDisposable
     public void Dispose() => _fixture.Dispose();
 
     private static WorkspacesService NewService(OctaGridContext context) =>
-        new(context, TestAccess.For(context), new NullPublisher());
+        new(context, TestAccess.For(context));
 
     [Theory]
     [InlineData(Role.Reader)]
@@ -69,12 +67,5 @@ public sealed class WorkspacesServiceTests : IDisposable
         var listed = Assert.Single(await service.GetList(_fixture.UserId, CancellationToken.None));
 
         Assert.Equal(updated.Version, listed.Version);
-    }
-
-    private sealed class NullPublisher : IMessagePublisher
-    {
-        public void Publish(EntityChanged entity)
-        {
-        }
     }
 }
