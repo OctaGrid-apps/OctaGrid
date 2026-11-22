@@ -209,7 +209,12 @@ public sealed class PrintersService
         if (request.Secrets is { Count: > 0 })
         {
             // Encrypting again changes the stored text even for equal values, so only do it when something changed.
-            WriteSecrets(printer, ReadSecrets(printer.Id, printer.ProtectedSecrets).With(request.Secrets));
+            var saved = ReadSecrets(printer.Id, printer.ProtectedSecrets);
+            var secrets = saved.With(request.Secrets);
+            if (!secrets.SameAs(saved))
+            {
+                WriteSecrets(printer, secrets);
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -265,6 +270,7 @@ public sealed class PrintersService
         var agents = await _context.Agents
             .AsNoTracking()
             .Where(a => a.WorkspaceId == workspaceId)
+            .OrderBy(a => a.Id)
             .Take(2)
             .ToListAsync(cancellationToken);
 

@@ -70,6 +70,11 @@ public sealed class Printer : Entity
 
     public void Rename(string name)
     {
+        if (string.Equals(Name, name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         Name = name;
         RaiseChanged();
     }
@@ -80,7 +85,19 @@ public sealed class Printer : Entity
     /// </summary>
     public void Reconfigure(string name, string connectorId, IReadOnlyDictionary<string, string> settings, bool enabled)
     {
-        if (!string.Equals(ConnectorId, connectorId, StringComparison.OrdinalIgnoreCase))
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var connectorChanged = !string.Equals(ConnectorId, connectorId, StringComparison.OrdinalIgnoreCase);
+        var changed = !string.Equals(Name, name, StringComparison.Ordinal)
+            || !string.Equals(ConnectorId, connectorId, StringComparison.Ordinal)
+            || !SameSettings(settings)
+            || Enabled != enabled;
+        if (!changed)
+        {
+            return;
+        }
+
+        if (connectorChanged)
         {
             ProtectedSecrets = null;
         }
@@ -137,7 +154,13 @@ public sealed class Printer : Entity
     /// <summary>Stores the encrypted secrets, or none.</summary>
     public void StoreSecrets(string? protectedSecrets)
     {
-        ProtectedSecrets = string.IsNullOrEmpty(protectedSecrets) ? null : protectedSecrets;
+        var stored = string.IsNullOrEmpty(protectedSecrets) ? null : protectedSecrets;
+        if (string.Equals(ProtectedSecrets, stored, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ProtectedSecrets = stored;
 
         // A new printer reports its secrets with PrinterAdded.
         if (!DomainEvents.OfType<PrinterAdded>().Any())
@@ -145,6 +168,10 @@ public sealed class Printer : Entity
             RaiseChanged();
         }
     }
+
+    private bool SameSettings(IReadOnlyDictionary<string, string> settings) =>
+        Settings.Count == settings.Count
+        && settings.All(kv => Settings.TryGetValue(kv.Key, out var value) && string.Equals(value, kv.Value, StringComparison.Ordinal));
 
     private void EnsureSameWorkspace(Agent agent)
     {

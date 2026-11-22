@@ -25,6 +25,14 @@ public sealed class PrinterSecrets
 
     public IReadOnlyDictionary<string, string> Values => _values;
 
+    /// <summary>Whether both hold the same keys with the same values.</summary>
+    public bool SameAs(PrinterSecrets other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return _values.Count == other._values.Count
+            && _values.All(kv => other._values.TryGetValue(kv.Key, out var value) && string.Equals(value, kv.Value, StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Applies what a user entered: a value replaces the saved one, an empty value removes it, and a key that is not
     /// in <paramref name="changes"/> keeps its saved value (secrets are write-only, so a form never shows them).
