@@ -12,8 +12,8 @@ public enum AgentNotificationChannel
     Events,
 
     /// <summary>
-    /// Frequent printer snapshots. Each one replaces the one before, so a receiver that falls behind may drop the
-    /// oldest instead of slowing the agent down.
+    /// Frequent printer snapshots. Each one replaces the one before, so a receiver that falls behind may keep only
+    /// the latest of each printer instead of slowing the agent down.
     /// </summary>
     Telemetry,
 }

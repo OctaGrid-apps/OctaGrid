@@ -204,7 +204,7 @@ public partial class App : Application
                 }
 
                 _ = StartDeveloperModeAsync(services, desktop.Args, settings, logger);
-                _ = LoadConnectorsAsync(services, logger);
+                _ = LoadConnectorsAsync(services, logger, _cts.Token);
 
                 desktop.Exit += (s, e) =>
                 {
@@ -289,11 +289,14 @@ public partial class App : Application
     }
 
     // In the background: the dashboard builds its cards again once the connectors are known.
-    private static async Task LoadConnectorsAsync(IServiceProvider services, ILogger logger)
+    private static async Task LoadConnectorsAsync(IServiceProvider services, ILogger logger, CancellationToken cancellationToken)
     {
         try
         {
-            await services.GetRequiredService<ConnectorCatalog>().RefreshAsync(CancellationToken.None);
+            await services.GetRequiredService<ConnectorCatalog>().LoadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {

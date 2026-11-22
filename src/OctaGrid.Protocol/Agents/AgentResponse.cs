@@ -6,11 +6,8 @@ namespace OctaGrid.Protocol.Agents;
 /// <param name="Status">Where the agent is in its lifecycle (pending, active, ...).</param>
 /// <param name="Token">The visible prefix of the agent's token, or null.</param>
 /// <param name="Version">The row version, for optimistic concurrency.</param>
-/// <param name="Connection">Whether the backend can reach the agent right now.</param>
-public record AgentResponse(
-    Guid Id,
-    string Name,
-    string Status,
-    string? Token,
-    long Version,
-    AgentConnectionState Connection = AgentConnectionState.Offline);
+public record AgentResponse(Guid Id, string Name, string Status, string? Token, long Version)
+{
+    /// <summary>Whether the backend can reach the agent right now.</summary>
+    public AgentConnectionState Connection { get; init; } = AgentConnectionState.Offline;
+}

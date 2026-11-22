@@ -252,6 +252,13 @@ public sealed class PrintersService
         return MapToResponse(printer);
     }
 
+    /// <summary>The agent a new printer in the workspace gets when none is asked for, or null.</summary>
+    internal async Task<Guid?> AgentForNewPrinter(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
+    {
+        await _access.Require(userId, workspaceId, Permission.ManagePrinters, cancellationToken);
+        return (await ResolveAgentAsync(workspaceId, requested: null, cancellationToken))?.Id;
+    }
+
     /// <summary>
     /// The agent a new printer gets: the one asked for, which must be in the printer's workspace, or else the
     /// workspace's only agent. With several agents and none asked for, the printer starts without one.

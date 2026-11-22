@@ -87,32 +87,62 @@ public sealed class AgentLinkTests : IDisposable
     }
 
     [Fact]
-    public void A_reader_that_falls_behind_loses_the_oldest_telemetry_and_keeps_every_event()
+    public void A_reader_that_falls_behind_gets_the_latest_telemetry_of_each_printer_and_every_event()
     {
         var fanOut = new AgentNotificationFanOut();
         using var events = fanOut.Subscribe(AgentNotificationChannel.Events);
         using var telemetry = fanOut.Subscribe(AgentNotificationChannel.Telemetry);
-        var printerId = Guid.NewGuid();
-        var count = AgentNotificationSubscription.TelemetryCapacity + 10;
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
 
-        for (var i = 0; i < count; i++)
+        fanOut.Publish(Telemetry(first, nozzle: 1));
+        for (var i = 0; i < 100; i++)
         {
+            fanOut.Publish(Telemetry(second, nozzle: i));
             fanOut.Publish(new AgentNotificationEnvelope(AgentId,
-                new PrinterTelemetryReported(new PrinterTelemetry(printerId) { NozzleTemperature = i }, null)));
-            fanOut.Publish(new AgentNotificationEnvelope(AgentId,
-                new PrinterStateChanged(printerId, null, UniversalPrinterState.Idle, $"{i}", DateTimeOffset.UnixEpoch)));
+                new PrinterStateChanged(second, null, UniversalPrinterState.Idle, $"{i}", DateTimeOffset.UnixEpoch)));
         }
 
-        Assert.Equal(AgentNotificationSubscription.TelemetryCapacity, telemetry.Reader.Count);
-        Assert.True(telemetry.Reader.TryRead(out var oldest));
-        Assert.Equal(10, ((PrinterTelemetryReported)oldest.Notification).Telemetry.NozzleTemperature);
+        Assert.Equal(
+            [(first, 1d), (second, 99d)],
+            ReadAll(telemetry).Select(r => (r.Telemetry.PrinterId, r.Telemetry.NozzleTemperature!.Value)));
         var kept = 0;
         while (events.Reader.TryRead(out _))
         {
             kept++;
         }
 
-        Assert.Equal(count, kept);
+        Assert.Equal(100, kept);
+    }
+
+    [Fact]
+    public void A_snapshot_that_replaces_a_waiting_one_keeps_its_history_sample()
+    {
+        var fanOut = new AgentNotificationFanOut();
+        using var telemetry = fanOut.Subscribe(AgentNotificationChannel.Telemetry);
+        var printerId = Guid.NewGuid();
+        var sample = new TelemetrySample(DateTimeOffset.UnixEpoch, []);
+
+        fanOut.Publish(Telemetry(printerId, nozzle: 200, sample));
+        fanOut.Publish(Telemetry(printerId, nozzle: 201));
+
+        var latest = Assert.Single(ReadAll(telemetry));
+        Assert.Equal(201, latest.Telemetry.NozzleTemperature);
+        Assert.Equal(sample, latest.Sample);
+    }
+
+    private static AgentNotificationEnvelope Telemetry(Guid printerId, double nozzle, TelemetrySample? sample = null) =>
+        new(AgentId, new PrinterTelemetryReported(new PrinterTelemetry(printerId) { NozzleTemperature = nozzle }, sample));
+
+    private static List<PrinterTelemetryReported> ReadAll(AgentNotificationSubscription subscription)
+    {
+        var read = new List<PrinterTelemetryReported>();
+        while (subscription.Reader.TryRead(out var envelope))
+        {
+            read.Add((PrinterTelemetryReported)envelope.Notification);
+        }
+
+        return read;
     }
 
     [Fact]
@@ -208,6 +238,19 @@ public sealed class AgentLinkTests : IDisposable
         await Publisher(context).HandleAsync(new PrinterRemoved(printer.Id, _fixture.WorkspaceId, _fixture.AgentId), CancellationToken.None);
 
         Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
+    public async Task An_agent_that_refuses_its_printers_does_not_fail_the_event()
+    {
+        var printer = await _fixture.CreatePrinter();
+        _fixture.Link.Refused = typeof(ApplyPrinterProfilesRequest);
+
+        await using var context = _fixture.NewContext();
+        var exception = await Record.ExceptionAsync(() =>
+            Publisher(context).HandleAsync(new PrinterChanged(printer.Id, _fixture.WorkspaceId), CancellationToken.None));
+
+        Assert.Null(exception);
     }
 
     [Fact]

@@ -52,9 +52,15 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.StopPrint(userId, printerId, cancellationToken), cancellationToken);
 
     public Task<ConnectionTestResult> TestConnectionAsync(
-        string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) =>
+        Guid workspaceId,
+        string connectorId,
+        IReadOnlyDictionary<string, string> settings,
+        Guid? printerId,
+        Guid? agentId,
+        CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, ConnectionTestResult>(
-            (printers, userId) => printers.TestConnection(userId, connectorId, settings, printerId, agentId, cancellationToken), cancellationToken);
+            (printers, userId) => printers.TestConnection(userId, workspaceId, connectorId, settings, printerId, agentId, cancellationToken),
+            cancellationToken);
 
     public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.UploadFile(userId, printerId, stream, fileName, cancellationToken), cancellationToken);

@@ -78,7 +78,7 @@ public class PrinterConsoleViewModelTests
 
         public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ConnectionTestResult> TestConnectionAsync(Guid workspaceId, string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
     }

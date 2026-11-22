@@ -74,7 +74,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
     private async Task CreatePrinter(CancellationToken cancellationToken)
     {
         var printerViewModel = new EditPrinterViewModel(
-            new PrinterViewModel(new Printer()), _agentCommands, _connectors, _loggerFactory.CreateLogger<EditPrinterViewModel>());
+            new PrinterViewModel(new Printer()), _appState.GetWorkspaceId(), _agentCommands, _connectors, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Create new printer", printerViewModel);
         if (result is null)
@@ -130,7 +130,7 @@ public partial class PrinterListViewModel : ViewModelBase, IDialogParticipant
             ConnectorId = printer.ConnectorId,
             Enabled = printer.Enabled,
             SavedSecretKeys = printer.SecretKeys,
-        }), _agentCommands, _connectors, _loggerFactory.CreateLogger<EditPrinterViewModel>());
+        }), _appState.GetWorkspaceId(), _agentCommands, _connectors, _loggerFactory.CreateLogger<EditPrinterViewModel>());
 
         var result = await this.ShowOverlayDialogAsync("Edit printer", printerViewModel);
         if (result is null)

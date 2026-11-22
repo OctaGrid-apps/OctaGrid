@@ -75,7 +75,10 @@ public sealed class AgentsService
         _logger.LogInformation("Created agent {AgentId} ('{AgentName}') in workspace {WorkspaceId} by user {UserId}",
             agent.Id, agent.Name, workspaceId, userId);
 
-        return new AgentResponse(agent.Id, agent.Name, agent.Status.State.ToString(), agent.TokenPrefix, agent.Version, _link.GetConnectionState(agent.Id));
+        return new AgentResponse(agent.Id, agent.Name, agent.Status.State.ToString(), agent.TokenPrefix, agent.Version)
+        {
+            Connection = _link.GetConnectionState(agent.Id),
+        };
     }
 
     public async Task<List<AgentResponse>> GetList(Guid userId, Guid workspaceId, CancellationToken cancellationToken)
@@ -117,6 +120,9 @@ public sealed class AgentsService
             agent.Id, agent.Name, agent.WorkspaceId, userId);
 
         var state = agent.Status is null ? nameof(AgentState.Unknown) : agent.Status.State.ToString();
-        return new AgentResponse(agent.Id, agent.Name, state, agent.TokenPrefix, agent.Version, _link.GetConnectionState(agent.Id));
+        return new AgentResponse(agent.Id, agent.Name, state, agent.TokenPrefix, agent.Version)
+        {
+            Connection = _link.GetConnectionState(agent.Id),
+        };
     }
 }

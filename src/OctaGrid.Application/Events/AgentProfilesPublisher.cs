@@ -50,6 +50,12 @@ public sealed class AgentProfilesPublisher : IDomainEventHandler
                 // Not a failure to retry: the agent gets the complete set when it connects.
                 _logger.LogInformation("Agent {AgentId} is not connected; it gets its printers when it connects", agentId);
             }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                // Not retried: a failed event holds back the events after it.
+                // The next change or reconnect sends the complete set again.
+                _logger.LogError(ex, "Could not send agent {AgentId} its printers", agentId);
+            }
         }
     }
 

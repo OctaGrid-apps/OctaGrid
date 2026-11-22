@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Client.DesignTime;
 using OctaGrid.Client.Services;
@@ -16,10 +17,31 @@ public sealed class ConnectorCatalogTests
     private static ConnectorDescriptor Connector(string id, string name) =>
         new(id, name, "1.0.0", "OctaGrid", ConnectorCapabilities.None, [], []);
 
-    private static ConnectorCatalog NewCatalog(IAgentCommandsService? commands = null)
+    private static ConnectorCatalog NewCatalog(IAgentCommandsService? commands = null, TimeProvider? time = null)
     {
         var design = new DesignOctaGridClient();
-        return new ConnectorCatalog(commands ?? new DesignAgentCommands(), new AgentDirectory(design, design));
+        return new ConnectorCatalog(commands ?? new DesignAgentCommands(), new AgentDirectory(design, design), time: time);
+    }
+
+    [Fact]
+    public async Task Loading_tries_again_with_a_growing_delay_until_every_agent_was_read()
+    {
+        var commands = new ConnectorsByAgent();
+        var timers = new ManualTimers();
+        var catalog = NewCatalog(commands, timers);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var loading = catalog.LoadAsync(cancellationToken);
+        var first = await timers.NextAsync(cancellationToken);
+        first.Fire();
+        var second = await timers.NextAsync(cancellationToken);
+        commands.Connectors[DesignOctaGridClient.DesignAgentId] = [Bambu];
+        second.Fire();
+        await loading;
+
+        Assert.Equal(ConnectorCatalog.FirstRetryDelay, first.DueTime);
+        Assert.Equal(ConnectorCatalog.FirstRetryDelay * 2, second.DueTime);
+        Assert.Equal([Bambu], catalog.ForAgent(DesignOctaGridClient.DesignAgentId));
     }
 
     [Fact]
@@ -36,18 +58,6 @@ public sealed class ConnectorCatalogTests
         Assert.Equal([Bambu, Moonraker], catalog.ForAgent(second));
         Assert.Equal(["octagrid.bambu-mqtt", "octagrid.moonraker"], catalog.Connectors.Select(c => c.Id).Order());
         Assert.Equal("Moonraker", catalog.Find("OCTAGRID.MOONRAKER")?.DisplayName);
-        Assert.Null(catalog.SoleAgentId);
-    }
-
-    [Fact]
-    public void With_one_agent_it_is_the_one_that_tests_a_new_printer()
-    {
-        var catalog = NewCatalog();
-        var agentId = Guid.NewGuid();
-
-        catalog.Set(agentId, [Bambu]);
-
-        Assert.Equal(agentId, catalog.SoleAgentId);
     }
 
     [Fact]
@@ -70,6 +80,47 @@ public sealed class ConnectorCatalogTests
         var catalog = NewCatalog(new ConnectorsByAgent());
 
         await Assert.ThrowsAsync<AgentUnavailableException>(() => catalog.RefreshAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>Timers that fire only when a test fires them.</summary>
+    private sealed class ManualTimers : TimeProvider
+    {
+        private readonly Channel<ManualTimer> _created = Channel.CreateUnbounded<ManualTimer>();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(callback, state, dueTime);
+            _created.Writer.TryWrite(timer);
+            return timer;
+        }
+
+        /// <summary>Waits for the next timer to be created.</summary>
+        public ValueTask<ManualTimer> NextAsync(CancellationToken cancellationToken) => _created.Reader.ReadAsync(cancellationToken);
+    }
+
+    private sealed class ManualTimer : ITimer
+    {
+        private readonly TimerCallback _callback;
+        private readonly object? _state;
+
+        public ManualTimer(TimerCallback callback, object? state, TimeSpan dueTime)
+        {
+            _callback = callback;
+            _state = state;
+            DueTime = dueTime;
+        }
+
+        public TimeSpan DueTime { get; }
+
+        public void Fire() => _callback(_state);
+
+        public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+        public void Dispose()
+        {
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class ConnectorsByAgent : IAgentCommandsService
@@ -102,7 +153,12 @@ public sealed class ConnectorCatalogTests
         public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<ConnectionTestResult> TestConnectionAsync(
-            string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) =>
+            Guid workspaceId,
+            string connectorId,
+            IReadOnlyDictionary<string, string> settings,
+            Guid? printerId,
+            Guid? agentId,
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();

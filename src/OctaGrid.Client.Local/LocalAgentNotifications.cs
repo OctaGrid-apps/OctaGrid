@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Agents;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol.AgentLink;
@@ -14,12 +16,15 @@ namespace OctaGrid.Client.Local;
 internal sealed class LocalAgentNotifications
 {
     private readonly IAgentLink _link;
+    private readonly ILogger<LocalAgentNotifications> _logger;
     private readonly IClientMessageHandler _messageHandler;
 
-    public LocalAgentNotifications(IAgentLink link, IClientMessageHandler messageHandler)
+    public LocalAgentNotifications(
+        IAgentLink link, IClientMessageHandler messageHandler, ILogger<LocalAgentNotifications>? logger = null)
     {
         _link = link;
         _messageHandler = messageHandler;
+        _logger = logger ?? NullLogger<LocalAgentNotifications>.Instance;
     }
 
     /// <summary>Starts listening.</summary>
@@ -36,7 +41,16 @@ internal sealed class LocalAgentNotifications
         {
             await foreach (var envelope in subscription.Reader.ReadAllAsync(cancellationToken))
             {
-                Handle(envelope);
+                try
+                {
+                    Handle(envelope);
+                }
+                catch (Exception ex)
+                {
+                    // An error here would end the runtime's background work along with this reader.
+                    _logger.LogError(ex, "Could not hand on {Notification} from agent {AgentId}",
+                        envelope.Notification.GetType().Name, envelope.AgentId);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

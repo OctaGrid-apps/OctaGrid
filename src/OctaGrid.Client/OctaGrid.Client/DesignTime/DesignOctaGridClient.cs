@@ -28,7 +28,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
         Task.CompletedTask;
 
     public Task<AgentResponse> CreateAgent(Guid workspaceId, string name, CancellationToken cancellationToken) =>
-        Task.FromResult(new AgentResponse(Guid.NewGuid(), name, "Online", "octa_dev_token", 1));
+        Task.FromResult(new AgentResponse(Guid.NewGuid(), name, "Online", "octa_dev_token", 1) { Connection = AgentConnectionState.Online });
 
     public Task<DashboardResponse> CreateDashboard(Guid workspaceId, CreateDashboardRequest request, CancellationToken cancellationToken) =>
         Task.FromResult(new DashboardResponse(Guid.NewGuid(), request.Name, request.Type, false, 1));
@@ -47,7 +47,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
 
     public Task<List<AgentResponse>> GetAgentList(Guid workspaceId, CancellationToken cancellationToken) =>
         Task.FromResult<List<AgentResponse>>([
-            new AgentResponse(DesignAgentId, "Local Agent", "Online", "octa_local_token", 1)
+            new AgentResponse(DesignAgentId, "Local Agent", "Online", "octa_local_token", 1) { Connection = AgentConnectionState.Online }
         ]);
 
     public Task<List<DashboardResponse>> GetDashboardList(Guid workspaceId, CancellationToken cancellationToken) =>
@@ -85,7 +85,7 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
         Task.CompletedTask;
 
     public Task<AgentResponse> UpdateAgent(Guid agentId, string name, CancellationToken cancellationToken) =>
-        Task.FromResult(new AgentResponse(agentId, name, "Online", "octa_local_token", 1));
+        Task.FromResult(new AgentResponse(agentId, name, "Online", "octa_local_token", 1) { Connection = AgentConnectionState.Online });
 
     public Task DeleteDashboard(Guid dashboardId, CancellationToken cancellationToken) =>
         Task.CompletedTask;

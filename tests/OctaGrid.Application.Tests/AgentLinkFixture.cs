@@ -57,6 +57,16 @@ internal sealed class AgentLinkFixture : IDisposable
         return user.Id;
     }
 
+    /// <summary>Another agent in the test workspace.</summary>
+    public Guid AddAgent()
+    {
+        using var context = NewContext();
+        var agent = new Agent { Id = Guid.NewGuid(), Name = "Second agent", WorkspaceId = WorkspaceId };
+        context.Agents.Add(agent);
+        context.SaveChanges();
+        return agent.Id;
+    }
+
     /// <summary>An agent in a workspace the test user is not a member of.</summary>
     public Guid AddForeignAgent()
     {

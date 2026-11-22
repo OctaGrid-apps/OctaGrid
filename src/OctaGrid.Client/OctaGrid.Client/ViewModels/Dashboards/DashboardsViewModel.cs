@@ -30,6 +30,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private readonly INotificationService? _notifications;
     private readonly IPrintersClient _printersClient;
     private readonly IAppSettingsStore _settings;
+    private readonly SemaphoreSlim _loading = new(1, 1);
     private readonly ITemperatureHistoryStore? _temperatureHistories;
     private readonly PrinterWatcher? _watcher;
     private List<PrinterDashboardCardViewModel> _allPrinters = [];
@@ -179,7 +180,45 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     private bool IsDashboardSelected() => SelectedDashboard is not null;
 
     [RelayCommand]
-    private async Task LoadData(CancellationToken cancellationToken)
+    private Task LoadData(CancellationToken cancellationToken) => LoadSerialized(startOver: false, cancellationToken);
+
+    // Loads run one at a time. Two at once would both build cards from the same old ones,
+    // and on an empty workspace both would create the default dashboard.
+    private async Task LoadSerialized(bool startOver, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _loading.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _isStale = true;
+            _logger.LogInformation("Loading dashboard data was aborted via cancellation token");
+            return;
+        }
+
+        try
+        {
+            if (startOver)
+            {
+                foreach (var card in _allPrinters)
+                {
+                    card.Detach();
+                    card.Item.PropertyChanged -= OnPrinterPropertyChanged;
+                }
+
+                _allPrinters = [];
+            }
+
+            await LoadDataCore(cancellationToken);
+        }
+        finally
+        {
+            _loading.Release();
+        }
+    }
+
+    private async Task LoadDataCore(CancellationToken cancellationToken)
     {
         if (_appState.SelectedWorkspace is null)
         {
@@ -404,13 +443,6 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     {
         _logger.LogInformation("Refreshing printers triggered");
         // An explicit refresh starts every card over, so each printer is asked for its state again.
-        foreach (var card in _allPrinters)
-        {
-            card.Detach();
-            card.Item.PropertyChanged -= OnPrinterPropertyChanged;
-        }
-
-        _allPrinters = [];
-        return LoadData(cancellationToken);
+        return LoadSerialized(startOver: true, cancellationToken);
     }
 }

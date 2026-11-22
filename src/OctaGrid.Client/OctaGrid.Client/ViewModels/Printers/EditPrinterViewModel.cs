@@ -12,18 +12,19 @@ namespace OctaGrid.Client.ViewModels;
 public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Printer>
 {
     private readonly IAgentCommandsService _agentCommands;
-    private readonly ConnectorCatalog? _connectors;
     private readonly ILogger<EditPrinterViewModel> _logger;
+    private readonly Guid _workspaceId;
 
     public EditPrinterViewModel(
         PrinterViewModel printer,
+        Guid workspaceId,
         IAgentCommandsService agentCommands,
         ConnectorCatalog? connectors = null,
         ILogger<EditPrinterViewModel>? logger = null)
     {
         Item = printer;
+        _workspaceId = workspaceId;
         _agentCommands = agentCommands;
-        _connectors = connectors;
         _logger = logger ?? NullLogger<EditPrinterViewModel>.Instance;
         Connectors = connectors?.Connectors ?? [];
         Item.SetConnectors(Connectors);
@@ -117,7 +118,7 @@ public partial class EditPrinterViewModel : ViewModelBase, IDialogParticipant<Pr
         try
         {
             var result = await _agentCommands.TestConnectionAsync(
-                Item.ConnectorId, Item.CollectSettings(), Item.SavedPrinterId, _connectors?.SoleAgentId, cancellationToken);
+                _workspaceId, Item.ConnectorId, Item.CollectSettings(), Item.SavedPrinterId, agentId: null, cancellationToken);
             TestSucceeded = result.Success;
             TestResultMessage = result.Success ? "Connected successfully." : result.Error ?? "Connection failed.";
         }

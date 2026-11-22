@@ -72,10 +72,12 @@ public sealed class PrinterCommandsService
     /// <summary>
     /// Tests connection settings. For a saved printer (<paramref name="printerId"/>) the secrets the user left
     /// untouched are filled in from the saved ones, and its own agent runs the test. A new printer, or a saved one
-    /// without an agent, is tested by <paramref name="agentId"/>, which the user must be allowed to use.
+    /// without an agent, is tested by the agent it would be created with: <paramref name="agentId"/>, or else the
+    /// only agent of <paramref name="workspaceId"/>. The user must be allowed to use that agent.
     /// </summary>
     public async Task<ConnectionTestResult> TestConnection(
         Guid userId,
+        Guid workspaceId,
         string connectorId,
         IReadOnlyDictionary<string, string> settings,
         Guid? printerId,
@@ -91,7 +93,9 @@ public sealed class PrinterCommandsService
 
         if (target is null)
         {
-            target = agentId ?? throw new ValidationException(nameof(agentId), "Choose the agent that tests the connection.");
+            target = agentId
+                ?? await _printers.AgentForNewPrinter(userId, workspaceId, cancellationToken)
+                ?? throw new ValidationException(nameof(agentId), "Choose the agent that tests the connection.");
             await _access.RequireForAgent(userId, target.Value, Permission.ManagePrinters, cancellationToken);
         }
 

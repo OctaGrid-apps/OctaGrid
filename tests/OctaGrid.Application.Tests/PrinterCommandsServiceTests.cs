@@ -82,6 +82,7 @@ public sealed class PrinterCommandsServiceTests : IDisposable
         await using var context = _fixture.NewContext();
         var result = await NewService(context).TestConnection(
             _fixture.UserId,
+            _fixture.WorkspaceId,
             "octagrid.bambu-mqtt",
             new Dictionary<string, string> { ["url"] = "192.168.1.9" },
             printer.Id,
@@ -99,13 +100,32 @@ public sealed class PrinterCommandsServiceTests : IDisposable
     [Fact]
     public async Task A_new_printer_is_tested_by_the_agent_that_is_named()
     {
+        var second = _fixture.AddAgent();
+
         await using var context = _fixture.NewContext();
         await NewService(context).TestConnection(
             _fixture.UserId,
+            _fixture.WorkspaceId,
             "octagrid.bambu-mqtt",
             new Dictionary<string, string> { ["url"] = "192.168.1.9" },
             printerId: null,
-            _fixture.AgentId,
+            second,
+            CancellationToken.None);
+
+        Assert.Equal(second, Assert.Single(_fixture.Link.Sent).AgentId);
+    }
+
+    [Fact]
+    public async Task A_new_printer_without_a_named_agent_is_tested_by_the_only_agent_of_its_workspace()
+    {
+        await using var context = _fixture.NewContext();
+        await NewService(context).TestConnection(
+            _fixture.UserId,
+            _fixture.WorkspaceId,
+            "octagrid.bambu-mqtt",
+            new Dictionary<string, string> { ["url"] = "192.168.1.9" },
+            printerId: null,
+            agentId: null,
             CancellationToken.None);
 
         Assert.Equal(_fixture.AgentId, Assert.Single(_fixture.Link.Sent).AgentId);
@@ -114,18 +134,38 @@ public sealed class PrinterCommandsServiceTests : IDisposable
     [Fact]
     public async Task A_new_printer_cannot_be_tested_without_an_agent_or_on_an_agent_the_user_cannot_use()
     {
+        _fixture.AddAgent();
         var foreignAgent = _fixture.AddForeignAgent();
         var settings = new Dictionary<string, string> { ["url"] = "192.168.1.9" };
+        var workspaceId = _fixture.WorkspaceId;
 
         await using var context = _fixture.NewContext();
         var service = NewService(context);
 
         await Assert.ThrowsAsync<ValidationException>(
-            () => service.TestConnection(_fixture.UserId, "octagrid.bambu-mqtt", settings, null, null, CancellationToken.None));
+            () => service.TestConnection(_fixture.UserId, workspaceId, "octagrid.bambu-mqtt", settings, null, null, CancellationToken.None));
         await Assert.ThrowsAsync<AuthenticationException>(
-            () => service.TestConnection(_fixture.UserId, "octagrid.bambu-mqtt", settings, null, foreignAgent, CancellationToken.None));
+            () => service.TestConnection(_fixture.UserId, workspaceId, "octagrid.bambu-mqtt", settings, null, foreignAgent, CancellationToken.None));
         await Assert.ThrowsAsync<NotFoundException>(
-            () => service.TestConnection(_fixture.UserId, "octagrid.bambu-mqtt", settings, null, Guid.NewGuid(), CancellationToken.None));
+            () => service.TestConnection(_fixture.UserId, workspaceId, "octagrid.bambu-mqtt", settings, null, Guid.NewGuid(), CancellationToken.None));
+        Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
+    public async Task A_new_printer_cannot_be_tested_in_a_workspace_the_user_is_not_a_member_of()
+    {
+        var foreignAgent = _fixture.AddForeignAgent();
+        await using var context = _fixture.NewContext();
+        var foreignWorkspace = context.Agents.Single(a => a.Id == foreignAgent).WorkspaceId;
+
+        await Assert.ThrowsAsync<AuthenticationException>(() => NewService(context).TestConnection(
+            _fixture.UserId,
+            foreignWorkspace,
+            "octagrid.bambu-mqtt",
+            new Dictionary<string, string> { ["url"] = "192.168.1.9" },
+            printerId: null,
+            agentId: null,
+            CancellationToken.None));
         Assert.Empty(_fixture.Link.Sent);
     }
 }
