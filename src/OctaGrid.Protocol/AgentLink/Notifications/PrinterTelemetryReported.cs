@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Messaging;
 
@@ -9,4 +10,9 @@ namespace OctaGrid.Protocol.AgentLink.Notifications;
 /// The history sample the agent stored from this snapshot, or null when it stored none: the snapshot carried no
 /// readings, or came too soon after the previous sample. Clients add it to their copy of the history as it is.
 /// </param>
-public sealed record PrinterTelemetryReported(PrinterTelemetry Telemetry, TelemetrySample? Sample) : AgentNotification;
+public sealed record PrinterTelemetryReported(PrinterTelemetry Telemetry, TelemetrySample? Sample) : AgentNotification
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override AgentNotificationChannel Channel => AgentNotificationChannel.Telemetry;
+}

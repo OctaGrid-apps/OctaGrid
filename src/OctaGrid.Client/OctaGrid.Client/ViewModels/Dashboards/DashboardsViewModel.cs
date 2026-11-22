@@ -21,6 +21,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
     public const DashboardType DefaultType = DashboardType.List;
 
     private readonly IAgentCommandsService _agentCommands;
+    private readonly ConnectorCatalog? _connectors;
     private readonly ApplicationState _appState;
     private readonly IDashboardsClient _dashboardsClient;
     private readonly IByteArrayImageCache _imageCache;
@@ -50,8 +51,10 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         ILoggerFactory? loggerFactory = null,
         ITemperatureHistoryStore? temperatureHistories = null,
         WorkspacePermissions? permissions = null,
-        PrinterWatcher? watcher = null)
+        PrinterWatcher? watcher = null,
+        ConnectorCatalog? connectors = null)
     {
+        _connectors = connectors;
         _settings = settings;
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
         _temperatureHistories = temperatureHistories;
@@ -86,6 +89,9 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         // Printers are added, edited and deleted on other pages; the next time this page is shown it loads them again.
         WeakReferenceMessenger.Default.Register<PrinterEntityUpsert>(this, (_, _) => _isStale = true);
         WeakReferenceMessenger.Default.Register<PrinterEntityDelete>(this, (_, _) => _isStale = true);
+        // Connectors are read in the background, so they can arrive after the cards were built. The cards are
+        // built again then, or they would keep showing a connector as unavailable.
+        WeakReferenceMessenger.Default.Register<ConnectorCatalogChanged>(this, (_, _) => _ = ReloadForConnectorsAsync());
         _logger.LogDebug("DashboardsViewModel initialized");
     }
 
@@ -148,7 +154,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
 
     private void BuildConnectorOptions()
     {
-        var names = _agentCommands.Connectors.ToDictionary(c => c.Id, c => c.DisplayName);
+        var names = (_connectors?.Connectors ?? []).ToDictionary(c => c.Id, c => c.DisplayName, StringComparer.OrdinalIgnoreCase);
         var options = new List<ConnectorFilterOption> { ConnectorFilterOption.All };
         options.AddRange(_allPrinters
             .Select(p => p.Item.ConnectorId)
@@ -246,7 +252,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                     Name = printer.Name,
                     ConnectorId = printer.ConnectorId,
                     IsConnectorAvailable = isAvailable,
-                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions, watcher: _watcher);
+                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions, watcher: _watcher, connectors: _connectors);
                 created.Item.PropertyChanged += OnPrinterPropertyChanged;
                 return created;
             }).ToList();
@@ -292,8 +298,26 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
         return LoadData(cancellationToken);
     }
 
+    private async Task ReloadForConnectorsAsync()
+    {
+        if (_appState.SelectedWorkspace is null || _loadedConnectors.SetEquals(AvailableConnectors()))
+        {
+            return;
+        }
+
+        try
+        {
+            await LoadData(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            // LoadData logged it; the next time the page is shown it tries again.
+            _logger.LogDebug(ex, "Reloading the dashboard after the connectors changed failed");
+        }
+    }
+
     private HashSet<string> AvailableConnectors() =>
-        _agentCommands.Connectors.Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        (_connectors?.Connectors ?? []).Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Opens the dialog that creates, renames and deletes dashboards and picks the default one.</summary>
     [RelayCommand]

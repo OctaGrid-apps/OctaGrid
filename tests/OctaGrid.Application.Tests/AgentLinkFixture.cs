@@ -8,6 +8,7 @@ using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.AgentLink;
+using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.AgentLink.Replies;
 using OctaGrid.Protocol.AgentLink.Requests;
 using OctaGrid.Protocol.Extensions;
@@ -127,7 +128,7 @@ internal sealed class RecordingAgentLink : IAgentLink
     {
         if (Unreachable.Contains(agentId))
         {
-            throw new NotFoundException("Agent", agentId);
+            throw AgentHandshake.Unavailable(agentId, AgentConnectionState.Offline);
         }
 
         if (request.GetType() == Refused)
@@ -142,6 +143,7 @@ internal sealed class RecordingAgentLink : IAgentLink
             // Small pieces, so a short stream still arrives as several of them.
             BeginUploadRequest => new UploadStartedReply(UploadId, MaxChunkSize: 4),
             ListPrinterFilesRequest => new PrinterFilesReply([]),
+            GetConnectorsRequest => new ConnectorsReply(Connectors.ToList()),
             GetExtensionsRequest => new ExtensionsReply([]),
             GetDeveloperFolderRequest => new DeveloperFolderReply(null),
             // Each printer as running, so a test can tell an answer from the agent apart from the offline fallback.
@@ -160,32 +162,19 @@ internal sealed class RecordingAgentLink : IAgentLink
         return Task.FromResult((TReply)reply);
     }
 
-    private readonly List<Action<AgentNotificationEnvelope>> _subscribers = [];
+    private readonly AgentNotificationFanOut _fanOut = new();
 
-    public IDisposable Subscribe(Action<AgentNotificationEnvelope> handler)
-    {
-        _subscribers.Add(handler);
-        return new Unsubscriber(() => _subscribers.Remove(handler));
-    }
+    /// <summary>The connectors every agent answers <see cref="GetConnectorsRequest"/> with.</summary>
+    public List<ConnectorDescriptor> Connectors { get; } = [];
+
+    public AgentConnectionState GetConnectionState(Guid agentId) =>
+        Unreachable.Contains(agentId) ? AgentConnectionState.Offline : AgentConnectionState.Online;
+
+    public AgentNotificationSubscription Subscribe(AgentNotificationChannel channel) => _fanOut.Subscribe(channel);
 
     /// <summary>Reports a notification from an agent to whoever listens, as the real link does.</summary>
     public void Notify(Guid agentId, AgentNotification notification)
     {
-        foreach (var subscriber in _subscribers.ToList())
-        {
-            subscriber(new AgentNotificationEnvelope(agentId, notification));
-        }
-    }
-
-    private sealed class Unsubscriber : IDisposable
-    {
-        private readonly Action _unsubscribe;
-
-        public Unsubscriber(Action unsubscribe)
-        {
-            _unsubscribe = unsubscribe;
-        }
-
-        public void Dispose() => _unsubscribe();
+        _fanOut.Publish(new AgentNotificationEnvelope(agentId, notification));
     }
 }

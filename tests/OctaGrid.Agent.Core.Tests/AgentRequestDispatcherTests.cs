@@ -143,6 +143,18 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
     }
 
     [Fact]
+    public void The_hello_names_the_agent_and_the_protocol_it_was_built_with()
+    {
+        var agentId = Guid.NewGuid();
+
+        var hello = AgentRequestDispatcher.Hello(agentId);
+
+        Assert.Equal(agentId, hello.AgentId);
+        Assert.Equal(AgentProtocol.Version, hello.ProtocolVersion);
+        Assert.False(string.IsNullOrWhiteSpace(hello.AgentVersion));
+    }
+
+    [Fact]
     public async Task The_reply_carries_the_correlation_id_of_the_request()
     {
         var correlationId = Guid.NewGuid();

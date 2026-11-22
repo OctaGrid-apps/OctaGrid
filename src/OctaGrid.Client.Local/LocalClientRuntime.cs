@@ -1,8 +1,8 @@
 using OctaGrid.Agent.Core;
 using OctaGrid.Application.Agents;
 using OctaGrid.Application.Events;
+using OctaGrid.Application.Services;
 using OctaGrid.Client.Contracts;
-using OctaGrid.Protocol.AgentLink.Requests;
 
 namespace OctaGrid.Client.Local;
 
@@ -15,30 +15,24 @@ namespace OctaGrid.Client.Local;
 internal sealed class LocalClientRuntime : IClientRuntime
 {
     private readonly AgentWorker _agent;
-    private readonly LocalConnectorCache _connectors;
-    private readonly IAgentLink _link;
-    private readonly LocalAgent _localAgent;
     private readonly LocalAgentNotifications _notifications;
     private readonly OutboxDispatcher _outbox;
     private readonly PrinterStateRecorder _printerStates;
-    private readonly LocalAgentSynchronizer _synchronizer;
+    private readonly LocalCalls _calls;
+    private readonly LocalAgent _localAgent;
 
     public LocalClientRuntime(
         AgentWorker agent,
-        IAgentLink link,
-        LocalAgent localAgent,
         LocalAgentNotifications notifications,
-        LocalConnectorCache connectors,
-        LocalAgentSynchronizer synchronizer,
+        LocalCalls calls,
+        LocalAgent localAgent,
         PrinterStateRecorder printerStates,
         OutboxDispatcher outbox)
     {
         _agent = agent;
-        _link = link;
-        _localAgent = localAgent;
         _notifications = notifications;
-        _connectors = connectors;
-        _synchronizer = synchronizer;
+        _calls = calls;
+        _localAgent = localAgent;
         _printerStates = printerStates;
         _outbox = outbox;
     }
@@ -49,18 +43,19 @@ internal sealed class LocalClientRuntime : IClientRuntime
         using var listening = _notifications.Start();
         using var recording = _printerStates.Start();
 
-        // The backend's own background work, stopped with the rest however the synchronizer ends.
+        // The backend's own background work. It runs for the app's lifetime and is stopped with the rest however
+        // startup ends. Printer changes reach the agent from the outbox (AgentProfilesPublisher).
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var background = Task.WhenAll(_outbox.RunAsync(stopping.Token), _printerStates.RunAsync(stopping.Token));
+        var background = Task.WhenAll(
+            _notifications.RunAsync(listening, stopping.Token),
+            _outbox.RunAsync(stopping.Token),
+            _printerStates.RunAsync(stopping.Token));
         try
         {
-            // First, and before anything that really waits: the in-process agent answers this at once, so the
-            // connector list is there before the first window asks for it.
-            _connectors.Set((await _link.SendAsync(_localAgent.Id, new GetConnectorsRequest(), cancellationToken)).Connectors);
-
-            await _synchronizer.PushProfilesAsync(cancellationToken);
-            // Runs for the app's lifetime; ends when cancellationToken is cancelled.
-            await _synchronizer.RunAsync(cancellationToken);
+            // What a server does when an agent connects: the in-process agent is connected from the start.
+            var agentId = _localAgent.Id;
+            await _calls.RunAsBackend<AgentProfilesService>(profiles => profiles.Push(agentId, cancellationToken));
+            await background;
         }
         finally
         {

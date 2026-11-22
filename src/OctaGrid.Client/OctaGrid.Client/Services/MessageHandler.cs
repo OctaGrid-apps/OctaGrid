@@ -63,6 +63,11 @@ internal sealed class MessageHandler : IClientMessageHandler
         PostTo(new PrinterConsoleData(recorded), recorded.PrinterId);
     }
 
+    public void Handle(AgentConnectorsChanged changed)
+    {
+        Dispatcher.UIThread.Post(() => WeakReferenceMessenger.Default.Send(new AgentConnectorsChangedMessage(changed.AgentId)));
+    }
+
     public void Handle(PrinterTelemetry telemetryMessage, TelemetrySample? sample)
     {
         // Recorded here and not by whatever shows the printer: the dashboard and the printer page come and go, and the

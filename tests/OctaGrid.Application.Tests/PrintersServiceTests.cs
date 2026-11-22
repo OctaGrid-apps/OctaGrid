@@ -510,7 +510,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using (var context = NewContext())
         {
-            await new AgentsService(context, TestAccess.For(context)).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
+            await new AgentsService(context, TestAccess.For(context), new RecordingAgentLink()).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
         }
 
         await using var verify = NewContext();
@@ -529,7 +529,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using var context = NewContext();
         await Assert.ThrowsAsync<ValidationException>(() =>
-            new AgentsService(context, TestAccess.For(context)).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
+            new AgentsService(context, TestAccess.For(context), new RecordingAgentLink()).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
     }
 
     [Fact]
@@ -538,7 +538,7 @@ public sealed class PrintersServiceTests : IDisposable
         var second = AddAgent();
 
         await using var context = NewContext();
-        var agents = await new AgentsService(context, TestAccess.For(context)).GetList(_userId, _workspaceId, CancellationToken.None);
+        var agents = await new AgentsService(context, TestAccess.For(context), new RecordingAgentLink()).GetList(_userId, _workspaceId, CancellationToken.None);
 
         Assert.Equal([_agentId, second], agents.Select(a => a.Id));
     }

@@ -66,5 +66,9 @@ public sealed class LocalModeCompositionTests
         public void Handle(PrinterConsoleLineRecorded recorded)
         {
         }
+
+        public void Handle(AgentConnectorsChanged changed)
+        {
+        }
     }
 }

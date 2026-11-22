@@ -27,6 +27,18 @@ public sealed class PrinterCommandsService
         _link = link;
     }
 
+    /// <summary>
+    /// The connectors an agent offers, with their settings and capabilities. Each agent has its own set, because
+    /// extensions are installed per agent.
+    /// </summary>
+    /// <exception cref="NotFoundException">There is no such agent.</exception>
+    /// <exception cref="AgentUnavailableException">The agent cannot be reached.</exception>
+    public async Task<IReadOnlyList<ConnectorDescriptor>> GetConnectors(Guid userId, Guid agentId, CancellationToken cancellationToken)
+    {
+        await _access.RequireForAgent(userId, agentId, Permission.View, cancellationToken);
+        return (await _link.SendAsync(agentId, new GetConnectorsRequest(), cancellationToken)).Connectors;
+    }
+
     public async Task DeleteFile(Guid userId, Guid printerId, string fileName, CancellationToken cancellationToken) =>
         await _link.SendAsync(await AgentOf(userId, printerId, Permission.ManageFiles, cancellationToken), new DeletePrinterFileRequest(printerId, fileName), cancellationToken);
 

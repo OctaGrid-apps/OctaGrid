@@ -118,7 +118,7 @@ public sealed class PrinterWatchService
             await send();
             return true;
         }
-        catch (NotFoundException)
+        catch (AgentUnavailableException)
         {
             _logger.LogInformation("Agent {AgentId} is not connected; its printers are shown as offline", agentId);
             return false;

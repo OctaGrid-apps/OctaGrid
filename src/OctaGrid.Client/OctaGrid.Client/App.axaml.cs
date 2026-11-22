@@ -40,6 +40,7 @@ public partial class App : Application
             services.AddSingleton<PrinterWatcher>();
             services.AddSingleton<ApplicationState>();
             services.AddSingleton<AgentDirectory>();
+            services.AddSingleton<ConnectorCatalog>();
             services.AddSingleton<WorkspacePermissions>();
 
             // ViewModels: registered here so Views resolve them from the container instead of
@@ -203,6 +204,7 @@ public partial class App : Application
                 }
 
                 _ = StartDeveloperModeAsync(services, desktop.Args, settings, logger);
+                _ = LoadConnectorsAsync(services, logger);
 
                 desktop.Exit += (s, e) =>
                 {
@@ -283,6 +285,19 @@ public partial class App : Application
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to start developer mode");
+        }
+    }
+
+    // In the background: the dashboard builds its cards again once the connectors are known.
+    private static async Task LoadConnectorsAsync(IServiceProvider services, ILogger logger)
+    {
+        try
+        {
+            await services.GetRequiredService<ConnectorCatalog>().RefreshAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to load the connectors of the agents");
         }
     }
 

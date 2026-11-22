@@ -5,8 +5,12 @@ namespace OctaGrid.Client.Contracts;
 
 public interface IAgentCommandsService
 {
-    /// <summary>The connectors available to add printers with, including their settings and capabilities.</summary>
-    IReadOnlyList<ConnectorDescriptor> Connectors { get; }
+    /// <summary>
+    /// The connectors an agent offers to add printers with, including their settings and capabilities. Each agent has
+    /// its own set, because extensions are installed per agent.
+    /// </summary>
+    /// <exception cref="OctaGrid.Extensions.Models.Exceptions.AgentUnavailableException">The agent cannot be reached.</exception>
+    Task<IReadOnlyList<ConnectorDescriptor>> GetConnectorsAsync(Guid agentId, CancellationToken cancellationToken);
 
     Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
 
@@ -49,7 +53,12 @@ public interface IAgentCommandsService
     /// The saved printer being edited, or null for a new one. Saved secrets cannot be read by a client, so for a
     /// saved printer the secrets the user left empty are filled in from what is saved.
     /// </param>
-    Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken);
+    /// <param name="agentId">
+    /// The agent that will run a new printer, and so tests it. A saved printer that has an agent is always tested by
+    /// its own agent.
+    /// </param>
+    Task<ConnectionTestResult> TestConnectionAsync(
+        string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken);
 
     Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken);
 }

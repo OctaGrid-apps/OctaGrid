@@ -12,17 +12,14 @@ namespace OctaGrid.Client.Local;
 internal sealed class LocalAgentCommands : IAgentCommandsService
 {
     private readonly LocalCalls _calls;
-    private readonly LocalConnectorCache _connectors;
-    private readonly LocalAgent _localAgent;
 
-    public LocalAgentCommands(LocalCalls calls, LocalAgent localAgent, LocalConnectorCache connectors)
+    public LocalAgentCommands(LocalCalls calls)
     {
         _calls = calls;
-        _localAgent = localAgent;
-        _connectors = connectors;
     }
 
-    public IReadOnlyList<ConnectorDescriptor> Connectors => _connectors.Connectors;
+    public Task<IReadOnlyList<ConnectorDescriptor>> GetConnectorsAsync(Guid agentId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, IReadOnlyList<ConnectorDescriptor>>((printers, userId) => printers.GetConnectors(userId, agentId, cancellationToken), cancellationToken);
 
     public Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.DeleteFile(userId, printerId, fileName, cancellationToken), cancellationToken);
@@ -54,11 +51,10 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
     public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.StopPrint(userId, printerId, cancellationToken), cancellationToken);
 
-    // A new printer, or a saved one without an agent, is tested by the agent it will get: in Local mode, the local one.
     public Task<ConnectionTestResult> TestConnectionAsync(
-        string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
+        string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, Guid? agentId, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, ConnectionTestResult>(
-            (printers, userId) => printers.TestConnection(userId, connectorId, settings, printerId, _localAgent.Id, cancellationToken), cancellationToken);
+            (printers, userId) => printers.TestConnection(userId, connectorId, settings, printerId, agentId, cancellationToken), cancellationToken);
 
     public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.UploadFile(userId, printerId, stream, fileName, cancellationToken), cancellationToken);

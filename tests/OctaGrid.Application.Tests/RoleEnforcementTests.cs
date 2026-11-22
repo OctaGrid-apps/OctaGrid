@@ -47,6 +47,7 @@ public sealed class RoleEnforcementTests : IDisposable
         ["telemetry.watch"] = (Permission.View, (s, u) => s.Watch.Watch(u, Guid.NewGuid(), [s.PrinterId], null, None)),
         ["connection.test-saved"] = (Permission.ManagePrinters, (s, u) => s.Commands.TestConnection(u, Connector, Url, s.PrinterId, null, None)),
         ["connection.test-new"] = (Permission.ManagePrinters, (s, u) => s.Commands.TestConnection(u, Connector, Url, null, s.AgentId, None)),
+        ["connectors.list"] = (Permission.View, (s, u) => s.Commands.GetConnectors(u, s.AgentId, None)),
 
         ["dashboards.list"] = (Permission.View, (s, u) => s.Dashboards.GetList(u, s.WorkspaceId, None)),
         ["dashboards.create"] = (Permission.ManageDashboards, (s, u) => s.Dashboards.Create(u, s.WorkspaceId, new CreateDashboardRequest("New", DashboardType.List), None)),
@@ -139,7 +140,7 @@ public sealed class RoleEnforcementTests : IDisposable
             Watch = new PrinterWatchService(routing, fixture.Link, new PrinterWatchRegistry());
             Extensions = new ExtensionsService(access, fixture.Link);
             Dashboards = new DashboardsService(context, access);
-            Agents = new AgentsService(context, access);
+            Agents = new AgentsService(context, access, fixture.Link);
             Workspaces = new WorkspacesService(context, access);
         }
 

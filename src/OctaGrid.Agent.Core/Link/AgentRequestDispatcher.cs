@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Extensions.Models.Exceptions;
@@ -71,6 +72,20 @@ public sealed class AgentRequestDispatcher : IDisposable
                 envelope.Request.GetType().Name, envelope.CorrelationId, ex.Title);
             return new AgentReplyEnvelope(envelope.CorrelationId, Reply: null, AgentError.From(ex));
         }
+    }
+
+    /// <summary>
+    /// The first message the agent sends when it connects to a backend: who it is and which protocol it speaks.
+    /// The transport sends it and lets requests through only once the backend accepted it.
+    /// </summary>
+    /// <param name="agentId">The agent's id, as it was paired (in Local mode, the local agent's row).</param>
+    public static AgentHello Hello(Guid agentId)
+    {
+        var assembly = typeof(AgentRequestDispatcher).Assembly;
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString()
+            ?? "unknown";
+        return new AgentHello(agentId, version, AgentProtocol.Version);
     }
 
     public void Dispose()
