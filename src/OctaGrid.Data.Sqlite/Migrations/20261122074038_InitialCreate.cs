@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OctaGrid.Data.Sqlite.Migrations;
 
 /// <inheritdoc />
-public partial class _20261121185305_InitialCreate : Migration
+public partial class _20261122074038_InitialCreate : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -253,7 +253,7 @@ public partial class _20261121185305_InitialCreate : Migration
             columns: table => new
             {
                 PrinterId = table.Column<Guid>(type: "TEXT", nullable: false),
-                State = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                State = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
                 ObservedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
                 LastSeenAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
             },

@@ -24,7 +24,7 @@ public sealed class PrinterWatchServiceTests : IDisposable
         return await NewService(context).Watch(userId ?? _fixture.UserId, watcherId, printerIds, resume, CancellationToken.None);
     }
 
-    private PrinterWatchService NewService(OctaGridContext context) => new(_fixture.Printers(context), _fixture.Link, _registry);
+    private PrinterWatchService NewService(OctaGridContext context) => new(AgentLinkFixture.Routing(context), _fixture.Link, _registry);
 
     private List<SetWatchedPrintersRequest> WatchRequests() =>
         _fixture.Link.Sent.Select(s => s.Request).OfType<SetWatchedPrintersRequest>().ToList();

@@ -13,12 +13,12 @@ namespace OctaGrid.Client.ViewModels;
 public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<PrintMetadata>
 {
     private readonly IAgentCommandsService _agentCommandsService;
-    private readonly Guid _deviceId;
+    private readonly Guid _printerId;
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILogger<FilePickerViewModel> _logger;
 
     public FilePickerViewModel(
-        Guid deviceId,
+        Guid printerId,
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
         ILogger<FilePickerViewModel>? logger = null,
@@ -27,7 +27,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         _agentCommandsService = agentCommands;
         _imageCache = imageCache;
         _logger = logger ?? NullLogger<FilePickerViewModel>.Instance;
-        _deviceId = deviceId;
+        _printerId = printerId;
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
     }
 
@@ -75,7 +75,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     [RelayCommand]
     private void Cancel()
     {
-        _logger.LogDebug("FilePicker dialog cancelled for device {DeviceId}", _deviceId);
+        _logger.LogDebug("FilePicker dialog cancelled for printer {PrinterId}", _printerId);
         this.ReturnResultFromOverlayDialog(null);
     }
 
@@ -86,7 +86,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         {
             return;
         }
-        _logger.LogDebug("FilePicker dialog selected file '{FileName}' for device {DeviceId}", SelectedItem.Metadata.FileName, _deviceId);
+        _logger.LogDebug("FilePicker dialog selected file '{FileName}' for printer {PrinterId}", SelectedItem.Metadata.FileName, _printerId);
         this.ReturnResultFromOverlayDialog(SelectedItem.Metadata);
     }
 
@@ -106,13 +106,13 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
                 return;
             }
 
-            _logger.LogInformation("Deleting file '{FileName}' on device {DeviceId}", fileName, _deviceId);
-            await _agentCommandsService.DeleteFileAsync(_deviceId, fileName, cancellationToken);
+            _logger.LogInformation("Deleting file '{FileName}' on printer {PrinterId}", fileName, _printerId);
+            await _agentCommandsService.DeleteFileAsync(_printerId, fileName, cancellationToken);
             await LoadData(cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Failed to delete file '{FileName}' on device {DeviceId}", fileName, _deviceId);
+            _logger.LogError(ex, "Failed to delete file '{FileName}' on printer {PrinterId}", fileName, _printerId);
             throw;
         }
     }
@@ -128,10 +128,10 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         {
             IsFilesLoading = true;
             ErrorMessage = null;
-            _logger.LogDebug("Loading printer files for device {DeviceId}", _deviceId);
-            var files = await _agentCommandsService.GetPrinterFilesAsync(_deviceId, cancellationToken);
+            _logger.LogDebug("Loading printer files for printer {PrinterId}", _printerId);
+            var files = await _agentCommandsService.GetPrinterFilesAsync(_printerId, cancellationToken);
             Files = new ObservableCollection<PrintMetadataListItem>(files.Select(x => new PrintMetadataListItem(x, [])));
-            _logger.LogInformation("Loaded {FileCount} file(s) from device {DeviceId}", Files.Count, _deviceId);
+            _logger.LogInformation("Loaded {FileCount} file(s) from printer {PrinterId}", Files.Count, _printerId);
 
             foreach (var file in Files)
             {
@@ -140,11 +140,11 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
         catch (OperationCanceledException)
         {
-            _logger.LogDebug("Loading printer files for device {DeviceId} was cancelled", _deviceId);
+            _logger.LogDebug("Loading printer files for printer {PrinterId} was cancelled", _printerId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load printer files for device {DeviceId}", _deviceId);
+            _logger.LogError(ex, "Failed to load printer files for printer {PrinterId}", _printerId);
             ErrorMessage = ex is AppException ? ex.Message : "The files could not be loaded.";
         }
         finally
@@ -168,7 +168,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
             }
             else
             {
-                var response = await _agentCommandsService.GetThumbnailAsync(_deviceId, printMetadataListItem.Metadata.FileName, CancellationToken.None);
+                var response = await _agentCommandsService.GetThumbnailAsync(_printerId, printMetadataListItem.Metadata.FileName, CancellationToken.None);
                 if (response is not null)
                 {
                     _imageCache.Add(printMetadataListItem.Metadata.FileName, response.Data);
@@ -178,7 +178,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to load thumbnail for file '{FileName}' on device {DeviceId}", printMetadataListItem.Metadata.FileName, _deviceId);
+            _logger.LogDebug(ex, "Failed to load thumbnail for file '{FileName}' on printer {PrinterId}", printMetadataListItem.Metadata.FileName, _printerId);
         }
     }
 
@@ -187,13 +187,13 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     {
         try
         {
-            _logger.LogInformation("Uploading file '{FileName}' to device {DeviceId}", request.FileName, _deviceId);
-            await _agentCommandsService.UploadFileAsync(_deviceId, request.Stream, request.FileName, cancellationToken);
+            _logger.LogInformation("Uploading file '{FileName}' to printer {PrinterId}", request.FileName, _printerId);
+            await _agentCommandsService.UploadFileAsync(_printerId, request.Stream, request.FileName, cancellationToken);
             await LoadData(cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Failed to upload file '{FileName}' to device {DeviceId}", request.FileName, _deviceId);
+            _logger.LogError(ex, "Failed to upload file '{FileName}' to printer {PrinterId}", request.FileName, _printerId);
             throw;
         }
     }

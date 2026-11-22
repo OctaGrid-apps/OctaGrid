@@ -8,6 +8,7 @@ using OctaGrid.Data.Events;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.AgentLink.Notifications;
+using OctaGrid.Protocol.Printers;
 
 namespace OctaGrid.Application.Tests;
 
@@ -15,7 +16,7 @@ namespace OctaGrid.Application.Tests;
 /// From an agent's state change to a delivered domain event: the recorder turns changes into print jobs, the jobs'
 /// events are saved to the outbox with them, and the dispatcher hands them to the handlers in order.
 /// </summary>
-public sealed class PrintJobRecordingTests : IAsyncDisposable
+public sealed class PrinterStateRecordingTests : IAsyncDisposable
 {
     private static readonly DateTimeOffset At = new(2026, 11, 21, 12, 0, 0, TimeSpan.Zero);
 
@@ -23,15 +24,15 @@ public sealed class PrintJobRecordingTests : IAsyncDisposable
     private readonly RecordingHandler _handler = new();
     private readonly ServiceProvider _services;
 
-    public PrintJobRecordingTests()
+    public PrinterStateRecordingTests()
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => _fixture.NewContext());
-        services.AddScoped<PrintJobsService>();
+        services.AddScoped<PrinterStateService>();
         services.AddSingleton<IDomainEventHandler>(_handler);
         services.AddSingleton<IAgentLink>(_fixture.Link);
         services.AddSingleton<OutboxDispatcher>();
-        services.AddSingleton<PrintJobRecorder>();
+        services.AddSingleton<PrinterStateRecorder>();
         _services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
 
@@ -43,7 +44,7 @@ public sealed class PrintJobRecordingTests : IAsyncDisposable
 
     private OutboxDispatcher Outbox => _services.GetRequiredService<OutboxDispatcher>();
 
-    private PrintJobRecorder Recorder => _services.GetRequiredService<PrintJobRecorder>();
+    private PrinterStateRecorder Recorder => _services.GetRequiredService<PrinterStateRecorder>();
 
     private async Task Report(Guid printerId, UniversalPrinterState state, string? fileName = null, int minutes = 0, Guid? agentId = null)
     {
@@ -127,7 +128,7 @@ public sealed class PrintJobRecordingTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task A_state_that_changes_no_job_saves_nothing()
+    public async Task A_state_that_changes_no_job_starts_none_and_raises_no_event()
     {
         var printer = await _fixture.CreatePrinter();
         using var listening = Recorder.Start();
@@ -137,6 +138,46 @@ public sealed class PrintJobRecordingTests : IAsyncDisposable
 
         Assert.Empty(Jobs());
         Assert.Empty(Outboxed());
+    }
+
+    [Fact]
+    public async Task The_last_reported_state_is_kept_and_returned_with_the_printer_without_changing_its_version()
+    {
+        var printer = await _fixture.CreatePrinter();
+        using var listening = Recorder.Start();
+
+        await Report(printer.Id, UniversalPrinterState.Printing, minutes: 1);
+        await Report(printer.Id, UniversalPrinterState.Offline, minutes: 2);
+
+        await using var context = _fixture.NewContext();
+        var read = await _fixture.Printers(context).GetPrinter(_fixture.UserId, _fixture.WorkspaceId, printer.Id, CancellationToken.None);
+        Assert.Equal(UniversalPrinterState.Offline, read.State);
+        Assert.Equal(printer.Version, read.Version);
+        var status = (await context.Printers.Include(p => p.Status).SingleAsync(p => p.Id == printer.Id, TestContext.Current.CancellationToken)).Status!;
+        Assert.Equal(At.AddMinutes(2), status.ObservedAt);
+        Assert.Equal(At.AddMinutes(1), status.LastSeenAt);
+    }
+
+    [Fact]
+    public async Task A_report_older_than_the_kept_state_does_not_replace_it()
+    {
+        var printer = await _fixture.CreatePrinter();
+        using var listening = Recorder.Start();
+
+        await Report(printer.Id, UniversalPrinterState.Idle, minutes: 5);
+        await Report(printer.Id, UniversalPrinterState.Offline, minutes: 1);
+
+        await using var context = _fixture.NewContext();
+        var read = await _fixture.Printers(context).GetPrinter(_fixture.UserId, _fixture.WorkspaceId, printer.Id, CancellationToken.None);
+        Assert.Equal(UniversalPrinterState.Idle, read.State);
+    }
+
+    [Fact]
+    public async Task A_printer_no_agent_has_reported_on_has_no_state()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        Assert.Null(printer.State);
     }
 
     [Fact]

@@ -10,8 +10,8 @@ internal sealed class PrinterStatusConfiguration : IEntityTypeConfiguration<Prin
     {
         builder.HasKey(x => x.PrinterId);
 
+        // Null until the agent reports a state.
         builder.Property(u => u.State)
-            .IsRequired()
             .HasConversion<string>()
             .HasMaxLength(50);
 

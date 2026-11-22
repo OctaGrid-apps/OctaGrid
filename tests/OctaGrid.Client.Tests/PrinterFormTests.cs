@@ -382,7 +382,7 @@ public class PrinterFormTests
             Guid.NewGuid(), "P", "octagrid.bambu-mqtt",
             new Dictionary<string, string> { ["url"] = "192.168.1.9", ["serialNumber"] = "01P" },
             ["apiKey"],
-            "Connected", true, 3);
+            true, 3);
 
         var item = response.ToPrinterListItem([Bambu]);
 
@@ -398,7 +398,7 @@ public class PrinterFormTests
             Guid.NewGuid(), "P", "acme.gone",
             new Dictionary<string, string> { ["url"] = "10.0.0.1" },
             [],
-            "Unknown", true, 1);
+            true, 1);
 
         var item = response.ToPrinterListItem([Bambu]);
 
@@ -412,7 +412,7 @@ public class PrinterFormTests
     {
         var response = new PrinterResponse(
             Guid.NewGuid(), "P", "octagrid.bambu-mqtt",
-            new Dictionary<string, string>(), [], "Connected", true, 1);
+            new Dictionary<string, string>(), [], true, 1);
 
         Assert.True(response.ToPrinterListItem([Bambu]).IsConnectorAvailable);
     }

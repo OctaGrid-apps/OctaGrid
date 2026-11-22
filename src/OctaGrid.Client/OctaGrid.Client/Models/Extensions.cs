@@ -15,7 +15,6 @@ internal static class Extensions
             printer.ConnectorId,
             connector?.DisplayName ?? printer.ConnectorId,
             PrinterDisplay.Address(connector, printer.Settings),
-            printer.ConnectionState,
             printer.Settings,
             printer.SecretKeys,
             printer.Enabled,

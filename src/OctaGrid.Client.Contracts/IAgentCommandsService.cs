@@ -8,7 +8,7 @@ public interface IAgentCommandsService
     /// <summary>The connectors available to add printers with, including their settings and capabilities.</summary>
     IReadOnlyList<ConnectorDescriptor> Connectors { get; }
 
-    Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken);
+    Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
 
     /// <summary>
     /// What a printer wrote to its console, oldest first. Pass the sequence of the last line already shown as
@@ -24,13 +24,13 @@ public interface IAgentCommandsService
     /// </summary>
     Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken);
 
-    Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken);
+    Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken);
 
     Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
 
-    Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken);
+    Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken);
 
-    Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken);
+    Task ResumePrintJobAsync(Guid printerId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Sends a command the user typed (one line, see <see cref="ConsoleCommandRules"/>) to a printer whose connector
@@ -40,9 +40,9 @@ public interface IAgentCommandsService
     /// <exception cref="OctaGrid.Extensions.Models.Exceptions.ValidationException">The command is not acceptable, or the printer cannot take commands.</exception>
     Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken);
 
-    Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken);
+    Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
 
-    Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken);
+    Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken);
 
     /// <param name="settings">The settings entered for the printer, including secrets, by the keys the connector declared.</param>
     /// <param name="printerId">
@@ -51,5 +51,5 @@ public interface IAgentCommandsService
     /// </param>
     Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken);
 
-    Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken);
+    Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken);
 }

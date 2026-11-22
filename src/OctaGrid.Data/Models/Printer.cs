@@ -1,3 +1,4 @@
+using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Data.Models;
@@ -45,7 +46,7 @@ public sealed class Printer : Entity
             ConnectorId = connectorId,
             Settings = new Dictionary<string, string>(settings),
             Enabled = enabled,
-            Status = new PrinterStatus { State = ConnectionState.Unknown },
+            Status = new PrinterStatus(),
         };
 
     public void Rename(string name) => Name = name;
@@ -94,6 +95,17 @@ public sealed class Printer : Entity
 
     /// <summary>Takes the printer away from its agent; it waits for another one.</summary>
     public void Unassign() => AgentId = null;
+
+    /// <summary>
+    /// Records a state reported by the printer's agent. A report older than the stored state is ignored,
+    /// because reports can arrive out of order. Requires <see cref="Status"/> to be loaded.
+    /// </summary>
+    /// <returns>True when the state was recorded.</returns>
+    public bool ObserveState(UniversalPrinterState state, DateTimeOffset observedAt)
+    {
+        Status ??= new PrinterStatus();
+        return Status.Observe(state, observedAt);
+    }
 
     /// <summary>Stores the encrypted secrets, or none.</summary>
     public void StoreSecrets(string? protectedSecrets) =>

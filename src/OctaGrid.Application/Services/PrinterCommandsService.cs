@@ -17,11 +17,13 @@ public sealed class PrinterCommandsService
     private readonly WorkspaceAccess _access;
     private readonly IAgentLink _link;
     private readonly PrintersService _printers;
+    private readonly PrinterRouting _routing;
 
-    public PrinterCommandsService(WorkspaceAccess access, PrintersService printers, IAgentLink link)
+    public PrinterCommandsService(WorkspaceAccess access, PrintersService printers, PrinterRouting routing, IAgentLink link)
     {
         _access = access;
         _printers = printers;
+        _routing = routing;
         _link = link;
     }
 
@@ -72,8 +74,7 @@ public sealed class PrinterCommandsService
         if (printerId is { } id)
         {
             settings = await _printers.AddSavedSecrets(userId, id, settings, cancellationToken);
-            var agents = await _printers.GetAgentIds(userId, [id], Permission.ManagePrinters, cancellationToken);
-            target = agents.TryGetValue(id, out var own) ? own : null;
+            target = await _routing.AssignedAgentOf(userId, id, Permission.ManagePrinters, cancellationToken);
         }
 
         if (target is null)
@@ -103,5 +104,5 @@ public sealed class PrinterCommandsService
 
     // Also the authorization: it fails unless the user has the permission in the printer's workspace.
     private Task<Guid> AgentOf(Guid userId, Guid printerId, Permission permission, CancellationToken cancellationToken) =>
-        _printers.GetAgentId(userId, printerId, permission, cancellationToken);
+        _routing.AgentOf(userId, printerId, permission, cancellationToken);
 }

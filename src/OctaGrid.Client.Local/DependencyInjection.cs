@@ -32,19 +32,20 @@ public static class DependencyInjection
             .AddScoped<AgentsService>()
             .AddScoped<UsersService>()
             .AddScoped<PrintersService>()
+            .AddScoped<PrinterRouting>()
             .AddScoped<PrinterCommandsService>()
             .AddScoped<PrinterWatchService>()
             .AddScoped<ExtensionsService>()
             .AddScoped<AgentProfilesService>()
             .AddScoped<DashboardsService>()
-            .AddScoped<PrintJobsService>()
+            .AddScoped<PrinterStateService>()
             .AddScoped<WorkspacesService>();
 
         services.AddSingleton<IPermissionPolicy, RolePermissionPolicy>();
         services.AddSingleton<PrinterWatchRegistry>();
         // Domain events are saved to the outbox with the change that raised them and delivered from there.
         services.AddSingleton<OutboxDispatcher>();
-        services.AddSingleton<PrintJobRecorder>();
+        services.AddSingleton<PrinterStateRecorder>();
 
         // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
