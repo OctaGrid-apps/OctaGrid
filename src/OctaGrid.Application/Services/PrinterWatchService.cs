@@ -18,13 +18,13 @@ public sealed class PrinterWatchService
 {
     private readonly IAgentLink _link;
     private readonly ILogger<PrinterWatchService> _logger;
-    private readonly PrintersService _printers;
+    private readonly PrinterRouting _routing;
     private readonly PrinterWatchRegistry _registry;
 
     public PrinterWatchService(
-        PrintersService printers, IAgentLink link, PrinterWatchRegistry registry, ILogger<PrinterWatchService>? logger = null)
+        PrinterRouting routing, IAgentLink link, PrinterWatchRegistry registry, ILogger<PrinterWatchService>? logger = null)
     {
-        _printers = printers;
+        _routing = routing;
         _link = link;
         _registry = registry;
         _logger = logger ?? NullLogger<PrinterWatchService>.Instance;
@@ -53,7 +53,7 @@ public sealed class PrinterWatchService
         ArgumentNullException.ThrowIfNull(printerIds);
 
         var wanted = printerIds.Distinct().ToList();
-        var agents = await _printers.GetAllowedAgentIds(userId, wanted, Permission.View, cancellationToken);
+        var agents = await _routing.AllowedAgentsOf(userId, wanted, Permission.View, cancellationToken);
 
         IReadOnlySet<Guid> previous;
         await _registry.Gate.WaitAsync(cancellationToken);

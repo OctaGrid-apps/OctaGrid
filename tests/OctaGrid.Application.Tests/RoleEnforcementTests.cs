@@ -1,3 +1,4 @@
+using OctaGrid.Application.Agents;
 using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -135,8 +136,9 @@ public sealed class RoleEnforcementTests : IDisposable
             PrinterId = printerId;
             DashboardId = dashboardId;
             Printers = fixture.Printers(context);
-            Commands = new PrinterCommandsService(access, Printers, fixture.Link);
-            Watch = new PrinterWatchService(Printers, fixture.Link, new PrinterWatchRegistry());
+            var routing = new PrinterRouting(context, access);
+            Commands = new PrinterCommandsService(access, Printers, routing, fixture.Link);
+            Watch = new PrinterWatchService(routing, fixture.Link, new PrinterWatchRegistry());
             Extensions = new ExtensionsService(access, fixture.Link);
             Dashboards = new DashboardsService(context, access);
             Agents = new AgentsService(context, access, publisher);

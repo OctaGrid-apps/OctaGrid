@@ -11,25 +11,25 @@ namespace OctaGrid.Application.Events;
 
 /// <summary>
 /// The backend's consumer of the state changes agents report: queues them as they arrive (the link's handler must not
-/// block) and records them one at a time, in order, through <see cref="PrintJobsService"/>. Wakes the
+/// block) and records them one at a time, in order, through <see cref="PrinterStateService"/>. Wakes the
 /// <see cref="OutboxDispatcher"/> when that saved events.
 /// </summary>
-public sealed class PrintJobRecorder
+public sealed class PrinterStateRecorder
 {
     private readonly Channel<(Guid AgentId, PrinterStateChanged Change)> _queue =
         Channel.CreateUnbounded<(Guid, PrinterStateChanged)>(new UnboundedChannelOptions { SingleReader = true });
 
     private readonly IAgentLink _link;
-    private readonly ILogger<PrintJobRecorder> _logger;
+    private readonly ILogger<PrinterStateRecorder> _logger;
     private readonly OutboxDispatcher _outbox;
     private readonly IServiceScopeFactory _scopes;
 
-    public PrintJobRecorder(IAgentLink link, IServiceScopeFactory scopes, OutboxDispatcher outbox, ILogger<PrintJobRecorder>? logger = null)
+    public PrinterStateRecorder(IAgentLink link, IServiceScopeFactory scopes, OutboxDispatcher outbox, ILogger<PrinterStateRecorder>? logger = null)
     {
         _link = link;
         _scopes = scopes;
         _outbox = outbox;
-        _logger = logger ?? NullLogger<PrintJobRecorder>.Instance;
+        _logger = logger ?? NullLogger<PrinterStateRecorder>.Instance;
     }
 
     /// <summary>Starts listening to the agents.</summary>
@@ -60,7 +60,7 @@ public sealed class PrintJobRecorder
             try
             {
                 await using var scope = _scopes.CreateAsyncScope();
-                saved |= await scope.ServiceProvider.GetRequiredService<PrintJobsService>()
+                saved |= await scope.ServiceProvider.GetRequiredService<PrinterStateService>()
                     .RecordStateChange(item.AgentId, item.Change, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

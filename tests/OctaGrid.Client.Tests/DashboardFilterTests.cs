@@ -17,7 +17,7 @@ public class DashboardFilterTests
 
         public FakePrintersClient(params (string Name, string ConnectorId)[] printers) =>
             _printers = printers
-                .Select(p => new PrinterResponse(Guid.NewGuid(), p.Name, p.ConnectorId, new Dictionary<string, string>(), [], "", true, 1))
+                .Select(p => new PrinterResponse(Guid.NewGuid(), p.Name, p.ConnectorId, new Dictionary<string, string>(), [], true, 1))
                 .ToList();
 
         /// <summary>What the next load returns; tests change it to simulate printers edited elsewhere.</summary>

@@ -114,68 +114,6 @@ public sealed class PrintersService
             .ToList();
     }
 
-    /// <summary>The agent that connects to a printer, which is where commands for the printer have to go.</summary>
-    /// <exception cref="ValidationException">The printer has no agent.</exception>
-    public async Task<Guid> GetAgentId(Guid userId, Guid printerId, Permission permission, CancellationToken cancellationToken)
-    {
-        var printer = await _context.Printers
-            .AsNoTracking()
-            .Where(p => p.Id == printerId)
-            .Select(p => new { p.WorkspaceId, p.AgentId })
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException(nameof(Printer), printerId);
-
-        await _access.Require(userId, printer.WorkspaceId, permission, cancellationToken);
-
-        return printer.AgentId
-            ?? throw new ValidationException(nameof(Printer.AgentId), "The printer has no agent to connect to it.");
-    }
-
-    /// <summary>
-    /// The agent of each printer, by printer id. Printers that do not exist or have no agent are left out.
-    /// </summary>
-    public async Task<IReadOnlyDictionary<Guid, Guid>> GetAgentIds(
-        Guid userId, IReadOnlyCollection<Guid> printerIds, Permission permission, CancellationToken cancellationToken)
-    {
-        var printers = await _context.Printers
-            .AsNoTracking()
-            .Where(p => printerIds.Contains(p.Id) && p.AgentId != null)
-            .Select(p => new { p.Id, p.WorkspaceId, AgentId = p.AgentId!.Value })
-            .ToListAsync(cancellationToken);
-
-        foreach (var workspaceId in printers.Select(p => p.WorkspaceId).Distinct())
-        {
-            await _access.Require(userId, workspaceId, permission, cancellationToken);
-        }
-
-        return printers.ToDictionary(p => p.Id, p => p.AgentId);
-    }
-
-    /// <summary>
-    /// Like <see cref="GetAgentIds"/>, but printers in a workspace where the user lacks <paramref name="permission"/>
-    /// are left out instead of failing the call, for a list where one printer must not cost the user all the others.
-    /// </summary>
-    public async Task<IReadOnlyDictionary<Guid, Guid>> GetAllowedAgentIds(
-        Guid userId, IReadOnlyCollection<Guid> printerIds, Permission permission, CancellationToken cancellationToken)
-    {
-        var printers = await _context.Printers
-            .AsNoTracking()
-            .Where(p => printerIds.Contains(p.Id) && p.AgentId != null)
-            .Select(p => new { p.Id, p.WorkspaceId, AgentId = p.AgentId!.Value })
-            .ToListAsync(cancellationToken);
-
-        var allowed = new HashSet<Guid>();
-        foreach (var workspaceId in printers.Select(p => p.WorkspaceId).Distinct())
-        {
-            if ((await _access.GetPermissions(userId, workspaceId, cancellationToken)).Contains(permission))
-            {
-                allowed.Add(workspaceId);
-            }
-        }
-
-        return printers.Where(p => allowed.Contains(p.WorkspaceId)).ToDictionary(p => p.Id, p => p.AgentId);
-    }
-
     /// <summary>
     /// The settings to test a connection with while a saved printer is being edited. A client cannot read saved
     /// secrets back, so a secret that is left out of <paramref name="entered"/> is filled in from what is saved.
@@ -209,7 +147,7 @@ public sealed class PrintersService
                     p.ConnectorId,
                     p.Settings,
                     p.ProtectedSecrets,
-                    p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
+                    p.Status != null ? p.Status.State : null,
                     p.Enabled,
                     p.Version,
                     p.AgentId))
@@ -232,7 +170,7 @@ public sealed class PrintersService
                     p.ConnectorId,
                     p.Settings,
                     p.ProtectedSecrets,
-                    p.Status != null ? p.Status.State.ToString() : nameof(ConnectionState.Unknown),
+                    p.Status != null ? p.Status.State : null,
                     p.Enabled,
                     p.Version,
                     p.AgentId))
@@ -386,10 +324,10 @@ public sealed class PrintersService
         ReadSecrets(printerId, protectedSecrets).Keys;
 
     private PrinterResponse MapToResponse(Printer printer) =>
-        new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, SecretKeys(printer.Id, printer.ProtectedSecrets), printer.Status != null ? printer.Status.State.ToString() : nameof(ConnectionState.Unknown), printer.Enabled, printer.Version, printer.AgentId);
+        new(printer.Id, printer.Name, printer.ConnectorId, printer.Settings, SecretKeys(printer.Id, printer.ProtectedSecrets), printer.Enabled, printer.Version, printer.AgentId, printer.Status?.State);
 
     private PrinterResponse MapToResponse(PrinterRow row) =>
-        new(row.Id, row.Name, row.ConnectorId, row.Settings, SecretKeys(row.Id, row.ProtectedSecrets), row.ConnectionState, row.Enabled, row.Version, row.AgentId);
+        new(row.Id, row.Name, row.ConnectorId, row.Settings, SecretKeys(row.Id, row.ProtectedSecrets), row.Enabled, row.Version, row.AgentId, row.State);
 
     /// <summary>What a read query selects; the secret names are worked out after it, by decrypting.</summary>
     private sealed record PrinterRow(
@@ -398,7 +336,7 @@ public sealed class PrintersService
         string ConnectorId,
         Dictionary<string, string> Settings,
         string? ProtectedSecrets,
-        string ConnectionState,
+        UniversalPrinterState? State,
         bool Enabled,
         long Version,
         Guid? AgentId);

@@ -94,6 +94,8 @@ internal sealed class AgentLinkFixture : IDisposable
 
     public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), new NullPublisher(), _protector);
 
+    public static PrinterRouting Routing(OctaGridContext context) => new(context, TestAccess.For(context));
+
     /// <summary>Takes the printer away from its agent, as when the agent is removed.</summary>
     public void UnassignPrinter(Guid printerId)
     {

@@ -61,25 +61,25 @@ public class PrinterConsoleViewModelTests
 
         public IReadOnlyList<ConnectorDescriptor> Connectors => [];
 
-        public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ResumePrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private static readonly DateTimeOffset Start = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);

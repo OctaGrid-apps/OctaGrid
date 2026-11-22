@@ -8,42 +8,44 @@ using OctaGrid.Protocol.AgentLink.Notifications;
 namespace OctaGrid.Application.Services;
 
 /// <summary>
-/// Keeps the <see cref="PrintJob"/>s of printers in step with the state changes their agents report. Called for an
-/// agent, not for a user: the check is that the agent reporting is the printer's agent.
+/// Applies the state changes an agent reports to the printer's <see cref="PrinterStatus"/> and
+/// <see cref="PrintJob"/>s. Called on behalf of an agent, not a user, so it checks that the
+/// reporting agent is the printer's agent instead of checking permissions.
 /// </summary>
-public sealed class PrintJobsService
+public sealed class PrinterStateService
 {
     private readonly OctaGridContext _context;
-    private readonly ILogger<PrintJobsService> _logger;
+    private readonly ILogger<PrinterStateService> _logger;
 
-    public PrintJobsService(OctaGridContext context, ILogger<PrintJobsService>? logger = null)
+    public PrinterStateService(OctaGridContext context, ILogger<PrinterStateService>? logger = null)
     {
         _context = context;
-        _logger = logger ?? NullLogger<PrintJobsService>.Instance;
+        _logger = logger ?? NullLogger<PrinterStateService>.Instance;
     }
 
-    /// <summary>Applies a reported state change to the printer's print jobs.</summary>
+    /// <summary>Applies a reported state change to the printer's status and print jobs.</summary>
     /// <param name="agentId">The agent that reported it.</param>
     /// <param name="change">What it reported.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
-    /// <returns>Whether a job started or ended, so its events wait in the outbox.</returns>
+    /// <returns>True when changes were saved, including any print job events written to the outbox.</returns>
     public async Task<bool> RecordStateChange(Guid agentId, PrinterStateChanged change, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(change);
 
         var printer = await _context.Printers
-            .AsNoTracking()
-            .Where(p => p.Id == change.PrinterId)
-            .Select(p => new { p.WorkspaceId, p.AgentId })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Include(p => p.Status)
+            .FirstOrDefaultAsync(p => p.Id == change.PrinterId, cancellationToken);
 
-        // A printer that was deleted or moved to another agent since: what the old agent says about it no longer counts.
+        // The printer may have been deleted or moved to another agent since the report was sent.
         if (printer is null || printer.AgentId != agentId)
         {
             _logger.LogDebug("Ignored a state change of printer {PrinterId} from agent {AgentId}, which does not run it",
                 change.PrinterId, agentId);
             return false;
         }
+
+        // Updates only the status row, so the printer's Version does not change.
+        printer.ObserveState(change.Current, change.OccurredAt);
 
         // There is at most one; if a fault ever left more, the older ones are closed as of unknown outcome.
         var running = (await _context.PrintJobs

@@ -20,7 +20,7 @@ internal sealed class LocalClientRuntime : IClientRuntime
     private readonly LocalAgent _localAgent;
     private readonly LocalAgentNotifications _notifications;
     private readonly OutboxDispatcher _outbox;
-    private readonly PrintJobRecorder _printJobs;
+    private readonly PrinterStateRecorder _printerStates;
     private readonly LocalAgentSynchronizer _synchronizer;
 
     public LocalClientRuntime(
@@ -30,7 +30,7 @@ internal sealed class LocalClientRuntime : IClientRuntime
         LocalAgentNotifications notifications,
         LocalConnectorCache connectors,
         LocalAgentSynchronizer synchronizer,
-        PrintJobRecorder printJobs,
+        PrinterStateRecorder printerStates,
         OutboxDispatcher outbox)
     {
         _agent = agent;
@@ -39,7 +39,7 @@ internal sealed class LocalClientRuntime : IClientRuntime
         _notifications = notifications;
         _connectors = connectors;
         _synchronizer = synchronizer;
-        _printJobs = printJobs;
+        _printerStates = printerStates;
         _outbox = outbox;
     }
 
@@ -47,11 +47,11 @@ internal sealed class LocalClientRuntime : IClientRuntime
     {
         // Listening starts before the agent gets its printers, so nothing reported while they connect is missed.
         using var listening = _notifications.Start();
-        using var recording = _printJobs.Start();
+        using var recording = _printerStates.Start();
 
         // The backend's own background work, stopped with the rest however the synchronizer ends.
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var background = Task.WhenAll(_outbox.RunAsync(stopping.Token), _printJobs.RunAsync(stopping.Token));
+        var background = Task.WhenAll(_outbox.RunAsync(stopping.Token), _printerStates.RunAsync(stopping.Token));
         try
         {
             // First, and before anything that really waits: the in-process agent answers this at once, so the

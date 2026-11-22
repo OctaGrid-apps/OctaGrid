@@ -48,7 +48,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
 
     public ValueTask DisposeAsync()
     {
-        // Each session owns and disposes its own IMqttClient, and DeviceOrchestrator awaits RunAsync
+        // Each session owns and disposes its own IMqttClient, and PrinterOrchestrator awaits RunAsync
         // before disposing the device client, so there is nothing left to release here.
         GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;

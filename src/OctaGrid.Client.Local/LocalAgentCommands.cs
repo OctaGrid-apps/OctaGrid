@@ -24,8 +24,8 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
 
     public IReadOnlyList<ConnectorDescriptor> Connectors => _connectors.Connectors;
 
-    public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.DeleteFile(userId, deviceId, fileName, cancellationToken), cancellationToken);
+    public Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.DeleteFile(userId, printerId, fileName, cancellationToken), cancellationToken);
 
     public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, ConsolePage>((printers, userId) => printers.GetConsole(userId, printerId, afterSequence, limit, cancellationToken), cancellationToken);
@@ -33,26 +33,26 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
     public Task<PrinterEventPage> GetPrinterEventsAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, PrinterEventPage>((printers, userId) => printers.GetEvents(userId, printerId, afterSequence, limit, cancellationToken), cancellationToken);
 
-    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService, IEnumerable<PrintMetadata>>(async (printers, userId) => await printers.GetFiles(userId, deviceId, cancellationToken), cancellationToken);
+    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, IEnumerable<PrintMetadata>>(async (printers, userId) => await printers.GetFiles(userId, printerId, cancellationToken), cancellationToken);
 
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, PrintThumbnail?>((printers, userId) => printers.GetThumbnail(userId, printerId, fileName, cancellationToken), cancellationToken);
 
-    public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.PausePrint(userId, deviceId, cancellationToken), cancellationToken);
+    public Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.PausePrint(userId, printerId, cancellationToken), cancellationToken);
 
-    public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.ResumePrint(userId, deviceId, cancellationToken), cancellationToken);
+    public Task ResumePrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.ResumePrint(userId, printerId, cancellationToken), cancellationToken);
 
     public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.SendConsoleCommand(userId, printerId, command, cancellationToken), cancellationToken);
 
-    public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StartPrint(userId, deviceId, fileName, cancellationToken), cancellationToken);
+    public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StartPrint(userId, printerId, fileName, cancellationToken), cancellationToken);
 
-    public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StopPrint(userId, deviceId, cancellationToken), cancellationToken);
+    public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StopPrint(userId, printerId, cancellationToken), cancellationToken);
 
     // A new printer, or a saved one without an agent, is tested by the agent it will get: in Local mode, the local one.
     public Task<ConnectionTestResult> TestConnectionAsync(
@@ -60,6 +60,6 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
         _calls.Run<PrinterCommandsService, ConnectionTestResult>(
             (printers, userId) => printers.TestConnection(userId, connectorId, settings, printerId, _localAgent.Id, cancellationToken), cancellationToken);
 
-    public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.UploadFile(userId, deviceId, stream, fileName, cancellationToken), cancellationToken);
+    public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.UploadFile(userId, printerId, stream, fileName, cancellationToken), cancellationToken);
 }

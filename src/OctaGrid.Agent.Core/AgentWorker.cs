@@ -18,7 +18,7 @@ public class AgentWorker : IAsyncDisposable
     private readonly PrinterEventLog _events;
     private readonly ExtensionManager _extensions;
     private readonly ILogger<AgentWorker> _logger;
-    private readonly DeviceOrchestrator _orchestrator;
+    private readonly PrinterOrchestrator _orchestrator;
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private readonly PrinterTelemetryLog _telemetry;
     private DeveloperExtensionWatcher? _developerWatcher;
@@ -36,7 +36,7 @@ public class AgentWorker : IAsyncDisposable
         _events = new PrinterEventLog(timeProvider, logger: factory.CreateLogger<PrinterEventLog>());
         _console = new PrinterConsoleLog(timeProvider, logger: factory.CreateLogger<PrinterConsoleLog>());
         _telemetry = new PrinterTelemetryLog(timeProvider);
-        _orchestrator = new DeviceOrchestrator(
+        _orchestrator = new PrinterOrchestrator(
             extensions.Registry,
             new EventRecordingTelemetrySink(new HistorySink(this), _events, factory.CreateLogger<EventRecordingTelemetrySink>()),
             factory,
@@ -103,12 +103,12 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
-    public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-            _orchestrator.DeleteFileAsync(deviceId, fileName, cancellationToken);
+    public Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+            _orchestrator.DeleteFileAsync(printerId, fileName, cancellationToken);
 
     public ValueTask DisposeAsync()
     {
-        _logger.LogInformation("Disposing AgentWorker and stopping all device sessions");
+        _logger.LogInformation("Disposing AgentWorker and stopping all printer sessions");
         GC.SuppressFinalize(this);
         _developerWatcher?.Dispose();
         return _orchestrator.DisposeAsync();
@@ -124,27 +124,27 @@ public class AgentWorker : IAsyncDisposable
     /// What a printer wrote to its console, oldest first, for a client that needs to catch up. See
     /// <see cref="PrinterConsoleLog.Get"/> for the cursor rules.
     /// </summary>
-    public ConsolePage GetPrinterConsole(Guid deviceId, long? afterSequence, int limit) =>
-        _console.Get(deviceId, afterSequence, limit);
+    public ConsolePage GetPrinterConsole(Guid printerId, long? afterSequence, int limit) =>
+        _console.Get(printerId, afterSequence, limit);
 
     /// <summary>
     /// What happened to a printer, oldest first, for a client that needs to catch up. See
     /// <see cref="PrinterEventLog.Get"/> for the cursor rules.
     /// </summary>
-    public PrinterEventPage GetPrinterEvents(Guid deviceId, long? afterSequence, int limit) =>
-        _events.Get(deviceId, afterSequence, limit);
+    public PrinterEventPage GetPrinterEvents(Guid printerId, long? afterSequence, int limit) =>
+        _events.Get(printerId, afterSequence, limit);
 
     /// <summary>
     /// The last snapshot and recent history of a printer, for a client that starts showing it. See
     /// <see cref="PrinterTelemetryLog.Get"/>.
     /// </summary>
-    public PrinterBackfill GetPrinterBackfill(Guid deviceId, DateTimeOffset? after) => _telemetry.Get(deviceId, after);
+    public PrinterBackfill GetPrinterBackfill(Guid printerId, DateTimeOffset? after) => _telemetry.Get(printerId, after);
 
-    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
-            _orchestrator.GetPrinterFilesAsync(deviceId, cancellationToken);
+    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) =>
+            _orchestrator.GetPrinterFilesAsync(printerId, cancellationToken);
 
-    public Task<PrintThumbnail?> GetThumbnailAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-            _orchestrator.GetThumbnailAsync(deviceId, fileName, cancellationToken);
+    public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+            _orchestrator.GetThumbnailAsync(printerId, fileName, cancellationToken);
 
     /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
     public ExtensionInstallResult InstallExtension(string packagePath)
@@ -154,8 +154,8 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
-    public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-            _orchestrator.PausePrintJobAsync(deviceId, cancellationToken);
+    public Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
+            _orchestrator.PausePrintJobAsync(printerId, cancellationToken);
 
     /// <summary>
     /// Loads the developer folder again, for example after a build. The printers that use a developer extension
@@ -179,12 +179,15 @@ public class AgentWorker : IAsyncDisposable
         }
     }
 
-    public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-            _orchestrator.ResumePrintJobAsync(deviceId, cancellationToken);
+    public Task ResumePrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
+            _orchestrator.ResumePrintJobAsync(printerId, cancellationToken);
 
-    /// <summary>Sends a command the user typed to a printer. See <see cref="DeviceOrchestrator.SendConsoleCommandAsync"/> for the checks and errors.</summary>
-    public Task SendConsoleCommandAsync(Guid deviceId, string command, CancellationToken cancellationToken) =>
-        _orchestrator.SendConsoleCommandAsync(deviceId, command, cancellationToken);
+    /// <summary>
+    /// Sends a command the user typed to a printer.
+    /// See <see cref="PrinterOrchestrator.SendConsoleCommandAsync"/> for the checks and errors.
+    /// </summary>
+    public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
+        _orchestrator.SendConsoleCommandAsync(printerId, command, cancellationToken);
 
     /// <summary>
     /// Turns developer mode on for a folder (or off with null), loads what is in it and, while it is on, reloads
@@ -234,11 +237,11 @@ public class AgentWorker : IAsyncDisposable
         ConnectorsChanged?.Invoke();
     }
 
-    public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
-            _orchestrator.StartPrintJobAsync(deviceId, fileName, cancellationToken);
+    public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+            _orchestrator.StartPrintJobAsync(printerId, fileName, cancellationToken);
 
-    public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
-            _orchestrator.StopPrintJobAsync(deviceId, cancellationToken);
+    public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
+            _orchestrator.StopPrintJobAsync(printerId, cancellationToken);
 
     /// <summary>Checks that a printer can be reached with the given settings, before it is saved.</summary>
     /// <param name="connectorId">The connector to test with.</param>
@@ -297,8 +300,8 @@ public class AgentWorker : IAsyncDisposable
         return result;
     }
 
-    public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
-        _orchestrator.UploadFileAsync(deviceId, stream, fileName, cancellationToken);
+    public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) =>
+        _orchestrator.UploadFileAsync(printerId, stream, fileName, cancellationToken);
 
     // One at a time, and the set is replaced and read inside the gate: otherwise a re-apply that read the old set
     // could finish last, stop the session of a printer added in between, and forget its history.

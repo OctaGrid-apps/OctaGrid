@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using OctaGrid.Application.Agents;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -56,6 +57,8 @@ public sealed class PrintersServiceTests : IDisposable
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
 
     private PrintersService NewService(OctaGridContext context) => new(context, TestAccess.For(context), _publisher, _protector);
+
+    private static PrinterRouting Routing(OctaGridContext context) => new(context, TestAccess.For(context));
 
     /// <summary>What is saved for a printer, read from its row and decrypted the way the service does it.</summary>
     private IReadOnlyDictionary<string, string> SavedSecrets(Guid printerId)
@@ -439,7 +442,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         Assert.Equal(_agentId, created.AgentId);
         await using var context = NewContext();
-        Assert.Equal(_agentId, await NewService(context).GetAgentId(_userId, created.Id, Permission.View, CancellationToken.None));
+        Assert.Equal(_agentId, await Routing(context).AgentOf(_userId, created.Id, Permission.View, CancellationToken.None));
     }
 
     [Fact]
@@ -451,7 +454,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         Assert.Null(created.AgentId);
         await using var context = NewContext();
-        await Assert.ThrowsAsync<ValidationException>(() => NewService(context).GetAgentId(_userId, created.Id, Permission.View, CancellationToken.None));
+        await Assert.ThrowsAsync<ValidationException>(() => Routing(context).AgentOf(_userId, created.Id, Permission.View, CancellationToken.None));
     }
 
     [Fact]
@@ -502,31 +505,6 @@ public sealed class PrintersServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task A_user_outside_the_workspace_cannot_read_a_printers_agent()
-    {
-        var created = await CreatePrinter();
-
-        await using var context = NewContext();
-        var service = NewService(context);
-        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentId(Guid.NewGuid(), created.Id, Permission.View, CancellationToken.None));
-        await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAgentIds(Guid.NewGuid(), [created.Id], Permission.View, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task The_agents_of_several_printers_leave_out_those_without_one()
-    {
-        var assigned = await CreatePrinter();
-        AddAgent();
-        var unassigned = await CreatePrinter();
-
-        await using var context = NewContext();
-        var agents = await NewService(context).GetAgentIds(_userId, [assigned.Id, unassigned.Id, Guid.NewGuid()], Permission.View, CancellationToken.None);
-
-        Assert.Equal(_agentId, Assert.Single(agents, a => a.Key == assigned.Id).Value);
-        Assert.Single(agents);
-    }
-
-    [Fact]
     public async Task Assigning_a_printer_moves_it_to_the_new_agent_and_announces_the_change()
     {
         var created = await CreatePrinter();
@@ -539,7 +517,7 @@ public sealed class PrintersServiceTests : IDisposable
         }
 
         await using var verify = NewContext();
-        Assert.Equal(other, await NewService(verify).GetAgentId(_userId, created.Id, Permission.View, CancellationToken.None));
+        Assert.Equal(other, await Routing(verify).AgentOf(_userId, created.Id, Permission.View, CancellationToken.None));
         var change = Assert.Single(_publisher.Published);
         Assert.Equal(EntityTypes.Printer, change.EntityType);
         Assert.Equal(created.Id, change.EntityId);

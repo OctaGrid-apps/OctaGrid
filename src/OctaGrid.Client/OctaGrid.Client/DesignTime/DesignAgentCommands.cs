@@ -9,7 +9,7 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
 {
     private static readonly Guid DesignHistoryId = Guid.NewGuid();
 
-    public Task DeleteFileAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
+    public Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public Task<ConsolePage> GetPrinterConsoleAsync(Guid printerId, long? afterSequence, int limit, CancellationToken cancellationToken)
@@ -36,25 +36,25 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
         return Task.FromResult(new PrinterEventPage(events.Where(e => e.Sequence > (afterSequence ?? 0)).ToList(), 3, false, DesignHistoryId));
     }
 
-    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid deviceId, CancellationToken cancellationToken) =>
+    public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) =>
         Task.FromResult<IEnumerable<PrintMetadata>>([]);
 
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
                 Task.FromResult<PrintThumbnail?>(null);
 
-    public Task PausePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+    public Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
-    public Task ResumePrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+    public Task ResumePrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
-    public Task StartPrintJobAsync(Guid deviceId, string fileName, CancellationToken cancellationToken) =>
+    public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
-    public Task StopPrintJobAsync(Guid deviceId, CancellationToken cancellationToken) =>
+    public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public IReadOnlyList<ConnectorDescriptor> Connectors { get; } = [];
@@ -62,6 +62,6 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
     public Task<ConnectionTestResult> TestConnectionAsync(string connectorId, IReadOnlyDictionary<string, string> settings, Guid? printerId, CancellationToken cancellationToken) =>
         Task.FromResult(new ConnectionTestResult(true, null));
 
-    public Task UploadFileAsync(Guid deviceId, Stream stream, string fileName, CancellationToken cancellationToken) =>
+    public Task UploadFileAsync(Guid printerId, Stream stream, string fileName, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 }

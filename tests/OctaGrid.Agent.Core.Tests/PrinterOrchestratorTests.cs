@@ -5,7 +5,7 @@ using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Agent.Core.Tests;
 
-public class DeviceOrchestratorTests
+public class PrinterOrchestratorTests
 {
     private const string Id = "acme.fake";
 
@@ -21,7 +21,7 @@ public class DeviceOrchestratorTests
         return new PrinterProfile(id ?? Guid.NewGuid(), connectorId, settings);
     }
 
-    private static (DeviceOrchestrator Orchestrator, FakeConnector Connector, List<FakeSession> Sessions, FakeTelemetry Telemetry)
+    private static (PrinterOrchestrator Orchestrator, FakeConnector Connector, List<FakeSession> Sessions, FakeTelemetry Telemetry)
         Create()
     {
         var sessions = new List<FakeSession>();
@@ -32,7 +32,7 @@ public class DeviceOrchestratorTests
             return session;
         });
         var telemetry = new FakeTelemetry();
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(connector), telemetry, dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
         return (orchestrator, connector, sessions, telemetry);
     }
@@ -89,7 +89,7 @@ public class DeviceOrchestratorTests
     {
         var session = new ConsoleSession();
         var log = new Events.PrinterConsoleLog();
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
         var profile = Profile();
@@ -135,12 +135,12 @@ public class DeviceOrchestratorTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private static async Task<(DeviceOrchestrator Orchestrator, CommandSession Session, Events.PrinterConsoleLog Log, Guid PrinterId)>
+    private static async Task<(PrinterOrchestrator Orchestrator, CommandSession Session, Events.PrinterConsoleLog Log, Guid PrinterId)>
         StartCommandSession()
     {
         var session = new CommandSession();
         var log = new Events.PrinterConsoleLog();
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
         var profile = Profile();
@@ -228,7 +228,7 @@ public class DeviceOrchestratorTests
     {
         var session = new CommandSession();
         var loggerFactory = new CapturingLoggerFactory();
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(), loggerFactory,
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: new Events.PrinterConsoleLog());
         var profile = Profile();
@@ -247,7 +247,7 @@ public class DeviceOrchestratorTests
     {
         var session = new CommandSession();
         var log = new Events.PrinterConsoleLog(options: new Events.PrinterConsoleLogOptions(Burst: 2, LinesPerSecond: 1));
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
         var profile = Profile();
@@ -279,7 +279,7 @@ public class DeviceOrchestratorTests
     {
         var session = new ConsoleSession();
         var log = new Events.PrinterConsoleLog();
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), console: log);
         var profile = Profile();
@@ -310,7 +310,7 @@ public class DeviceOrchestratorTests
     public async Task Console_output_is_dropped_when_the_host_keeps_no_console()
     {
         var session = new ConsoleSession();
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
 
@@ -326,7 +326,7 @@ public class DeviceOrchestratorTests
     {
         var stuck = new StuckSession();
         var connector = new FakeConnector(Id, _ => stuck);
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(connector), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"), stopTimeout: TimeSpan.FromMilliseconds(50));
         await orchestrator.ApplyProfilesAsync([Profile()]);
@@ -443,7 +443,7 @@ public class DeviceOrchestratorTests
     }
 
     [Fact]
-    public async Task Operations_for_an_unknown_device_do_nothing()
+    public async Task Operations_for_an_unknown_printer_do_nothing()
     {
         var (orchestrator, _, _, _) = Create();
         var unknown = Guid.NewGuid();
@@ -460,7 +460,7 @@ public class DeviceOrchestratorTests
     public async Task A_connector_without_a_capability_is_skipped_not_failed()
     {
         var connector = new FakeConnector(Id, _ => new MinimalSession());
-        var orchestrator = new DeviceOrchestrator(
+        var orchestrator = new PrinterOrchestrator(
             new ConnectorRegistry().Add(connector), new FakeTelemetry(),
             dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
         var profile = Profile();

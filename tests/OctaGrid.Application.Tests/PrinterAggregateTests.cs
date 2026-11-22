@@ -24,7 +24,7 @@ public sealed class PrinterAggregateTests
 
         Assert.NotEqual(Guid.Empty, printer.Id);
         Assert.Null(printer.AgentId);
-        Assert.Equal(ConnectionState.Unknown, printer.Status!.State);
+        Assert.Null(printer.Status!.State);
     }
 
     [Fact]
