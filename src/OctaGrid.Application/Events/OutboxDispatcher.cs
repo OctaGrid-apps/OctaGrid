@@ -13,7 +13,7 @@ namespace OctaGrid.Application.Events;
 /// <see cref="Signal"/> so they go out at once, and anything left after a failure is tried again after
 /// <see cref="RetryDelay"/>.
 /// </summary>
-public sealed class OutboxDispatcher
+public sealed class OutboxDispatcher : IOutboxSignal
 {
     /// <summary>How many failed deliveries an event gets before it is left in the outbox for someone to look at.</summary>
     public const int MaxAttempts = 5;

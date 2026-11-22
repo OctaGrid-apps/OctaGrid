@@ -4,11 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using OctaGrid.Application.Agents;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
-using OctaGrid.Application.Telemetry;
 using OctaGrid.Data;
+using OctaGrid.Data.Events;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Printers;
 
@@ -22,7 +21,6 @@ public sealed class PrintersServiceTests : IDisposable
     private readonly Guid _workspaceId = Guid.NewGuid();
     // Version 7, like the ids the context gives new rows, and older than any of them: ids sort by creation.
     private readonly Guid _agentId = Guid.CreateVersion7(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero));
-    private readonly RecordingPublisher _publisher = new();
     private readonly FixedKeySource _keySource = new();
     private readonly AesGcmSecretProtector _protector;
 
@@ -46,17 +44,17 @@ public sealed class PrintersServiceTests : IDisposable
 
     public void Dispose() => _connection.Dispose();
 
-    private sealed class RecordingPublisher : IMessagePublisher
-    {
-        public List<EntityChanged> Published { get; } = [];
-
-        public void Publish(EntityChanged entity) => Published.Add(entity);
-    }
-
     private OctaGridContext NewContext() =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
 
-    private PrintersService NewService(OctaGridContext context) => new(context, TestAccess.For(context), _publisher, _protector);
+    private PrintersService NewService(OctaGridContext context) => new(context, TestAccess.For(context), _protector);
+
+    /// <summary>The domain events saved to the outbox so far, in order.</summary>
+    private List<DomainEvent> SavedEvents()
+    {
+        using var context = NewContext();
+        return context.OutboxMessages.AsNoTracking().OrderBy(m => m.Sequence).AsEnumerable().Select(m => m.ToEvent()).ToList();
+    }
 
     private static PrinterRouting Routing(OctaGridContext context) => new(context, TestAccess.For(context));
 
@@ -114,7 +112,7 @@ public sealed class PrintersServiceTests : IDisposable
         Assert.Equal(["apiKey"], created.SecretKeys);
         Assert.Equal("secret", SavedSecrets(created.Id)["apiKey"]);
         Assert.DoesNotContain("apiKey", created.Settings.Keys);
-        Assert.Contains(_publisher.Published, p => p.EntityId == created.Id && p.Kind == ChangeKind.Upserted);
+        Assert.Contains(SavedEvents(), e => e is PrinterAdded added && added.PrinterId == created.Id);
     }
 
     [Fact]
@@ -509,18 +507,18 @@ public sealed class PrintersServiceTests : IDisposable
     {
         var created = await CreatePrinter();
         var other = AddAgent();
-        _publisher.Published.Clear();
 
         await using (var context = NewContext())
         {
-            await new AgentsService(context, TestAccess.For(context), _publisher).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
+            await new AgentsService(context, TestAccess.For(context)).AssignPrinter(_userId, other, created.Id, CancellationToken.None);
         }
 
         await using var verify = NewContext();
         Assert.Equal(other, await Routing(verify).AgentOf(_userId, created.Id, Permission.View, CancellationToken.None));
-        var change = Assert.Single(_publisher.Published);
-        Assert.Equal(EntityTypes.Printer, change.EntityType);
-        Assert.Equal(created.Id, change.EntityId);
+        var change = Assert.Single(SavedEvents().OfType<PrinterAgentChanged>());
+        Assert.Equal(created.Id, change.PrinterId);
+        Assert.Equal(other, change.AgentId);
+        Assert.Equal(_agentId, change.PreviousAgentId);
     }
 
     [Fact]
@@ -531,7 +529,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using var context = NewContext();
         await Assert.ThrowsAsync<ValidationException>(() =>
-            new AgentsService(context, TestAccess.For(context), _publisher).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
+            new AgentsService(context, TestAccess.For(context)).AssignPrinter(_userId, foreign, created.Id, CancellationToken.None));
     }
 
     [Fact]
@@ -540,7 +538,7 @@ public sealed class PrintersServiceTests : IDisposable
         var second = AddAgent();
 
         await using var context = NewContext();
-        var agents = await new AgentsService(context, TestAccess.For(context), _publisher).GetList(_userId, _workspaceId, CancellationToken.None);
+        var agents = await new AgentsService(context, TestAccess.For(context)).GetList(_userId, _workspaceId, CancellationToken.None);
 
         Assert.Equal([_agentId, second], agents.Select(a => a.Id));
     }

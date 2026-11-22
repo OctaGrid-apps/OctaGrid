@@ -2,13 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Authorization;
-using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.Agents;
-using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 
 namespace OctaGrid.Application.Services;
@@ -18,13 +16,11 @@ public sealed class AgentsService
     private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<AgentsService> _logger;
-    private readonly IMessagePublisher _publisher;
 
-    public AgentsService(OctaGridContext context, WorkspaceAccess access, IMessagePublisher publisher, ILogger<AgentsService>? logger = null)
+    public AgentsService(OctaGridContext context, WorkspaceAccess access, ILogger<AgentsService>? logger = null)
     {
         _context = context;
         _access = access;
-        _publisher = publisher;
         _logger = logger ?? NullLogger<AgentsService>.Instance;
     }
 
@@ -54,9 +50,6 @@ public sealed class AgentsService
 
         _logger.LogInformation("Assigned printer {PrinterId} to agent {AgentId} (was {PreviousAgentId}) in workspace {WorkspaceId} by user {UserId}",
             printerId, agentId, previousAgentId, agent.WorkspaceId, userId);
-
-        // Both agents' printer sets change: the previous one has to let go of the printer, the new one connect to it.
-        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
     }
 
     public async Task<AgentResponse> Create(Guid userId, Guid workspaceId, CreateAgentRequest request, CancellationToken cancellationToken)

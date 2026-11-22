@@ -27,7 +27,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     public PrinterStateRecordingTests()
     {
         var services = new ServiceCollection();
-        services.AddScoped(_ => _fixture.NewContext());
+        services.AddScoped(sp => _fixture.NewContext(sp.GetRequiredService<OutboxDispatcher>()));
         services.AddScoped<PrinterStateService>();
         services.AddSingleton<IDomainEventHandler>(_handler);
         services.AddSingleton<IAgentLink>(_fixture.Link);
@@ -58,16 +58,29 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
         return context.PrintJobs.AsNoTracking().ToList();
     }
 
+    // Print job events only: the printer events saved with the printer are delivered by CreatePrinter.
     private List<OutboxMessage> Outboxed()
     {
         using var context = _fixture.NewContext();
-        return context.OutboxMessages.AsNoTracking().OrderBy(m => m.Sequence).ToList();
+        return context.OutboxMessages.AsNoTracking()
+            .Where(m => m.Type.StartsWith("print-job."))
+            .OrderBy(m => m.Sequence)
+            .ToList();
+    }
+
+    /// <summary>Creates a printer and delivers its own events, so a test starts with an empty outbox.</summary>
+    private async Task<PrinterResponse> CreatePrinter()
+    {
+        var printer = await _fixture.CreatePrinter();
+        await Outbox.DispatchPendingAsync(CancellationToken.None);
+        _handler.Clear();
+        return printer;
     }
 
     [Fact]
     public async Task A_printer_that_starts_printing_gets_a_running_job_and_its_event_waits_in_the_outbox()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
 
         await Report(printer.Id, UniversalPrinterState.Printing, "benchy.gcode");
@@ -86,7 +99,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task A_finished_print_is_delivered_to_the_handlers_as_started_then_finished()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
 
         await Report(printer.Id, UniversalPrinterState.Printing, "benchy.gcode");
@@ -104,7 +117,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task Delivered_events_are_not_delivered_again()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
         await Report(printer.Id, UniversalPrinterState.Printing);
         await Outbox.DispatchPendingAsync(CancellationToken.None);
@@ -117,7 +130,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task A_state_reported_by_an_agent_that_does_not_run_the_printer_is_ignored()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         var foreignAgent = _fixture.AddForeignAgent();
         using var listening = Recorder.Start();
 
@@ -130,7 +143,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task A_state_that_changes_no_job_starts_none_and_raises_no_event()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
 
         await Report(printer.Id, UniversalPrinterState.Idle);
@@ -143,7 +156,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task The_last_reported_state_is_kept_and_returned_with_the_printer_without_changing_its_version()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
 
         await Report(printer.Id, UniversalPrinterState.Printing, minutes: 1);
@@ -161,7 +174,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task A_report_older_than_the_kept_state_does_not_replace_it()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
 
         await Report(printer.Id, UniversalPrinterState.Idle, minutes: 5);
@@ -175,7 +188,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task A_printer_no_agent_has_reported_on_has_no_state()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
 
         Assert.Null(printer.State);
     }
@@ -183,7 +196,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task A_failed_delivery_keeps_the_event_and_those_after_it_for_the_next_try_in_order()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
         await Report(printer.Id, UniversalPrinterState.Printing);
         await Report(printer.Id, UniversalPrinterState.Cancelled, minutes: 3);
@@ -205,7 +218,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task An_event_that_keeps_failing_is_left_behind_so_the_ones_after_it_go_out()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
         await Report(printer.Id, UniversalPrinterState.Printing);
         await Report(printer.Id, UniversalPrinterState.Completed, minutes: 3);
@@ -227,7 +240,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task The_running_dispatcher_delivers_what_waited_and_what_is_recorded_later()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
         await Report(printer.Id, UniversalPrinterState.Printing);
         using var stop = new CancellationTokenSource();
@@ -246,7 +259,7 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
     [Fact]
     public async Task Deleting_a_printer_deletes_its_jobs()
     {
-        var printer = await _fixture.CreatePrinter();
+        var printer = await CreatePrinter();
         using var listening = Recorder.Start();
         await Report(printer.Id, UniversalPrinterState.Printing);
 
@@ -265,6 +278,14 @@ public sealed class PrinterStateRecordingTests : IAsyncDisposable
         private readonly List<(int Count, TaskCompletionSource Done)> _waiters = [];
 
         public int FailNext { get; set; }
+
+        public void Clear()
+        {
+            lock (_received)
+            {
+                _received.Clear();
+            }
+        }
 
         public IReadOnlyList<DomainEvent> Received
         {

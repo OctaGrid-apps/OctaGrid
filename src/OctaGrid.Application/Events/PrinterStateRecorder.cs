@@ -10,9 +10,8 @@ using OctaGrid.Protocol.AgentLink.Notifications;
 namespace OctaGrid.Application.Events;
 
 /// <summary>
-/// The backend's consumer of the state changes agents report: queues them as they arrive (the link's handler must not
-/// block) and records them one at a time, in order, through <see cref="PrinterStateService"/>. Wakes the
-/// <see cref="OutboxDispatcher"/> when that saved events.
+/// The backend's consumer of the state changes agents report. Queues them as they arrive, because the link's
+/// handler must not block, and records them one at a time, in order, through <see cref="PrinterStateService"/>.
 /// </summary>
 public sealed class PrinterStateRecorder
 {
@@ -21,14 +20,12 @@ public sealed class PrinterStateRecorder
 
     private readonly IAgentLink _link;
     private readonly ILogger<PrinterStateRecorder> _logger;
-    private readonly OutboxDispatcher _outbox;
     private readonly IServiceScopeFactory _scopes;
 
-    public PrinterStateRecorder(IAgentLink link, IServiceScopeFactory scopes, OutboxDispatcher outbox, ILogger<PrinterStateRecorder>? logger = null)
+    public PrinterStateRecorder(IAgentLink link, IServiceScopeFactory scopes, ILogger<PrinterStateRecorder>? logger = null)
     {
         _link = link;
         _scopes = scopes;
-        _outbox = outbox;
         _logger = logger ?? NullLogger<PrinterStateRecorder>.Instance;
     }
 
@@ -54,13 +51,12 @@ public sealed class PrinterStateRecorder
     /// <summary>Records what has arrived so far.</summary>
     public async Task RecordQueuedAsync(CancellationToken cancellationToken)
     {
-        var saved = false;
         while (_queue.Reader.TryRead(out var item))
         {
             try
             {
                 await using var scope = _scopes.CreateAsyncScope();
-                saved |= await scope.ServiceProvider.GetRequiredService<PrinterStateService>()
+                await scope.ServiceProvider.GetRequiredService<PrinterStateService>()
                     .RecordStateChange(item.AgentId, item.Change, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -69,11 +65,6 @@ public sealed class PrinterStateRecorder
                 _logger.LogError(ex, "Could not record the state change of printer {PrinterId} to {State}",
                     item.Change.PrinterId, item.Change.Current);
             }
-        }
-
-        if (saved)
-        {
-            _outbox.Signal();
         }
     }
 

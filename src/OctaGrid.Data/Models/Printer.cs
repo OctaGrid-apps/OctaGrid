@@ -1,3 +1,4 @@
+using OctaGrid.Data.Events;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 
@@ -34,11 +35,19 @@ public sealed class Printer : Entity
     public PrinterStatus? Status { get; private set; }
 
     /// <summary>
-    /// Creates a printer with no agent and no secrets. Its id is set here, not on save, because the secrets are
-    /// encrypted for it before the first save.
+    /// Creates a printer without secrets, assigned to <paramref name="agent"/> when one is given.
+    /// Its id is set here, not on save, because the secrets are encrypted for it before the first save.
     /// </summary>
-    public static Printer Create(Guid workspaceId, string name, string connectorId, IReadOnlyDictionary<string, string> settings, bool enabled) =>
-        new()
+    /// <exception cref="ValidationException">The agent is in another workspace.</exception>
+    public static Printer Create(
+        Guid workspaceId,
+        string name,
+        string connectorId,
+        IReadOnlyDictionary<string, string> settings,
+        bool enabled,
+        Agent? agent = null)
+    {
+        var printer = new Printer
         {
             Id = Guid.CreateVersion7(),
             WorkspaceId = workspaceId,
@@ -49,7 +58,21 @@ public sealed class Printer : Entity
             Status = new PrinterStatus(),
         };
 
-    public void Rename(string name) => Name = name;
+        if (agent is not null)
+        {
+            printer.EnsureSameWorkspace(agent);
+            printer.AgentId = agent.Id;
+        }
+
+        printer.Raise(new PrinterAdded(printer.Id, workspaceId, printer.AgentId));
+        return printer;
+    }
+
+    public void Rename(string name)
+    {
+        Name = name;
+        RaiseChanged();
+    }
 
     /// <summary>
     /// Changes the configuration. Saved secrets belong to the connector they were entered for, so another connector
@@ -66,6 +89,7 @@ public sealed class Printer : Entity
         ConnectorId = connectorId;
         Settings = new Dictionary<string, string>(settings);
         Enabled = enabled;
+        RaiseChanged();
     }
 
     /// <returns>Whether the state changed.</returns>
@@ -77,6 +101,7 @@ public sealed class Printer : Entity
         }
 
         Enabled = enabled;
+        RaiseChanged();
         return true;
     }
 
@@ -85,16 +110,18 @@ public sealed class Printer : Entity
     public void AssignTo(Agent agent)
     {
         ArgumentNullException.ThrowIfNull(agent);
-        if (agent.WorkspaceId != WorkspaceId)
-        {
-            throw new ValidationException(nameof(AgentId), "The agent is in another workspace.");
-        }
-
-        AgentId = agent.Id;
+        EnsureSameWorkspace(agent);
+        ChangeAgent(agent.Id);
     }
 
     /// <summary>Takes the printer away from its agent; it waits for another one.</summary>
-    public void Unassign() => AgentId = null;
+    public void Unassign() => ChangeAgent(null);
+
+    /// <summary>
+    /// Records that the printer is being removed. Call before removing it from the context,
+    /// so the removal is saved with its <see cref="PrinterRemoved"/> event.
+    /// </summary>
+    public void Remove() => Raise(new PrinterRemoved(Id, WorkspaceId, AgentId));
 
     /// <summary>
     /// Records a state reported by the printer's agent. A report older than the stored state is ignored,
@@ -108,6 +135,43 @@ public sealed class Printer : Entity
     }
 
     /// <summary>Stores the encrypted secrets, or none.</summary>
-    public void StoreSecrets(string? protectedSecrets) =>
+    public void StoreSecrets(string? protectedSecrets)
+    {
         ProtectedSecrets = string.IsNullOrEmpty(protectedSecrets) ? null : protectedSecrets;
+
+        // A new printer reports its secrets with PrinterAdded.
+        if (!DomainEvents.OfType<PrinterAdded>().Any())
+        {
+            RaiseChanged();
+        }
+    }
+
+    private void EnsureSameWorkspace(Agent agent)
+    {
+        if (agent.WorkspaceId != WorkspaceId)
+        {
+            throw new ValidationException(nameof(AgentId), "The agent is in another workspace.");
+        }
+    }
+
+    private void ChangeAgent(Guid? agentId)
+    {
+        if (AgentId == agentId)
+        {
+            return;
+        }
+
+        var previous = AgentId;
+        AgentId = agentId;
+        Raise(new PrinterAgentChanged(Id, WorkspaceId, agentId, previous));
+    }
+
+    // One PrinterChanged per save is enough: it names the printer, not what changed.
+    private void RaiseChanged()
+    {
+        if (!DomainEvents.OfType<PrinterChanged>().Any())
+        {
+            Raise(new PrinterChanged(Id, WorkspaceId));
+        }
+    }
 }

@@ -6,8 +6,13 @@ namespace OctaGrid.Data;
 
 public class OctaGridContext : DbContext
 {
-    public OctaGridContext(DbContextOptions<OctaGridContext> options) : base(options)
+    private readonly IOutboxSignal? _outboxSignal;
+
+    /// <param name="options">The context options.</param>
+    /// <param name="outboxSignal">Told after a save that wrote domain events to the outbox. Optional.</param>
+    public OctaGridContext(DbContextOptions<OctaGridContext> options, IOutboxSignal? outboxSignal = null) : base(options)
     {
+        _outboxSignal = outboxSignal;
     }
 
     public DbSet<Agent> Agents => Set<Agent>();
@@ -25,31 +30,39 @@ public class OctaGridContext : DbContext
     public override int SaveChanges()
     {
         ApplyEntityConventions();
-        StageDomainEvents();
+        var hasEvents = StageDomainEvents();
+        int saved;
         try
         {
-            return base.SaveChanges();
+            saved = base.SaveChanges();
         }
         catch (DbUpdateConcurrencyException ex)
         {
             throw new ConflictException(ex);
         }
+
+        SignalOutbox(hasEvents);
+        return saved;
     }
 
     /// <exception cref="ConflictException">A row changed since it was read (its <see cref="Entity.Version"/> moved on).</exception>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyEntityConventions();
-        StageDomainEvents();
+        var hasEvents = StageDomainEvents();
+        int saved;
         try
         {
-            return await base.SaveChangesAsync(cancellationToken);
+            saved = await base.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)
         {
             // Reported as an AppException so callers show it like any other expected failure.
             throw new ConflictException(ex);
         }
+
+        SignalOutbox(hasEvents);
+        return saved;
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -61,9 +74,13 @@ public class OctaGridContext : DbContext
     /// <summary>
     /// Moves the events tracked entities raised into the outbox, so they are saved in the same transaction as the
     /// change. They leave the entities here: if the save fails, the outbox rows stay tracked and go with the retry.
+    /// Each event gets the entity's version as saved and, unless it has one, the save time.
+    /// Runs after <see cref="ApplyEntityConventions"/>, which rotates the versions.
     /// </summary>
-    private void StageDomainEvents()
+    /// <returns>True when the save writes outbox rows, including rows left from a failed save.</returns>
+    private bool StageDomainEvents()
     {
+        var utcNow = DateTimeOffset.UtcNow;
         var raisers = ChangeTracker.Entries<Entity>()
             .Select(e => e.Entity)
             .Where(e => e.DomainEvents.Count > 0)
@@ -71,8 +88,23 @@ public class OctaGridContext : DbContext
 
         foreach (var entity in raisers)
         {
-            OutboxMessages.AddRange(entity.DomainEvents.Select(OutboxMessage.From));
+            var events = entity.DomainEvents.Select(e => e with
+            {
+                OccurredAt = e.OccurredAt == default ? utcNow : e.OccurredAt,
+                AggregateVersion = entity.Version,
+            });
+            OutboxMessages.AddRange(events.Select(OutboxMessage.From));
             entity.ClearDomainEvents();
+        }
+
+        return ChangeTracker.Entries<OutboxMessage>().Any(e => e.State == EntityState.Added);
+    }
+
+    private void SignalOutbox(bool hasEvents)
+    {
+        if (hasEvents)
+        {
+            _outboxSignal?.Signal();
         }
     }
 

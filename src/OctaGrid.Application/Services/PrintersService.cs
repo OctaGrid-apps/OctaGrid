@@ -5,13 +5,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Secrets;
-using OctaGrid.Application.Telemetry;
 using OctaGrid.Application.Validation;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.Messaging;
 using OctaGrid.Protocol.Permissions;
 using OctaGrid.Protocol.Printers;
 
@@ -23,14 +21,12 @@ public sealed class PrintersService
     private readonly OctaGridContext _context;
     private readonly ILogger<PrintersService> _logger;
 
-    private readonly IMessagePublisher _publisher;
     private readonly ISecretProtector _protector;
 
-    public PrintersService(OctaGridContext context, WorkspaceAccess access, IMessagePublisher publisher, ISecretProtector protector, ILogger<PrintersService>? logger = null)
+    public PrintersService(OctaGridContext context, WorkspaceAccess access, ISecretProtector protector, ILogger<PrintersService>? logger = null)
     {
         _context = context;
         _access = access;
-        _publisher = publisher;
         _protector = protector;
         _logger = logger ?? NullLogger<PrintersService>.Instance;
     }
@@ -50,12 +46,7 @@ public sealed class PrintersService
 
         var agent = await ResolveAgentAsync(workspaceId, request.AgentId, cancellationToken);
 
-        var printer = Printer.Create(workspaceId, request.Name, request.ConnectorId, request.Settings, request.Enabled);
-        if (agent is not null)
-        {
-            printer.AssignTo(agent);
-        }
-
+        var printer = Printer.Create(workspaceId, request.Name, request.ConnectorId, request.Settings, request.Enabled, agent);
         WriteSecrets(printer, PrinterSecrets.None.With(request.Secrets));
 
         // The secrets are part of the row, so they are saved or not saved together with the printer.
@@ -65,7 +56,6 @@ public sealed class PrintersService
         _logger.LogInformation("Created printer {PrinterId} ('{PrinterName}', {ConnectorId}, Enabled={Enabled}) for agent {AgentId} in workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, printer.ConnectorId, printer.Enabled, printer.AgentId, workspaceId, userId);
 
-        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
         return MapToResponse(printer);
     }
@@ -77,13 +67,13 @@ public sealed class PrintersService
 
         await _access.Require(userId, printer.WorkspaceId, Permission.ManagePrinters, cancellationToken);
 
+        printer.Remove();
         _context.Printers.Remove(printer);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Deleted printer {PrinterId} ('{PrinterName}') from workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, printer.WorkspaceId, userId);
 
-        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Deleted, printer.WorkspaceId));
     }
 
     /// <summary>
@@ -196,7 +186,6 @@ public sealed class PrintersService
         _logger.LogInformation("Printer {PrinterId} ('{PrinterName}') enabled state set to {Enabled} in workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, state, printer.WorkspaceId, userId);
 
-        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
     }
 
     public async Task<PrinterResponse> Update(Guid userId, Guid printerId, UpdatePrinterRequest request, CancellationToken cancellationToken)
@@ -228,7 +217,6 @@ public sealed class PrintersService
         _logger.LogInformation("Updated printer {PrinterId} ('{PrinterName}', {ConnectorId}, Enabled={Enabled}) in workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, printer.ConnectorId, printer.Enabled, printer.WorkspaceId, userId);
 
-        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
         return MapToResponse(printer);
     }
@@ -255,7 +243,6 @@ public sealed class PrintersService
         _logger.LogInformation("Updated printer identity {PrinterId} to '{PrinterName}' in workspace {WorkspaceId} by user {UserId}",
             printer.Id, printer.Name, printer.WorkspaceId, userId);
 
-        _publisher.Publish(new EntityChanged(EntityTypes.Printer, printer.Id, printer.Version, ChangeKind.Upserted, printer.WorkspaceId));
 
         return MapToResponse(printer);
     }

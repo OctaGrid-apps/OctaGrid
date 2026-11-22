@@ -27,8 +27,7 @@ public sealed class PrinterStateService
     /// <param name="agentId">The agent that reported it.</param>
     /// <param name="change">What it reported.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
-    /// <returns>True when changes were saved, including any print job events written to the outbox.</returns>
-    public async Task<bool> RecordStateChange(Guid agentId, PrinterStateChanged change, CancellationToken cancellationToken)
+    public async Task RecordStateChange(Guid agentId, PrinterStateChanged change, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(change);
 
@@ -41,7 +40,7 @@ public sealed class PrinterStateService
         {
             _logger.LogDebug("Ignored a state change of printer {PrinterId} from agent {AgentId}, which does not run it",
                 change.PrinterId, agentId);
-            return false;
+            return;
         }
 
         // Updates only the status row, so the printer's Version does not change.
@@ -67,7 +66,7 @@ public sealed class PrinterStateService
 
         if (!_context.ChangeTracker.HasChanges())
         {
-            return false;
+            return;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -82,7 +81,5 @@ public sealed class PrinterStateService
         {
             _logger.LogInformation("Print job {PrintJobId} started on printer {PrinterId}", started.Id, started.PrinterId);
         }
-
-        return true;
     }
 }

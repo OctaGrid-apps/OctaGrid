@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.AddSingleton<PrinterWatchRegistry>();
         // Domain events are saved to the outbox with the change that raised them and delivered from there.
         services.AddSingleton<OutboxDispatcher>();
+        services.AddSingleton<IOutboxSignal>(sp => sp.GetRequiredService<OutboxDispatcher>());
+        services.AddScoped<IDomainEventHandler, EntityChangePublisher>();
         services.AddSingleton<PrinterStateRecorder>();
 
         // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
