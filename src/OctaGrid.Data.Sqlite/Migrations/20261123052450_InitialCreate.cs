@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OctaGrid.Data.Sqlite.Migrations;
 
 /// <inheritdoc />
-public partial class _20261122074038_InitialCreate : Migration
+public partial class _20261123052450_InitialCreate : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -55,7 +55,6 @@ public partial class _20261122074038_InitialCreate : Migration
                 Id = table.Column<Guid>(type: "TEXT", nullable: false),
                 Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                 Email = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                PasswordHash = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
                 CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
                 UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
                 Version = table.Column<long>(type: "INTEGER", nullable: false)
@@ -78,6 +77,29 @@ public partial class _20261122074038_InitialCreate : Migration
             constraints: table =>
             {
                 table.PrimaryKey("PK_Workspaces", x => x.Id);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "ExternalLogins",
+            columns: table => new
+            {
+                Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                UserId = table.Column<Guid>(type: "TEXT", nullable: false),
+                Issuer = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                Subject = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                Version = table.Column<long>(type: "INTEGER", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_ExternalLogins", x => x.Id);
+                table.ForeignKey(
+                    name: "FK_ExternalLogins_Users_UserId",
+                    column: x => x.UserId,
+                    principalTable: "Users",
+                    principalColumn: "Id",
+                    onDelete: ReferentialAction.Cascade);
             });
 
         migrationBuilder.CreateTable(
@@ -320,6 +342,17 @@ public partial class _20261122074038_InitialCreate : Migration
             column: "PrinterId");
 
         migrationBuilder.CreateIndex(
+            name: "IX_ExternalLogins_Issuer_Subject",
+            table: "ExternalLogins",
+            columns: new[] { "Issuer", "Subject" },
+            unique: true);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_ExternalLogins_UserId",
+            table: "ExternalLogins",
+            column: "UserId");
+
+        migrationBuilder.CreateIndex(
             name: "IX_OutboxMessages_EventId",
             table: "OutboxMessages",
             column: "EventId",
@@ -367,12 +400,6 @@ public partial class _20261122074038_InitialCreate : Migration
             column: "WorkspaceId");
 
         migrationBuilder.CreateIndex(
-            name: "IX_Users_Email",
-            table: "Users",
-            column: "Email",
-            unique: true);
-
-        migrationBuilder.CreateIndex(
             name: "IX_WorkspaceMembers_UserId",
             table: "WorkspaceMembers",
             column: "UserId");
@@ -392,6 +419,9 @@ public partial class _20261122074038_InitialCreate : Migration
 
         migrationBuilder.DropTable(
             name: "DashboardWidgets");
+
+        migrationBuilder.DropTable(
+            name: "ExternalLogins");
 
         migrationBuilder.DropTable(
             name: "OutboxMessages");

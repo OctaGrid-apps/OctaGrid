@@ -51,7 +51,6 @@ public partial class App : Application
             services.AddTransient<AgentListViewModel>();
             services.AddTransient<PrinterListViewModel>();
             services.AddTransient<WorkspaceListViewModel>();
-            services.AddTransient<IdentityViewModel>();
             services.AddTransient<DashboardsViewModel>();
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<SafetyDisclaimerViewModel>();

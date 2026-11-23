@@ -1,13 +1,9 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Hosting;
 using OctaGrid.Application.Agents;
-using OctaGrid.Application.Authorization;
-using OctaGrid.Application.Events;
-using OctaGrid.Application.Secrets;
-using OctaGrid.Application.Services;
+using OctaGrid.Application;
 using OctaGrid.Application.Telemetry;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Data;
@@ -24,34 +20,8 @@ public static class DependencyInjection
         // The path is read when the first context is created, not here, so registering Local mode touches no files.
         services.AddOctaGridSqlite(GetDatabasePath);
 
-        // Scoped, like the context they use: a DbContext is not thread-safe and must not live for the whole
-        // process. The Local adapters below are singletons and open one scope per call, as a server does per request.
-        services
-            .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
-            .AddScoped<WorkspaceAccess>()
-            .AddScoped<AgentsService>()
-            .AddScoped<UsersService>()
-            .AddScoped<PrintersService>()
-            .AddScoped<PrinterRouting>()
-            .AddScoped<PrinterCommandsService>()
-            .AddScoped<PrinterWatchService>()
-            .AddScoped<ExtensionsService>()
-            .AddScoped<AgentProfilesService>()
-            .AddScoped<DashboardsService>()
-            .AddScoped<PrinterStateService>()
-            .AddScoped<WorkspacesService>();
-
-        services.AddSingleton<IPermissionPolicy, RolePermissionPolicy>();
-        services.AddSingleton<PrinterWatchRegistry>();
-        // Domain events are saved to the outbox with the change that raised them and delivered from there.
-        services.AddSingleton<OutboxDispatcher>();
-        services.AddSingleton<IOutboxSignal>(sp => sp.GetRequiredService<OutboxDispatcher>());
-        services.AddScoped<IDomainEventHandler, EntityChangePublisher>();
-        services.AddScoped<IDomainEventHandler, AgentProfilesPublisher>();
-        services.AddSingleton<PrinterStateRecorder>();
-
-        // The key comes from the host (ISecretKeySource); the encrypted secrets live in the database.
-        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+        // The Local adapters below are singletons and open one scope per call, as a server does per request.
+        services.AddOctaGridApplication();
 
         services.AddSingleton<IMessagePublisher, LocalMessageHandler>();
 
@@ -107,33 +77,17 @@ public static class DependencyInjection
     {
         try
         {
-            // Local mode has a single user; the order only makes the pick deterministic.
-            var user = context.Users.OrderBy(u => u.Id).FirstOrDefault();
+            var user = context.Users.FirstOrDefault(User.WithLogin(LocalUser.Issuer, LocalUser.Subject));
             if (user is null)
             {
-                logger.LogInformation("Provisioning default local user...");
-                var hasher = provider.GetRequiredService<IPasswordHasher<User>>();
-                user = new User
-                {
-                    Name = "User",
-                    Email = "User@example.com"
-                };
-                user.PasswordHash = hasher.HashPassword(user, Guid.NewGuid().ToString("N"));
+                user = User.Create(LocalUser.Identity.Name, LocalUser.Identity.Email);
+                user.AddLogin(LocalUser.Issuer, LocalUser.Subject);
                 context.Users.Add(user);
                 context.SaveChanges();
+                logger.LogInformation("Provisioned the local user {UserId}", user.Id);
+            }
 
-                var currentUser = provider.GetService<ICurrentUserAccessor>();
-                currentUser?.SetCurrentUserId(user.Id);
-                logger.LogInformation("Default local user {UserId} provisioned successfully.", user.Id);
-            }
-            else
-            {
-                var currentUser = provider.GetService<ICurrentUserAccessor>();
-                if (currentUser?.GetCurrentUserId() == null)
-                {
-                    currentUser?.SetCurrentUserId(user.Id);
-                }
-            }
+            provider.GetService<ICurrentUserAccessor>()?.SetCurrentUserId(user.Id);
 
             EnsureLocalAgent(provider, context, user.Id, logger);
 

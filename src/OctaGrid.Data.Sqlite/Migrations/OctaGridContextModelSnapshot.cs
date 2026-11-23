@@ -15,7 +15,7 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261122074038_InitialCreate";
+    public override string LastMigrationId => "20261123052450_InitialCreate";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -179,6 +179,44 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                 b.HasIndex("PrinterId");
 
                 b.ToTable("DashboardWidgets");
+            });
+
+        modelBuilder.Entity("OctaGrid.Data.Models.ExternalLogin", b =>
+            {
+                b.Property<Guid>("Id")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Issuer")
+                    .IsRequired()
+                    .HasMaxLength(256)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Subject")
+                    .IsRequired()
+                    .HasMaxLength(256)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTimeOffset>("UpdatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<Guid>("UserId")
+                    .HasColumnType("TEXT");
+
+                b.Property<long>("Version")
+                    .IsConcurrencyToken()
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Id");
+
+                b.HasIndex("UserId");
+
+                b.HasIndex("Issuer", "Subject")
+                    .IsUnique();
+
+                b.ToTable("ExternalLogins");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.OutboxMessage", b =>
@@ -403,11 +441,6 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(100)
                     .HasColumnType("TEXT");
 
-                b.Property<string>("PasswordHash")
-                    .IsRequired()
-                    .HasMaxLength(256)
-                    .HasColumnType("TEXT");
-
                 b.Property<DateTimeOffset>("UpdatedAt")
                     .HasColumnType("TEXT");
 
@@ -416,9 +449,6 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER");
 
                 b.HasKey("Id");
-
-                b.HasIndex("Email")
-                    .IsUnique();
 
                 b.ToTable("Users");
             });
@@ -533,6 +563,15 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
                 b.Navigation("Dashboard");
             });
 
+        modelBuilder.Entity("OctaGrid.Data.Models.ExternalLogin", b =>
+            {
+                b.HasOne("OctaGrid.Data.Models.User", null)
+                    .WithMany("Logins")
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("OctaGrid.Data.Models.PrintJob", b =>
             {
                 b.HasOne("OctaGrid.Data.Models.Printer", null)
@@ -597,6 +636,11 @@ partial class OctaGridContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("OctaGrid.Data.Models.Printer", b =>
             {
                 b.Navigation("Status");
+            });
+
+        modelBuilder.Entity("OctaGrid.Data.Models.User", b =>
+            {
+                b.Navigation("Logins");
             });
 
         modelBuilder.Entity("OctaGrid.Data.Models.Workspace", b =>

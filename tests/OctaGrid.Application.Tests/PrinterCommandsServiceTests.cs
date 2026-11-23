@@ -12,7 +12,7 @@ public sealed class PrinterCommandsServiceTests : IDisposable
     public void Dispose() => _fixture.Dispose();
 
     private PrinterCommandsService NewService(OctaGridContext context) =>
-        new(TestAccess.For(context), _fixture.Printers(context), AgentLinkFixture.Routing(context), _fixture.Link);
+        new(TestAccess.For(context), AgentLinkFixture.Routing(context), _fixture.Secrets(context), _fixture.Link);
 
     [Fact]
     public async Task A_command_goes_to_the_printers_agent()
@@ -95,6 +95,24 @@ public sealed class PrinterCommandsServiceTests : IDisposable
         var settings = Assert.IsType<TestConnectionRequest>(request).Settings;
         Assert.Equal("192.168.1.9", settings["url"]);
         Assert.Equal("123456", settings["apiKey"]);
+    }
+
+    [Fact]
+    public async Task A_saved_printer_cannot_be_tested_by_a_user_outside_its_workspace()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        await using var context = _fixture.NewContext();
+        await Assert.ThrowsAsync<AuthenticationException>(() => NewService(context).TestConnection(
+            Guid.NewGuid(),
+            _fixture.WorkspaceId,
+            "octagrid.bambu-mqtt",
+            new Dictionary<string, string>(),
+            printer.Id,
+            agentId: null,
+            CancellationToken.None));
+
+        Assert.Empty(_fixture.Link.Sent);
     }
 
     [Fact]

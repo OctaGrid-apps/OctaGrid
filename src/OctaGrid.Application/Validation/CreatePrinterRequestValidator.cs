@@ -9,7 +9,7 @@ public class CreatePrinterRequestValidator : AbstractValidator<CreatePrinterRequ
     public CreatePrinterRequestValidator()
     {
         RuleFor(x => x.Name).NotEmpty();
-        // One message per property: the service reports validation failures keyed by property name.
+        // Stop at the first failure: a missing id needs no message about its shape.
         RuleFor(x => x.ConnectorId).Cascade(CascadeMode.Stop).NotEmpty().Must(ExtensionId.IsValid).WithMessage("The connector id must look like 'publisher.name'.");
 
         // Which settings a connector needs is declared by the connector; the connector checks

@@ -18,7 +18,7 @@ public sealed class AgentProfilesServiceTests : IDisposable
         _fixture.UnassignPrinter(unassigned.Id);
 
         await using var context = _fixture.NewContext();
-        await new AgentProfilesService(_fixture.Printers(context), _fixture.Link).Push(_fixture.AgentId, CancellationToken.None);
+        await new AgentProfilesService(_fixture.Profiles(context), _fixture.Link).Push(_fixture.AgentId, CancellationToken.None);
 
         var (agentId, request) = Assert.Single(_fixture.Link.Sent);
         Assert.Equal(_fixture.AgentId, agentId);
@@ -31,7 +31,7 @@ public sealed class AgentProfilesServiceTests : IDisposable
     public async Task An_agent_without_printers_is_sent_an_empty_set_so_it_lets_go_of_the_old_ones()
     {
         await using var context = _fixture.NewContext();
-        await new AgentProfilesService(_fixture.Printers(context), _fixture.Link).Push(_fixture.AgentId, CancellationToken.None);
+        await new AgentProfilesService(_fixture.Profiles(context), _fixture.Link).Push(_fixture.AgentId, CancellationToken.None);
 
         Assert.Empty(Assert.IsType<ApplyPrinterProfilesRequest>(Assert.Single(_fixture.Link.Sent).Request).Profiles);
     }

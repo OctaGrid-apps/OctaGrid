@@ -34,7 +34,6 @@ public sealed class RoleEnforcementTests : IDisposable
         ["printers.rename"] = (Permission.ManagePrinters, (s, u) => s.Printers.UpdateIdentity(u, s.PrinterId, new UpdatePrinterIdentityRequest("Renamed"), None)),
         ["printers.enable"] = (Permission.ManagePrinters, (s, u) => s.Printers.SetEnabled(u, s.PrinterId, false, None)),
         ["printers.delete"] = (Permission.ManagePrinters, (s, u) => s.Printers.Delete(u, s.PrinterId, None)),
-        ["printers.saved-secrets"] = (Permission.ManagePrinters, (s, u) => s.Printers.AddSavedSecrets(u, s.PrinterId, Url, None)),
 
         ["print.start"] = (Permission.ControlPrint, (s, u) => s.Commands.StartPrint(u, s.PrinterId, "a.gcode", None)),
         ["print.pause"] = (Permission.ControlPrint, (s, u) => s.Commands.PausePrint(u, s.PrinterId, None)),
@@ -137,7 +136,7 @@ public sealed class RoleEnforcementTests : IDisposable
             DashboardId = dashboardId;
             Printers = fixture.Printers(context);
             var routing = new PrinterRouting(context, access);
-            Commands = new PrinterCommandsService(access, Printers, routing, fixture.Link);
+            Commands = new PrinterCommandsService(access, routing, fixture.Secrets(context), fixture.Link);
             Watch = new PrinterWatchService(routing, fixture.Link, new PrinterWatchRegistry());
             Extensions = new ExtensionsService(access, fixture.Link);
             Dashboards = new DashboardsService(context, access);

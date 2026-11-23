@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using OctaGrid.Application.Services;
+using OctaGrid.Application.Identity;
 using OctaGrid.Client.Contracts;
 using OctaGrid.Protocol;
 
@@ -54,7 +54,7 @@ internal sealed class LocalCalls
 
     private async Task<UserResponse> GetOrCreateUserAsync(IServiceProvider scoped, CancellationToken cancellationToken)
     {
-        var user = await scoped.GetRequiredService<UsersService>().GetOrCreate(cancellationToken);
+        var user = await scoped.GetRequiredService<UserProvisioning>().EnsureUserAsync(LocalUser.Identity, cancellationToken);
         _currentUser.SetCurrentUserId(user.Id);
         return user;
     }

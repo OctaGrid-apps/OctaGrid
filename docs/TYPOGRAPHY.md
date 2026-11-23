@@ -34,7 +34,7 @@ Colour: `Brush.TextSecondary` (defined for both Light and Dark themes).
 |---|---|---|---|
 | `display` | 28 / 36 | SemiBold | one large readout, e.g. print progress "64%" |
 | `title` | 24 / 32 | SemiBold | page title (Printers, Agents, Workspaces) |
-| `heading` | 20 / 28 | SemiBold | window or form heading (sign in, choose mode) |
+| `heading` | 20 / 28 | SemiBold | window or form heading (choose mode) |
 | `subtitle` | 18 / 24 | SemiBold | card title (printer name) |
 | `lead` | 16 / 24 | SemiBold | emphasised text inside a card or dialog (dialog titles use the same tokens) |
 | `body` | 14 / 20 | Regular | normal reading text (this is already the default) |
@@ -90,9 +90,8 @@ A temperature tile:
 | Temperature value | 15 bold | `metric` (16, SemiBold) |
 | Temperature target | 12 | `small secondary` |
 | File name / footer | 12 | `caption` (+ `mono` for the file name) |
-| Sign in / sign up heading | 20 | `heading` |
 | Overlay dialog title | 16 Bold | 16 SemiBold via `Font.Size.Lead` / `Font.Weight.SemiBold` |
-| Form field labels (sign in) | default | `small secondary` |
+| Form field labels | default | `small secondary` |
 
 Bold (700) is no longer used anywhere: SemiBold replaces it.
 

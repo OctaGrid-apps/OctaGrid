@@ -1,4 +1,3 @@
-using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Data.Models;
 
@@ -15,7 +14,7 @@ public sealed class Dashboard : Entity
 
     public string Name { get; private set; } = string.Empty;
     public Guid WorkspaceId { get; private set; }
-    public DashboardType Type { get; private set; }
+    public DashboardKind Type { get; private set; }
 
     /// <summary>Whether this is the dashboard the workspace opens with. Set only by <see cref="Workspace"/>.</summary>
     public bool IsDefault { get; internal set; }
@@ -23,7 +22,7 @@ public sealed class Dashboard : Entity
     public ICollection<DashboardWidget> Widgets { get; private set; } = [];
 
     // The id is set here, not on save: several new dashboards can be tracked at once only with ids of their own.
-    internal static Dashboard Create(Guid workspaceId, string name, DashboardType type, bool isDefault) => new()
+    internal static Dashboard Create(Guid workspaceId, string name, DashboardKind type, bool isDefault) => new()
     {
         Id = Guid.CreateVersion7(),
         WorkspaceId = workspaceId,

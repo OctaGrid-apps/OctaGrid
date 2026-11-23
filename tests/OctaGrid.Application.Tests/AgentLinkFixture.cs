@@ -32,7 +32,7 @@ internal sealed class AgentLinkFixture : IDisposable
         using var context = NewContext();
         context.Database.EnsureCreated();
 
-        context.Users.Add(new User { Id = UserId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
+        context.Users.Add(TestData.User(UserId, "Test", "test@example.com"));
         context.Workspaces.Add(TestData.Workspace(WorkspaceId, "Test workspace", UserId));
         context.Agents.Add(new Agent { Id = AgentId, Name = "Agent", WorkspaceId = WorkspaceId });
         context.SaveChanges();
@@ -50,7 +50,7 @@ internal sealed class AgentLinkFixture : IDisposable
     public Guid AddMember(Role role)
     {
         using var context = NewContext();
-        var user = new User { Id = Guid.NewGuid(), Name = role.ToString(), Email = $"{Guid.NewGuid():N}@example.com", PasswordHash = "x" };
+        var user = TestData.User(Guid.NewGuid(), role.ToString(), $"{Guid.NewGuid():N}@example.com");
         context.Users.Add(user);
         context.SaveChanges();
         TestData.AddMember(context, WorkspaceId, user.Id, role);
@@ -71,7 +71,7 @@ internal sealed class AgentLinkFixture : IDisposable
     public Guid AddForeignAgent()
     {
         using var context = NewContext();
-        var owner = new User { Id = Guid.NewGuid(), Name = "Someone else", Email = $"{Guid.NewGuid():N}@example.com", PasswordHash = "x" };
+        var owner = TestData.User(Guid.NewGuid(), "Someone else", $"{Guid.NewGuid():N}@example.com");
         var workspace = TestData.Workspace(Guid.NewGuid(), "Someone else's", owner.Id);
         var agent = new Agent { Id = Guid.NewGuid(), Name = "Foreign", WorkspaceId = workspace.Id };
         context.Users.Add(owner);
@@ -102,7 +102,11 @@ internal sealed class AgentLinkFixture : IDisposable
     public OctaGridContext NewContext(IOutboxSignal? outboxSignal = null) =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options, outboxSignal);
 
-    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), _protector);
+    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), Routing(context), Secrets(context));
+
+    public PrinterSecretStore Secrets(OctaGridContext context) => new(context, _protector);
+
+    public PrinterProfiles Profiles(OctaGridContext context) => new(context, Secrets(context));
 
     public static PrinterRouting Routing(OctaGridContext context) => new(context, TestAccess.For(context));
 

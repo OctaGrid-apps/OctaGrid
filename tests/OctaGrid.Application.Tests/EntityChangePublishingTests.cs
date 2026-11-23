@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Application.Events;
+using OctaGrid.Application.Agents;
 using OctaGrid.Application.Secrets;
 using OctaGrid.Application.Services;
 using OctaGrid.Application.Telemetry;
@@ -27,6 +28,8 @@ public sealed class EntityChangePublishingTests : IAsyncDisposable
         services.AddSingleton<ISecretProtector>(new AesGcmSecretProtector(new FixedKeySource()));
         services.AddSingleton<IMessagePublisher>(_published);
         services.AddScoped<IDomainEventHandler, EntityChangePublisher>();
+        services.AddScoped<PrinterRouting>();
+        services.AddScoped<PrinterSecretStore>();
         services.AddScoped<PrintersService>();
         services.AddScoped<WorkspacesService>();
         services.AddSingleton<OutboxDispatcher>();
