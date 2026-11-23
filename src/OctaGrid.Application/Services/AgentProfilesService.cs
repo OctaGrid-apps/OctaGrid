@@ -14,11 +14,11 @@ public sealed class AgentProfilesService
 {
     private readonly IAgentLink _link;
     private readonly ILogger<AgentProfilesService> _logger;
-    private readonly PrintersService _printers;
+    private readonly PrinterProfiles _profiles;
 
-    public AgentProfilesService(PrintersService printers, IAgentLink link, ILogger<AgentProfilesService>? logger = null)
+    public AgentProfilesService(PrinterProfiles profiles, IAgentLink link, ILogger<AgentProfilesService>? logger = null)
     {
-        _printers = printers;
+        _profiles = profiles;
         _link = link;
         _logger = logger ?? NullLogger<AgentProfilesService>.Instance;
     }
@@ -29,7 +29,7 @@ public sealed class AgentProfilesService
     /// </summary>
     public async Task Push(Guid agentId, CancellationToken cancellationToken)
     {
-        var profiles = await _printers.GetPrinterProfiles(agentId, cancellationToken);
+        var profiles = await _profiles.ForAgent(agentId, cancellationToken);
 
         // Only the count: the profiles carry the printers' secrets.
         _logger.LogDebug("Sending {ProfileCount} printer profile(s) to agent {AgentId}", profiles.Count, agentId);

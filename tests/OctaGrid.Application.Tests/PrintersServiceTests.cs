@@ -47,7 +47,11 @@ public sealed class PrintersServiceTests : IDisposable
     private OctaGridContext NewContext() =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options);
 
-    private PrintersService NewService(OctaGridContext context) => new(context, TestAccess.For(context), _protector);
+    private PrintersService NewService(OctaGridContext context) => new(context, TestAccess.For(context), Routing(context), Secrets(context));
+
+    private PrinterSecretStore Secrets(OctaGridContext context) => new(context, _protector);
+
+    private PrinterProfiles Profiles(OctaGridContext context) => new(context, Secrets(context));
 
     /// <summary>The domain events saved to the outbox so far, in order.</summary>
     private List<DomainEvent> SavedEvents()
@@ -231,7 +235,7 @@ public sealed class PrintersServiceTests : IDisposable
 
         await using var context = NewContext();
         var service = NewService(context);
-        var profile = Assert.Single(await service.GetPrinterProfiles(_agentId, CancellationToken.None));
+        var profile = Assert.Single(await Profiles(context).ForAgent(_agentId, CancellationToken.None));
         Assert.Null(profile.Get("apiKey"));
         // The form must not claim a secret is saved when it can no longer be read.
         Assert.Empty((await service.GetPrinter(_userId, _workspaceId, created.Id, CancellationToken.None)).SecretKeys);
@@ -260,7 +264,7 @@ public sealed class PrintersServiceTests : IDisposable
         }
 
         await using var verify = NewContext();
-        var profiles = await NewService(verify).GetPrinterProfiles(_agentId, CancellationToken.None);
+        var profiles = await Profiles(verify).ForAgent(_agentId, CancellationToken.None);
 
         Assert.Null(profiles.Single(p => p.PrinterId == target.Id).Get("apiKey"));
         Assert.Equal("source-secret", profiles.Single(p => p.PrinterId == source.Id).Get("apiKey"));
@@ -272,11 +276,9 @@ public sealed class PrintersServiceTests : IDisposable
         var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "saved" });
 
         await using var context = NewContext();
-        var settings = await NewService(context).AddSavedSecrets(
-            _userId,
-            created.Id,
-            new Dictionary<string, string> { ["url"] = "10.0.0.9", ["apiKey"] = "" },
-            CancellationToken.None);
+        var settings = (await Secrets(context).ReadSavedAsync(created.Id, CancellationToken.None))
+            .With(new Dictionary<string, string> { ["url"] = "10.0.0.9", ["apiKey"] = "" })
+            .Values;
 
         Assert.Equal(["url"], settings.Keys);
     }
@@ -287,25 +289,13 @@ public sealed class PrintersServiceTests : IDisposable
         var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "saved", ["token"] = "saved-token" });
 
         await using var context = NewContext();
-        var settings = await NewService(context).AddSavedSecrets(
-            _userId,
-            created.Id,
-            new Dictionary<string, string> { ["url"] = "10.0.0.9", ["token"] = "typed" },
-            CancellationToken.None);
+        var settings = (await Secrets(context).ReadSavedAsync(created.Id, CancellationToken.None))
+            .With(new Dictionary<string, string> { ["url"] = "10.0.0.9", ["token"] = "typed" })
+            .Values;
 
         Assert.Equal("10.0.0.9", settings["url"]);
         Assert.Equal("saved", settings["apiKey"]);
         Assert.Equal("typed", settings["token"]);
-    }
-
-    [Fact]
-    public async Task Saved_secrets_are_not_given_to_a_user_outside_the_workspace()
-    {
-        var created = await CreatePrinter(secrets: new Dictionary<string, string> { ["apiKey"] = "saved" });
-
-        await using var context = NewContext();
-        await Assert.ThrowsAsync<AuthenticationException>(() => NewService(context).AddSavedSecrets(
-            Guid.NewGuid(), created.Id, new Dictionary<string, string>(), CancellationToken.None));
     }
 
     [Fact]
@@ -339,7 +329,7 @@ public sealed class PrintersServiceTests : IDisposable
         await CreatePrinter(enabled: false);
 
         await using var context = NewContext();
-        var profiles = await NewService(context).GetPrinterProfiles(_agentId, CancellationToken.None);
+        var profiles = await Profiles(context).ForAgent(_agentId, CancellationToken.None);
 
         var profile = Assert.Single(profiles);
         Assert.Equal(on.Id, profile.PrinterId);
@@ -357,7 +347,7 @@ public sealed class PrintersServiceTests : IDisposable
             new Dictionary<string, string> { ["apiKey"] = "secret" });
 
         await using var context = NewContext();
-        var profile = Assert.Single(await NewService(context).GetPrinterProfiles(_agentId, CancellationToken.None));
+        var profile = Assert.Single(await Profiles(context).ForAgent(_agentId, CancellationToken.None));
 
         Assert.Equal("secret", profile.Get("apiKey"));
     }
@@ -498,7 +488,7 @@ public sealed class PrintersServiceTests : IDisposable
         }
 
         await using var verify = NewContext();
-        var profile = Assert.Single(await NewService(verify).GetPrinterProfiles(_agentId, CancellationToken.None));
+        var profile = Assert.Single(await Profiles(verify).ForAgent(_agentId, CancellationToken.None));
         Assert.Equal(mine.Id, profile.PrinterId);
     }
 

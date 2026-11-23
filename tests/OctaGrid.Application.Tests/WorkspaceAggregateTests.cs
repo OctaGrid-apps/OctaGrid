@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using OctaGrid.Data;
 using OctaGrid.Data.Models;
 using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Application.Tests;
 
@@ -25,7 +24,7 @@ public sealed class WorkspaceAggregateTests : IDisposable
         var workspace = Workspace.Create("Lab", OwnerId, At);
         foreach (var name in names)
         {
-            workspace.AddDashboard(name, DashboardType.List);
+            workspace.AddDashboard(name, DashboardKind.List);
         }
 
         return workspace;
@@ -69,7 +68,7 @@ public sealed class WorkspaceAggregateTests : IDisposable
     {
         var workspace = Workspace.Create("Lab", OwnerId, At);
 
-        Assert.Throws<ValidationException>(() => workspace.AddDashboard("Odd", (DashboardType)99));
+        Assert.Throws<ValidationException>(() => workspace.AddDashboard("Odd", (DashboardKind)99));
     }
 
     [Fact]
@@ -170,7 +169,7 @@ public sealed class WorkspaceAggregateTests : IDisposable
         var workspace = Workspace.Create("Lab", OwnerId, At);
         foreach (var name in dashboards)
         {
-            workspace.AddDashboard(name, DashboardType.List);
+            workspace.AddDashboard(name, DashboardKind.List);
         }
 
         context.Workspaces.Add(workspace);

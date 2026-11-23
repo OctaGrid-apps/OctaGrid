@@ -102,7 +102,11 @@ internal sealed class AgentLinkFixture : IDisposable
     public OctaGridContext NewContext(IOutboxSignal? outboxSignal = null) =>
         new(new DbContextOptionsBuilder<OctaGridContext>().UseSqlite(_connection).Options, outboxSignal);
 
-    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), _protector);
+    public PrintersService Printers(OctaGridContext context) => new(context, TestAccess.For(context), Routing(context), Secrets(context));
+
+    public PrinterSecretStore Secrets(OctaGridContext context) => new(context, _protector);
+
+    public PrinterProfiles Profiles(OctaGridContext context) => new(context, Secrets(context));
 
     public static PrinterRouting Routing(OctaGridContext context) => new(context, TestAccess.For(context));
 

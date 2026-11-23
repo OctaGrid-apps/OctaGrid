@@ -49,6 +49,33 @@ public sealed class PrinterRouting
     }
 
     /// <summary>
+    /// The agent a new printer in the workspace gets: <paramref name="requested"/>, or else the workspace's only
+    /// agent. With several agents and none asked for, the printer starts without one. It checks no permission:
+    /// the caller authorizes the user in the workspace first. The printer checks that the agent is in its
+    /// workspace when it is assigned.
+    /// </summary>
+    /// <exception cref="NotFoundException">There is no agent <paramref name="requested"/>.</exception>
+    public async Task<Agent?> AgentForNewPrinter(Guid workspaceId, Guid? requested, CancellationToken cancellationToken)
+    {
+        if (requested is { } agentId)
+        {
+            return await _context.Agents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
+                ?? throw new NotFoundException(nameof(Agent), agentId);
+        }
+
+        var agents = await _context.Agents
+            .AsNoTracking()
+            .Where(a => a.WorkspaceId == workspaceId)
+            .OrderBy(a => a.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        return agents.Count == 1 ? agents[0] : null;
+    }
+
+    /// <summary>
     /// Returns the agent of each printer, keyed by printer id. Unlike <see cref="AgentOf"/>, it does not throw:
     /// printers that do not exist, have no agent, or lack <paramref name="permission"/> are omitted,
     /// so one inaccessible printer does not fail the whole list.

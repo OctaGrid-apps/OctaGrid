@@ -1,5 +1,6 @@
 using OctaGrid.Application.Agents;
 using OctaGrid.Application.Authorization;
+using OctaGrid.Application.Secrets;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.AgentLink.Requests;
@@ -16,14 +17,14 @@ public sealed class PrinterCommandsService
 {
     private readonly WorkspaceAccess _access;
     private readonly IAgentLink _link;
-    private readonly PrintersService _printers;
     private readonly PrinterRouting _routing;
+    private readonly PrinterSecretStore _secrets;
 
-    public PrinterCommandsService(WorkspaceAccess access, PrintersService printers, PrinterRouting routing, IAgentLink link)
+    public PrinterCommandsService(WorkspaceAccess access, PrinterRouting routing, PrinterSecretStore secrets, IAgentLink link)
     {
         _access = access;
-        _printers = printers;
         _routing = routing;
+        _secrets = secrets;
         _link = link;
     }
 
@@ -87,14 +88,20 @@ public sealed class PrinterCommandsService
         Guid? target = null;
         if (printerId is { } id)
         {
-            settings = await _printers.AddSavedSecrets(userId, id, settings, cancellationToken);
+            // Also the authorization: the saved secrets are read only once the user may manage the printer.
             target = await _routing.AssignedAgentOf(userId, id, Permission.ManagePrinters, cancellationToken);
+            settings = (await _secrets.ReadSavedAsync(id, cancellationToken)).With(settings).Values;
         }
 
         if (target is null)
         {
+            if (agentId is null)
+            {
+                await _access.Require(userId, workspaceId, Permission.ManagePrinters, cancellationToken);
+            }
+
             target = agentId
-                ?? await _printers.AgentForNewPrinter(userId, workspaceId, cancellationToken)
+                ?? (await _routing.AgentForNewPrinter(workspaceId, requested: null, cancellationToken))?.Id
                 ?? throw new ValidationException(nameof(agentId), "Choose the agent that tests the connection.");
             await _access.RequireForAgent(userId, target.Value, Permission.ManagePrinters, cancellationToken);
         }

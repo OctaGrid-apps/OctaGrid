@@ -263,8 +263,8 @@ public sealed class AgentLinkTests : IDisposable
     }
 
     private PrinterCommandsService Commands(Data.OctaGridContext context) =>
-        new(TestAccess.For(context), _fixture.Printers(context), AgentLinkFixture.Routing(context), _fixture.Link);
+        new(TestAccess.For(context), AgentLinkFixture.Routing(context), _fixture.Secrets(context), _fixture.Link);
 
     private AgentProfilesPublisher Publisher(Data.OctaGridContext context) =>
-        new(context, new AgentProfilesService(_fixture.Printers(context), _fixture.Link));
+        new(context, new AgentProfilesService(_fixture.Profiles(context), _fixture.Link));
 }

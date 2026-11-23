@@ -32,15 +32,10 @@ public sealed class DashboardsService
     {
         await _access.Require(userId, workspaceId, Permission.ManageDashboards, cancellationToken);
 
-        var results = new CreateDashboardRequestValidator().Validate(request);
-        if (!results.IsValid)
-        {
-            var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
-            throw new ValidationException(failures);
-        }
+        new CreateDashboardRequestValidator().ValidateOrThrow(request);
 
         var workspace = await LoadWorkspace(workspaceId, cancellationToken);
-        var dashboard = workspace.AddDashboard(request.Name, request.Type);
+        var dashboard = workspace.AddDashboard(request.Name, ToKind(request.Type));
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Created dashboard {DashboardId} ('{DashboardName}', type {DashboardType}) in workspace {WorkspaceId} by user {UserId}",
@@ -71,13 +66,7 @@ public sealed class DashboardsService
             ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
         await _access.Require(userId, dashboard.WorkspaceId, Permission.ManageDashboards, cancellationToken);
 
-        var validator = new UpdateDashboardRequestValidator();
-        var results = validator.Validate(request);
-        if (!results.IsValid)
-        {
-            var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
-            throw new ValidationException(failures);
-        }
+        new UpdateDashboardRequestValidator().ValidateOrThrow(request);
 
         dashboard.Rename(request.Name);
         await _context.SaveChangesAsync(cancellationToken);
@@ -136,5 +125,19 @@ public sealed class DashboardsService
     }
 
     private static DashboardResponse ToResponse(Dashboard dashboard) =>
-        new(dashboard.Id, dashboard.Name, dashboard.Type, dashboard.IsDefault, dashboard.Version);
+        new(dashboard.Id, dashboard.Name, ToType(dashboard.Type), dashboard.IsDefault, dashboard.Version);
+
+    private static DashboardKind ToKind(DashboardType type) => type switch
+    {
+        DashboardType.List => DashboardKind.List,
+        DashboardType.Layout => DashboardKind.Layout,
+        _ => throw new ValidationException(nameof(CreateDashboardRequest.Type), $"Unknown dashboard type '{type}'."),
+    };
+
+    private static DashboardType ToType(DashboardKind kind) => kind switch
+    {
+        DashboardKind.List => DashboardType.List,
+        DashboardKind.Layout => DashboardType.Layout,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "A stored dashboard kind has no wire type."),
+    };
 }

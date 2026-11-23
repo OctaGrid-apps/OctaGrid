@@ -1,6 +1,5 @@
 using OctaGrid.Data.Events;
 using OctaGrid.Extensions.Models.Exceptions;
-using OctaGrid.Protocol.Dashboards;
 
 namespace OctaGrid.Data.Models;
 
@@ -38,7 +37,7 @@ public sealed class Workspace : Entity
         // The id is set here, not on save, so the dashboard and member created with it point to it from the start.
         var workspace = new Workspace { Id = Guid.CreateVersion7(), Name = name };
         workspace.AddMember(ownerId, Role.Owner, createdAt);
-        workspace.AddDashboard(DefaultDashboardName, DashboardType.List);
+        workspace.AddDashboard(DefaultDashboardName, DashboardKind.List);
         return workspace;
     }
 
@@ -68,11 +67,11 @@ public sealed class Workspace : Entity
     }
 
     /// <summary>Adds a dashboard. The first one becomes the default. Needs the dashboards loaded.</summary>
-    public Dashboard AddDashboard(string name, DashboardType type)
+    public Dashboard AddDashboard(string name, DashboardKind type)
     {
         if (!Enum.IsDefined(type))
         {
-            throw new ValidationException(nameof(Dashboard.Type), $"Unknown dashboard type '{type}'.");
+            throw new ValidationException(nameof(Dashboard.Type), $"Unknown dashboard kind '{type}'.");
         }
 
         var dashboard = Dashboard.Create(Id, name, type, isDefault: _dashboards.Count == 0);
@@ -124,7 +123,7 @@ public sealed class Workspace : Entity
             return false;
         }
 
-        AddDashboard(DefaultDashboardName, DashboardType.List);
+        AddDashboard(DefaultDashboardName, DashboardKind.List);
         return true;
     }
 

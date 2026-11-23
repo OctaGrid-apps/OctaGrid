@@ -99,14 +99,7 @@ public sealed class AgentsService
 
     public async Task<AgentResponse> Update(Guid userId, Guid agentId, UpdateAgentRequest request, CancellationToken cancellationToken)
     {
-        var validator = new UpdateAgentRequestValidator();
-        var results = validator.Validate(request);
-
-        if (!results.IsValid)
-        {
-            var failures = results.Errors.ToDictionary(x => x.PropertyName, x => x.ErrorMessage).AsReadOnly();
-            throw new ValidationException(failures);
-        }
+        new UpdateAgentRequestValidator().ValidateOrThrow(request);
 
         var agent = await _context.Agents.Include(x => x.Status).FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Agent), agentId);

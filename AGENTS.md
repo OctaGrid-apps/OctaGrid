@@ -8,7 +8,7 @@ OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printer
 
 - **Status: pre-alpha.** Local mode only: the Avalonia client hosts an in-process agent and a SQLite database. Windows is the only shipped platform.
 - **Planned (architecture must not block it):** a separate Agent app (Windows/Linux/Docker) plus an ASP.NET Core server, client↔server over SignalR and telemetry over WebRTC; third-party connector extensions; Linux/macOS/WASM clients (WASM is Remote-mode only). **Local mode must keep working.**
-- Do not design for AI/MCP features inside the product.
+- AI/MCP features inside the product are a later step, not current work: do not build them or add hooks for them yet.
 - Use the words in [docs/GLOSSARY.md](docs/GLOSSARY.md) for what they name: a printer is never a "device", and its state is a `UniversalPrinterState` everywhere.
 
 ## Solution map and dependency rules
@@ -16,7 +16,7 @@ OctaGrid is a cross-platform dashboard for monitoring and controlling 3D printer
 ```text
 Client.Desktop ──► Client ──► Client.Contracts ──► Protocol ──► Extensions.Models
       │                              ▲
-      └────────► Client.Local ───────┘      Client.Local ──► Application ──► Data ──► Protocol
+      └────────► Client.Local ───────┘      Client.Local ──► Application ──► Data ──► Extensions.Models
                                             Client.Local ──► Data.Sqlite ──► Data
                                             Client.Local ──► Agent.Hosting ──► Agent.Core ──► Extensions.Abstractions ──► Extensions.Models
                                                                    └──► Connectors.* (built-in) ──► Extensions.Abstractions only
@@ -75,7 +75,7 @@ CI (`.github/workflows/ci.yml`) restores, builds Release and tests the solution 
 - ViewModels talk to the backend **only** through `Client.Contracts` interfaces and exchange `Protocol` DTOs. No `Window`, `Control`, `Dispatcher` or file-system access in ViewModels; use `IDialogParticipant<T>` for dialogs, `INotificationService` for toasts, injected services for everything else.
 - Every command that does I/O is async, disables itself while busy (`IsBusy`/`CanExecute`), catches `AppException` and reports it to the user, and logs unexpected exceptions. Never swallow exceptions silently.
 - Views: set `x:DataType` on views and every `DataTemplate` (compiled bindings). Code-behind only for view-only concerns (focus, animation, drag/drop). No business logic.
-- Register ViewModels as transient and long-lived services as singletons in the composition root (`App.axaml.cs`, `Client.Local/DependencyInjection.cs`, `Program.cs`).
+- Register ViewModels as transient and long-lived services as singletons in the composition root (`App.axaml.cs`, `Client.Local/DependencyInjection.cs`, `Program.cs`). Backend services are registered once, in `AddOctaGridApplication` (`Application/DependencyInjection.cs`), which every backend host calls.
 - Styling: use the tokens and style classes in `Styles/` and follow [docs/SPACING.md](docs/SPACING.md) (4px grid, semantic `Gap.*` tokens, parent owns spacing) and [docs/TYPOGRAPHY.md](docs/TYPOGRAPHY.md). No magic numbers or hard-coded colours in views. Support light/dark and both backdrops: the single theme (`OctaGridTheme`) is translucent for Mica, and `SolidBackdrop` is layered over it when transparency effects are off or unavailable. Format XAML with `dotnet xstyler`.
 - What the user may not do is hidden, not disabled: bind `IsVisible` to `WorkspacePermissions` (`Permissions.CanControlPrint`, ...), which view models take as an optional constructor parameter and expose as `Permissions`. Never test a role name in the client; the backend check is the one that counts.
 - Every user-visible async state needs loading, empty and error presentation. Keep controls usable by keyboard and screen reader (`AutomationProperties.Name` on icon-only buttons).
