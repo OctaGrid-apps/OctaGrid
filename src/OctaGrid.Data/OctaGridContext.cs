@@ -18,6 +18,7 @@ public class OctaGridContext : DbContext
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<Dashboard> Dashboards => Set<Dashboard>();
     public DbSet<DashboardWidget> DashboardWidgets => Set<DashboardWidget>();
+    public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
     public DbSet<Printer> Printers => Set<Printer>();

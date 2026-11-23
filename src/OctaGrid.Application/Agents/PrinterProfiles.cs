@@ -6,9 +6,8 @@ using OctaGrid.Extensions.Models;
 namespace OctaGrid.Application.Agents;
 
 /// <summary>
-/// The printers an agent has to connect to (its enabled ones), with their settings and decrypted secrets. This is
-/// what the backend pushes to the agent, by itself and for no user, so it is kept apart from the services a client
-/// calls: its result must never reach a client.
+/// The enabled printers of an agent, with their settings and decrypted secrets, as pushed to the agent.
+/// Backend-only: checks no user, and its result must never reach a client.
 /// </summary>
 public sealed class PrinterProfiles
 {

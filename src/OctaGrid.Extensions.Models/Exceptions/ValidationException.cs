@@ -1,6 +1,6 @@
 namespace OctaGrid.Extensions.Models.Exceptions;
 
-/// <summary>The input was rejected. Carries the messages per field, as an HTTP problem details response lists them.</summary>
+/// <summary>The input was rejected. Carries the messages per field, as problem details lists them.</summary>
 public sealed class ValidationException : AppException
 {
     /// <summary>The problem type of every validation failure.</summary>
@@ -15,7 +15,7 @@ public sealed class ValidationException : AppException
     /// <summary>The first message of each field that failed, keyed by field name.</summary>
     public IReadOnlyDictionary<string, string> Errors { get; }
 
-    /// <summary>Every message of each field that failed, keyed by field name. A field has at least one.</summary>
+    /// <summary>Every message of each field that failed, keyed by field name.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> Failures { get; }
 
     /// <summary>One field failed with one message.</summary>

@@ -112,7 +112,6 @@ public sealed class PrinterCommandsServiceTests : IDisposable
             agentId: null,
             CancellationToken.None));
 
-        // Nothing went out, so the saved secrets were not sent anywhere.
         Assert.Empty(_fixture.Link.Sent);
     }
 

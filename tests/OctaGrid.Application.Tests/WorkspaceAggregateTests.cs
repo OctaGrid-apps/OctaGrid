@@ -165,7 +165,7 @@ public sealed class WorkspaceAggregateTests : IDisposable
         _connection.Open();
         await using var context = NewContext();
         await context.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
-        context.Users.Add(new User { Id = OwnerId, Name = "Owner", Email = "owner@example.com", PasswordHash = "x" });
+        context.Users.Add(TestData.User(OwnerId, "Owner", "owner@example.com"));
         var workspace = Workspace.Create("Lab", OwnerId, At);
         foreach (var name in dashboards)
         {

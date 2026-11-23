@@ -88,7 +88,7 @@ public sealed class PrinterCommandsService
         Guid? target = null;
         if (printerId is { } id)
         {
-            // Also the authorization: the saved secrets are read only once the user may manage the printer.
+            // Authorizes the user before the saved secrets are read.
             target = await _routing.AssignedAgentOf(userId, id, Permission.ManagePrinters, cancellationToken);
             settings = (await _secrets.ReadSavedAsync(id, cancellationToken)).With(settings).Values;
         }

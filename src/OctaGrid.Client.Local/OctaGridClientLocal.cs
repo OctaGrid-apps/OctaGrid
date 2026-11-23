@@ -8,8 +8,6 @@ using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Client.Local;
 
-// Deliberately does NOT implement IAuthClient — local mode has no login (single implicit-owner account, auto-provisioned via Me()).
-//
 // A singleton, while the application services and their DbContext are scoped: every call runs in its own scope (LocalCalls).
 internal sealed class OctaGridClientLocal : IUsersClient, IWorkspacesClient, IPrintersClient, IAgentsClient, IDashboardsClient
 {

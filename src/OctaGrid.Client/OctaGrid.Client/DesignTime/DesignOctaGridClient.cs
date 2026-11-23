@@ -3,7 +3,6 @@ using OctaGrid.Protocol;
 using OctaGrid.Protocol.Agents;
 using OctaGrid.Protocol.Dashboards;
 using OctaGrid.Protocol.Printers;
-using OctaGrid.Protocol.Users;
 using OctaGrid.Protocol.Workspaces;
 
 namespace OctaGrid.Client.DesignTime;
@@ -12,7 +11,7 @@ namespace OctaGrid.Client.DesignTime;
 /// One in-memory client that backs every client interface with sample data.
 /// Used by the XAML designer (through <see cref="DesignData"/>) and by tests; never by the running app.
 /// </summary>
-internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IPrintersClient, IAgentsClient, IAuthClient, IDashboardsClient
+internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IPrintersClient, IAgentsClient, IDashboardsClient
 {
     public static readonly Guid DefaultDashboardId = Guid.Parse("00000000-0000-0000-0000-000000000002");
     public static readonly Guid DefaultWorkspaceId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -35,9 +34,6 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
 
     public Task<PrinterResponse> CreatePrinter(Guid workspaceId, CreatePrinterRequest request, CancellationToken cancellationToken) =>
         Task.FromResult(new PrinterResponse(Guid.NewGuid(), request.Name, request.ConnectorId, request.Settings, [.. request.Secrets.Keys], request.Enabled, 1));
-
-    public Task CreateUser(CreateUserRequest request, CancellationToken cancellationToken) =>
-        Task.CompletedTask;
 
     public Task<WorkspaceResponse> CreateWorkspace(string name, CancellationToken cancellationToken) =>
         Task.FromResult(new WorkspaceResponse(DefaultWorkspaceId, name, 1));
@@ -79,9 +75,6 @@ internal sealed class DesignOctaGridClient : IUsersClient, IWorkspacesClient, IP
         Task.FromResult(new UserResponse(Guid.NewGuid(), "Design User", "design@octagrid.local"));
 
     public Task SetPrinterEnabled(Guid printerId, bool state, CancellationToken cancellationToken) =>
-        Task.CompletedTask;
-
-    public Task SignIn(SignInRequest request, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public Task<AgentResponse> UpdateAgent(Guid agentId, string name, CancellationToken cancellationToken) =>

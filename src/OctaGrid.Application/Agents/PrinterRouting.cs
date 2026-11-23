@@ -49,10 +49,8 @@ public sealed class PrinterRouting
     }
 
     /// <summary>
-    /// The agent a new printer in the workspace gets: <paramref name="requested"/>, or else the workspace's only
-    /// agent. With several agents and none asked for, the printer starts without one. It checks no permission:
-    /// the caller authorizes the user in the workspace first. The printer checks that the agent is in its
-    /// workspace when it is assigned.
+    /// The agent a new printer gets: <paramref name="requested"/>, or else the workspace's only agent,
+    /// or null when it has several. Checks no permission; the caller authorizes the user first.
     /// </summary>
     /// <exception cref="NotFoundException">There is no agent <paramref name="requested"/>.</exception>
     public async Task<Agent?> AgentForNewPrinter(Guid workspaceId, Guid? requested, CancellationToken cancellationToken)

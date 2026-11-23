@@ -9,17 +9,11 @@ internal sealed class UserConfiguration : EntityConfiguration<User>
     {
         builder.Property(u => u.Name)
             .IsRequired()
-            .HasMaxLength(100);
+            .HasMaxLength(User.MaxNameLength);
 
+        // Not unique: two providers may report the same address.
         builder.Property(u => u.Email)
             .IsRequired()
-            .HasMaxLength(256);
-
-        builder.Property(u => u.PasswordHash)
-            .IsRequired()
-            .HasMaxLength(256);
-
-        builder.HasIndex(u => u.Email)
-            .IsUnique();
+            .HasMaxLength(User.MaxEmailLength);
     }
 }

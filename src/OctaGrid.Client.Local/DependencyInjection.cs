@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -78,33 +77,17 @@ public static class DependencyInjection
     {
         try
         {
-            // Local mode has a single user; the order only makes the pick deterministic.
-            var user = context.Users.OrderBy(u => u.Id).FirstOrDefault();
+            var user = context.Users.FirstOrDefault(User.WithLogin(LocalUser.Issuer, LocalUser.Subject));
             if (user is null)
             {
-                logger.LogInformation("Provisioning default local user...");
-                var hasher = provider.GetRequiredService<IPasswordHasher<User>>();
-                user = new User
-                {
-                    Name = "User",
-                    Email = "User@example.com"
-                };
-                user.PasswordHash = hasher.HashPassword(user, Guid.NewGuid().ToString("N"));
+                user = User.Create(LocalUser.Identity.Name, LocalUser.Identity.Email);
+                user.AddLogin(LocalUser.Issuer, LocalUser.Subject);
                 context.Users.Add(user);
                 context.SaveChanges();
+                logger.LogInformation("Provisioned the local user {UserId}", user.Id);
+            }
 
-                var currentUser = provider.GetService<ICurrentUserAccessor>();
-                currentUser?.SetCurrentUserId(user.Id);
-                logger.LogInformation("Default local user {UserId} provisioned successfully.", user.Id);
-            }
-            else
-            {
-                var currentUser = provider.GetService<ICurrentUserAccessor>();
-                if (currentUser?.GetCurrentUserId() == null)
-                {
-                    currentUser?.SetCurrentUserId(user.Id);
-                }
-            }
+            provider.GetService<ICurrentUserAccessor>()?.SetCurrentUserId(user.Id);
 
             EnsureLocalAgent(provider, context, user.Id, logger);
 

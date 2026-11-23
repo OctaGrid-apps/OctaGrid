@@ -7,6 +7,14 @@ namespace OctaGrid.Application.Tests;
 /// <summary>Builds entities through their factories, with the ids a test wants.</summary>
 internal static class TestData
 {
+    /// <summary>A user with no login.</summary>
+    public static User User(Guid id, string name, string email)
+    {
+        var user = Data.Models.User.Create(name, email);
+        user.Id = id;
+        return user;
+    }
+
     /// <summary>A workspace owned by <paramref name="ownerId"/>, with its default dashboard.</summary>
     public static Workspace Workspace(Guid id, string name, Guid ownerId)
     {

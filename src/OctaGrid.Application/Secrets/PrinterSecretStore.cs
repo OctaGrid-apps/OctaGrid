@@ -10,8 +10,8 @@ using OctaGrid.Extensions.Models.Exceptions;
 namespace OctaGrid.Application.Secrets;
 
 /// <summary>
-/// Encrypts and decrypts the secrets kept on a printer row. It checks no permission: callers authorize the user
-/// first, and never hand decrypted values back to a client.
+/// Encrypts and decrypts the secrets kept on a printer row. Checks no permission: callers authorize
+/// the user first and never return decrypted values to a client.
 /// </summary>
 public sealed class PrinterSecretStore
 {
@@ -33,9 +33,8 @@ public sealed class PrinterSecretStore
             : _protector.Protect(JsonSerializer.Serialize(secrets.Values), printer.Id.ToString("N")));
 
     /// <summary>
-    /// Decrypts a printer's secrets. When they cannot be read (the key was lost, or the database came from
-    /// another machine) the printer is treated as having none, so it can still be opened and the secrets
-    /// entered again; the connection then fails with the printer's own "not authorised" answer.
+    /// Decrypts a printer's secrets. Secrets that cannot be decrypted (lost key, database from another
+    /// machine) count as none, so they can be entered again.
     /// </summary>
     public PrinterSecrets Read(Guid printerId, string? protectedSecrets)
     {

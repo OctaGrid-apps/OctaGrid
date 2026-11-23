@@ -5,7 +5,9 @@ namespace OctaGrid.Application.Validation;
 
 internal static class ValidatorExtensions
 {
-    /// <summary>Throws a <see cref="ValidationException"/> with every message, per field, when the request is invalid.</summary>
+    /// <summary>
+    /// Throws a <see cref="ValidationException"/> with every message per field when the request is invalid.
+    /// </summary>
     public static void ValidateOrThrow<T>(this IValidator<T> validator, T request)
     {
         var result = validator.Validate(request);

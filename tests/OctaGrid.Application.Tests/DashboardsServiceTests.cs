@@ -21,7 +21,7 @@ public sealed class DashboardsServiceTests : IDisposable
         using var context = NewContext();
         context.Database.EnsureCreated();
 
-        context.Users.Add(new User { Id = _userId, Name = "Test", Email = "test@example.com", PasswordHash = "x" });
+        context.Users.Add(TestData.User(_userId, "Test", "test@example.com"));
         context.Workspaces.Add(TestData.Workspace(_workspaceId, "Test workspace", _userId));
         context.SaveChanges();
 

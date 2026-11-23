@@ -26,7 +26,6 @@ public sealed class CompositionTests : IDisposable
         services.AddSingleton<IDashboardsClient>(client);
         services.AddSingleton<IPrintersClient>(client);
         services.AddSingleton<IAgentsClient>(client);
-        services.AddSingleton<IAuthClient>(client);
         services.AddSingleton<IAppSettingsStore, InMemorySettingsStore>();
         services.AddSingleton<IAgentCommandsService, DesignAgentCommands>();
         services.AddSingleton<IExtensionsClient, DesignExtensionsClient>();
@@ -59,7 +58,6 @@ public sealed class CompositionTests : IDisposable
 
     [Theory]
     [InlineData(typeof(ModeSelectionViewModel))]
-    [InlineData(typeof(IdentityViewModel))]
     [InlineData(typeof(SafetyDisclaimerViewModel))]
     [InlineData(typeof(DashboardsViewModel))]
     [InlineData(typeof(PrinterListViewModel))]
