@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Headless;
 
+[assembly: AssemblyFixture(typeof(OctaGrid.Client.Tests.HeadlessUiStartup))]
+
 namespace OctaGrid.Client.Tests;
 
 /// <summary>Entry point the headless test session uses to start the real application class without a window system.</summary>
@@ -22,6 +24,18 @@ internal static class HeadlessUi
 
     /// <summary>Runs async code on the UI thread, so awaits continue there and bindings update as they do in the app.</summary>
     public static Task RunAsync(Func<Task> action) => Session.Dispatch(action, CancellationToken.None);
+}
+
+/// <summary>
+/// Starts the headless application before any test runs. Avalonia makes the first thread that uses a dispatcher the UI
+/// thread for the rest of the process, so a test that posts to <c>Dispatcher.UIThread</c> from its own thread before
+/// the session started would take it, and the session could then never set up the application.
+/// </summary>
+public sealed class HeadlessUiStartup : IAsyncLifetime
+{
+    public async ValueTask InitializeAsync() => await HeadlessUi.Run(() => { });
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 /// <summary>
