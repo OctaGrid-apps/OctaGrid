@@ -278,9 +278,11 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             return;
         }
 
+        // The cache is shared by every printer, and two printers can run jobs of the same name.
+        var key = $"{Item.Id}/job/{Item.PrintFileName}";
         try
         {
-            if (_imageCache.TryGetBytes(Item.PrintFileName, out var bytes) && bytes is not null)
+            if (_imageCache.TryGetBytes(key, out var bytes) && bytes is not null)
             {
                 Item.ThumbnailData = bytes;
             }
@@ -289,7 +291,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
                 var response = await _agentCommands.GetThumbnailAsync(Item.Id, Item.PrintFileName, CancellationToken.None);
                 if (response is not null)
                 {
-                    _imageCache.Add(Item.PrintFileName, response.Data);
+                    _imageCache.Add(key, response.Data);
                     Item.ThumbnailData = response.Data;
                 }
             }

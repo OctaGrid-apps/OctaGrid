@@ -63,7 +63,7 @@ internal static class AgentMessageSamples
     public static IReadOnlyList<AgentReply> Replies { get; } =
     [
         new AgentAck(),
-        new PrinterFilesReply([new PrintMetadata("benchy.gcode", 2048, "PLA", 0.4, 3600)]),
+        new PrinterFilesReply([new PrintMetadata("benchy.gcode", 2048, "PLA", 0.4, 3600, new DateTimeOffset(2026, 11, 6, 8, 25, 0, TimeSpan.Zero), 12.5)]),
         new PrintThumbnailReply(new PrintThumbnail("image/png", [9, 8, 7])),
         new PrinterConsoleReply(new ConsolePage([new ConsoleLine(42, At, "ok")], 42, false, StreamId)),
         new PrinterEventsReply(

@@ -12,7 +12,11 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<PrintMetadata>
 {
+    // Thumbnails asked for at once. The agent reads at most three files from a printer at a time anyway.
+    private const int ThumbnailConcurrency = 3;
+
     private readonly IAgentCommandsService _agentCommandsService;
+    private CancellationTokenSource? _thumbnails;
     private readonly Guid _printerId;
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILogger<FilePickerViewModel> _logger;
@@ -37,6 +41,22 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial ObservableCollection<PrintMetadataListItem> Files { get; set; } = [];
+
+    /// <summary>The orders the files can be listed in.</summary>
+    public IReadOnlyList<FileSortOption> SortOptions => FileSortOption.All;
+
+    /// <summary>How the files are ordered; newest first by default, as the printer's own screen lists them.</summary>
+    [ObservableProperty]
+    public partial FileSortOption SelectedSort { get; set; } = FileSortOption.All[0];
+
+    // Re-ordering keeps the items, so thumbnails already shown stay and those still loading land where they belong.
+    partial void OnSelectedSortChanged(FileSortOption value)
+    {
+        if (value is not null)
+        {
+            Files = new ObservableCollection<PrintMetadataListItem>(FileSortOption.Sort(Files, f => f.Metadata, value.Order));
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
@@ -76,6 +96,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     private void Cancel()
     {
         _logger.LogDebug("FilePicker dialog cancelled for printer {PrinterId}", _printerId);
+        StopLoadingThumbnails();
         this.ReturnResultFromOverlayDialog(null);
     }
 
@@ -87,6 +108,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
             return;
         }
         _logger.LogDebug("FilePicker dialog selected file '{FileName}' for printer {PrinterId}", SelectedItem.Metadata.FileName, _printerId);
+        StopLoadingThumbnails();
         this.ReturnResultFromOverlayDialog(SelectedItem.Metadata);
     }
 
@@ -124,19 +146,20 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     [RelayCommand(CanExecute = nameof(CanLoadData))]
     private async Task LoadData(CancellationToken cancellationToken)
     {
+        StopLoadingThumbnails();
         try
         {
             IsFilesLoading = true;
             ErrorMessage = null;
             _logger.LogDebug("Loading printer files for printer {PrinterId}", _printerId);
             var files = await _agentCommandsService.GetPrinterFilesAsync(_printerId, cancellationToken);
-            Files = new ObservableCollection<PrintMetadataListItem>(files.Select(x => new PrintMetadataListItem(x, [])));
+            Files = new ObservableCollection<PrintMetadataListItem>(
+                FileSortOption.Sort(files.Select(x => new PrintMetadataListItem(x, [])), f => f.Metadata, SelectedSort.Order));
             _logger.LogInformation("Loaded {FileCount} file(s) from printer {PrinterId}", Files.Count, _printerId);
 
-            foreach (var file in Files)
-            {
-                await TryGetThumbnail(file);
-            }
+            // The list is shown now; pictures fill in as they arrive instead of holding it back.
+            _thumbnails = new CancellationTokenSource();
+            ThumbnailsLoading = LoadThumbnailsAsync(Files.ToList(), _thumbnails.Token);
         }
         catch (OperationCanceledException)
         {
@@ -153,32 +176,81 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
     }
 
-    private async Task TryGetThumbnail(PrintMetadataListItem printMetadataListItem)
+    /// <summary>The thumbnails of the last load, finished when every one arrived, failed or was stopped.</summary>
+    internal Task ThumbnailsLoading { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Stops asking for thumbnails, when the list is closed or loaded again.</summary>
+    public void StopLoadingThumbnails()
     {
-        if (string.IsNullOrWhiteSpace(printMetadataListItem.Metadata.FileName))
+        _thumbnails?.Cancel();
+        _thumbnails?.Dispose();
+        _thumbnails = null;
+    }
+
+    // Started from the UI thread, so each picture is set there when its request returns; the gate only limits how many
+    // requests are open at once.
+    private async Task LoadThumbnailsAsync(IReadOnlyList<PrintMetadataListItem> items, CancellationToken cancellationToken)
+    {
+        using var gate = new SemaphoreSlim(ThumbnailConcurrency);
+        await Task.WhenAll(items.Select(async item =>
+        {
+            try
+            {
+                await gate.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                // Stopping ends the open requests, and one of them can hand its slot to a waiter before the waiter
+                // sees the cancellation; that waiter must not ask after all.
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    await TryGetThumbnail(item, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+    }
+
+    private async Task TryGetThumbnail(PrintMetadataListItem item, CancellationToken cancellationToken)
+    {
+        var file = item.Metadata;
+        if (string.IsNullOrWhiteSpace(file.FileName))
         {
             return;
         }
 
+        // The cache is shared by every printer, and a file can be replaced by another of the same name.
+        var key = $"{_printerId}/{file.FileName}/{file.FileSize}/{file.ModifiedAt?.UtcTicks}";
         try
         {
-            if (_imageCache.TryGetBytes(printMetadataListItem.Metadata.FileName, out var bytes) && bytes is not null)
+            if (_imageCache.TryGetBytes(key, out var bytes) && bytes is not null)
             {
-                printMetadataListItem.ThumbnailData = bytes;
+                item.ThumbnailData = bytes;
+                return;
             }
-            else
+
+            var response = await _agentCommandsService.GetThumbnailAsync(_printerId, file.FileName, cancellationToken);
+            if (response is not null)
             {
-                var response = await _agentCommandsService.GetThumbnailAsync(_printerId, printMetadataListItem.Metadata.FileName, CancellationToken.None);
-                if (response is not null)
-                {
-                    _imageCache.Add(printMetadataListItem.Metadata.FileName, response.Data);
-                    printMetadataListItem.ThumbnailData = response.Data;
-                }
+                _imageCache.Add(key, response.Data);
+                item.ThumbnailData = response.Data;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // The list was closed or loaded again; this picture is no longer wanted.
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to load thumbnail for file '{FileName}' on printer {PrinterId}", printMetadataListItem.Metadata.FileName, _printerId);
+            _logger.LogDebug(ex, "Failed to load thumbnail for file '{FileName}' on printer {PrinterId}", file.FileName, _printerId);
         }
     }
 

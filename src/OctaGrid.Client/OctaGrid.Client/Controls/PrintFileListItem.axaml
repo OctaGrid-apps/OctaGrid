@@ -3,7 +3,6 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:OctaGrid.Client.Controls"
-    xmlns:conv="using:OctaGrid.Client.Converters"
     xmlns:vm="using:OctaGrid.Client.ViewModels"
     x:DataType="vm:PrintMetadataListItem">
     <Grid
@@ -23,10 +22,10 @@
         <TextBlock
             Grid.Row="1"
             Grid.Column="1"
-            Classes="small secondary">
-            <Run Text="{Binding Metadata.MaterialType}" />
-            •<Run Text="{Binding Metadata.NozzleDiameter}" />
-            •<Run Text="{Binding Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay}" />
-        </TextBlock>
+            Classes="small secondary"
+            Text="{Binding SummaryText}"
+            TextTrimming="CharacterEllipsis"
+            ToolTip.Tip="{Binding SummaryText}" />
+
     </Grid>
 </UserControl>

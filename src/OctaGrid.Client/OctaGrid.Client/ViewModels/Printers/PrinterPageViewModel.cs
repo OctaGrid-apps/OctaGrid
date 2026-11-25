@@ -101,6 +101,7 @@ public partial class PrinterPageViewModel : ViewModelBase
         _stopped = true;
         Item.PropertyChanged -= OnItemPropertyChanged;
         Files.PropertyChanged -= OnFilesPropertyChanged;
+        Files.StopLoadingThumbnails();
         _appSettings.SettingsChanged -= OnSettingsChanged;
         PrinterEvents.Stop();
         PrinterConsole.Stop();

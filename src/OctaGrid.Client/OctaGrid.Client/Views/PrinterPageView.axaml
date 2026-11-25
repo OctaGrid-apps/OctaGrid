@@ -351,6 +351,12 @@
                                     Classes="overline"
                                     Text="FILES ON THE PRINTER" />
                                 <StackPanel Grid.Column="1" Classes="inline">
+                                    <ComboBox
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="Sort files"
+                                        ItemsSource="{Binding Files.SortOptions}"
+                                        SelectedItem="{Binding Files.SelectedSort}"
+                                        ToolTip.Tip="Sort files" />
                                     <Button
                                         AutomationProperties.Name="Upload a file"
                                         Classes="icon"

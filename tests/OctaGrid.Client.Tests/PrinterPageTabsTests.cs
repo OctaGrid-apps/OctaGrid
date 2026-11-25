@@ -77,8 +77,11 @@ public class PrinterPageTabsTests
             return Task.CompletedTask;
         }
 
+        /// <summary>Answers thumbnail requests; none of the files has one unless a test says otherwise.</summary>
+        public Func<string, CancellationToken, Task<PrintThumbnail?>>? Thumbnails { get; set; }
+
         public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-            Task.FromResult<PrintThumbnail?>(null);
+            Thumbnails?.Invoke(fileName, cancellationToken) ?? Task.FromResult<PrintThumbnail?>(null);
 
         public Task DeleteFileAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 

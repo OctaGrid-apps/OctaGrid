@@ -23,12 +23,20 @@ internal sealed class BambuReportMapper(Guid deviceId)
     private string? _subtaskName;
     private int? _totalLayers;
 
+    /// <summary>Whether the printer has an SD card, from the report's <c>sdcard</c> flag; null until a report says.</summary>
+    public bool? HasSdCard { get; private set; }
+
     /// <summary>Applies the "print" object of a report. Returns true if anything visible changed.</summary>
     public bool Apply(JsonElement print)
     {
         var t = _telemetry;
         var p = t.PrintStatus;
         var changed = false;
+
+        if (print.TryGetProperty("sdcard", out var sdCard) && sdCard.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            HasSdCard = sdCard.GetBoolean();
+        }
 
         // Any report proves the printer is reachable. gcode_state (below) refines this, but a
         // partial report may not include it, and Offline is only ever set by the client itself.

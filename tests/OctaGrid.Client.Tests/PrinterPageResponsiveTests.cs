@@ -121,7 +121,7 @@ public class PrinterPageResponsiveTests
     }
 
     [Fact]
-    public async Task A_file_row_gives_up_its_estimated_time_on_a_narrow_page()
+    public async Task A_file_row_gives_up_its_date_and_estimated_time_but_not_its_size_on_a_narrow_page()
     {
         await HeadlessUi.Run(() =>
         {
@@ -131,12 +131,15 @@ public class PrinterPageResponsiveTests
             page.FileRows.Add(new PrinterFileRowViewModel(file, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, () => true));
             Dispatcher.UIThread.RunJobs();
 
-            var estimate = view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Classes.Contains("file-estimate"));
-            Assert.True(estimate.IsEffectivelyVisible);
+            var optional = view.GetVisualDescendants().OfType<StackPanel>().Where(p => p.Classes.Contains("file-estimate")).ToList();
+            var size = view.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == "Size");
+            Assert.Equal(2, optional.Count);
+            Assert.All(optional, p => Assert.True(p.IsEffectivelyVisible));
 
             Resize(window, 500);
 
-            Assert.False(estimate.IsEffectivelyVisible);
+            Assert.All(optional, p => Assert.False(p.IsEffectivelyVisible));
+            Assert.True(size.IsEffectivelyVisible);
             window.Close();
         });
     }

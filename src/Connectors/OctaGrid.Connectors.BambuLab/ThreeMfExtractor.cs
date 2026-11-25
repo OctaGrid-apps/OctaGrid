@@ -19,20 +19,19 @@ public static class ThreeMfExtractor
     {
         var fileInfo = new FileInfo(filePath);
         using var stream = fileInfo.OpenRead();
-        var safeSize = (int)Math.Min(fileInfo.Length, int.MaxValue);
-        return ExtractFromStream(stream, fileInfo.Name, safeSize);
+        return ExtractFromStream(stream, fileInfo.Name, fileInfo.Length);
     }
 
     /// <summary>
     /// Reads a 3MF/gcode.3mf stream and extracts print metadata and the thumbnail bytes.
     /// </summary>
-    public static (PrintMetadata Metadata, byte[]? Thumbnail) ExtractFromStream(Stream stream, string fileName, int? fileSize = null, bool leaveOpen = false)
+    public static (PrintMetadata Metadata, byte[]? Thumbnail) ExtractFromStream(Stream stream, string fileName, long? fileSize = null, bool leaveOpen = false)
     {
-        var resolvedFileSize = fileSize ?? (stream.CanSeek ? (int)Math.Min(stream.Length, int.MaxValue) : 0);
+        var resolvedFileSize = fileSize ?? (stream.CanSeek ? stream.Length : 0);
 
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
 
-        var (materialType, nozzleDiameter, estimatedTimeSeconds) = ExtractSliceInfo(archive);
+        var (materialType, nozzleDiameter, estimatedTimeSeconds, filamentWeightGrams) = ExtractSliceInfo(archive);
 
         if (nozzleDiameter is null || materialType is null)
         {
@@ -48,7 +47,8 @@ public static class ThreeMfExtractor
             FileSize: resolvedFileSize,
             MaterialType: materialType,
             NozzleDiameter: nozzleDiameter,
-            EstimatedTimeSeconds: estimatedTimeSeconds
+            EstimatedTimeSeconds: estimatedTimeSeconds,
+            FilamentWeightGrams: filamentWeightGrams
         );
 
         return (metadata, thumbnail);
@@ -101,12 +101,32 @@ public static class ThreeMfExtractor
         }
     }
 
-    private static (string? Material, double? Nozzle, double? TimeSeconds) ExtractSliceInfo(ZipArchive archive)
+    /// <summary>
+    /// The filament a sliced file uses, in grams: the <c>used_g</c> of every <c>&lt;filament&gt;</c> in
+    /// <c>slice_info.config</c>, summed over materials and plates like the time prediction. Null when none is recorded.
+    /// </summary>
+    internal static double? SumFilamentWeight(XDocument sliceInfo)
+    {
+        double total = 0;
+        var found = false;
+        foreach (var filament in sliceInfo.Descendants("filament"))
+        {
+            if (TryParseDouble((string?)filament.Attribute("used_g"), out var grams))
+            {
+                total += grams;
+                found = true;
+            }
+        }
+
+        return found ? total : null;
+    }
+
+    private static (string? Material, double? Nozzle, double? TimeSeconds, double? WeightGrams) ExtractSliceInfo(ZipArchive archive)
     {
         var entry = FindEntry(archive, "Metadata/slice_info.config");
         if (entry is null)
         {
-            return (null, null, null);
+            return (null, null, null, null);
         }
 
         try
@@ -154,11 +174,11 @@ public static class ThreeMfExtractor
 
             double? nozzleDiameter = TryParseDouble(nozzleDiamStr, out var nd) ? nd : null;
 
-            return (materialType, nozzleDiameter, estimatedTimeSeconds);
+            return (materialType, nozzleDiameter, estimatedTimeSeconds, SumFilamentWeight(doc));
         }
         catch
         {
-            return (null, null, null);
+            return (null, null, null, null);
         }
     }
 
