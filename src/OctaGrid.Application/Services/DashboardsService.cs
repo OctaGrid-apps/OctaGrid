@@ -17,6 +17,9 @@ namespace OctaGrid.Application.Services;
 /// </summary>
 public sealed class DashboardsService
 {
+    private static readonly CreateDashboardRequestValidator CreateValidator = new();
+    private static readonly UpdateDashboardRequestValidator UpdateValidator = new();
+
     private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly ILogger<DashboardsService> _logger;
@@ -32,7 +35,7 @@ public sealed class DashboardsService
     {
         await _access.Require(userId, workspaceId, Permission.ManageDashboards, cancellationToken);
 
-        new CreateDashboardRequestValidator().ValidateOrThrow(request);
+        CreateValidator.ValidateOrThrow(request);
 
         var workspace = await LoadWorkspace(workspaceId, cancellationToken);
         var dashboard = workspace.AddDashboard(request.Name, ToKind(request.Type));
@@ -66,7 +69,7 @@ public sealed class DashboardsService
             ?? throw new NotFoundException(nameof(Dashboard), dashboardId);
         await _access.Require(userId, dashboard.WorkspaceId, Permission.ManageDashboards, cancellationToken);
 
-        new UpdateDashboardRequestValidator().ValidateOrThrow(request);
+        UpdateValidator.ValidateOrThrow(request);
 
         dashboard.Rename(request.Name);
         await _context.SaveChangesAsync(cancellationToken);

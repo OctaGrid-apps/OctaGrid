@@ -14,6 +14,8 @@ namespace OctaGrid.Application.Services;
 
 public sealed class AgentsService
 {
+    private static readonly UpdateAgentRequestValidator UpdateValidator = new();
+
     private readonly WorkspaceAccess _access;
     private readonly OctaGridContext _context;
     private readonly IAgentLink _link;
@@ -99,7 +101,7 @@ public sealed class AgentsService
 
     public async Task<AgentResponse> Update(Guid userId, Guid agentId, UpdateAgentRequest request, CancellationToken cancellationToken)
     {
-        new UpdateAgentRequestValidator().ValidateOrThrow(request);
+        UpdateValidator.ValidateOrThrow(request);
 
         var agent = await _context.Agents.Include(x => x.Status).FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Agent), agentId);
