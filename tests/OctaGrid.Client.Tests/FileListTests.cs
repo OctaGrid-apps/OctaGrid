@@ -134,6 +134,61 @@ public class FileListTests
     }
 
     [Fact]
+    public async Task Closing_the_list_stops_the_thumbnails_of_every_load_that_overlapped()
+    {
+        var commands = new PrinterPageTabsTests.FakeCommands();
+        commands.Files.AddRange([File("a.3mf"), File("b.3mf")]);
+        var open = 0;
+        commands.Thumbnails = async (_, ct) =>
+        {
+            Interlocked.Increment(ref open);
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+                return null;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref open);
+            }
+        };
+        var slowFiles = new TaskCompletionSource();
+        commands.FileGates.Enqueue(slowFiles.Task);
+        var picker = Picker(commands);
+
+        // The first load waits for its files while a second one (as after a delete) finishes and starts its pictures.
+        var first = picker.LoadDataCommand.ExecuteAsync(null);
+        await picker.LoadDataCommand.ExecuteAsync(null);
+        var secondThumbnails = picker.ThumbnailsLoading;
+        slowFiles.SetResult();
+        await first;
+
+        picker.StopLoadingThumbnails();
+        // A load whose pictures were never stopped would wait forever; the timeout turns that into a failure.
+        await Task.WhenAll(secondThumbnails, picker.ThumbnailsLoading)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, Volatile.Read(ref open));
+    }
+
+    [Fact]
+    public void A_printer_that_lists_only_the_date_shows_that_day_in_every_time_zone()
+    {
+        var culture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-GB");
+            var dateOnly = new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero);
+
+            Assert.Equal("06/11/2026", PrintFileText.Date(dateOnly));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    [Fact]
     public async Task Two_printers_with_a_file_of_the_same_name_keep_their_own_thumbnails()
     {
         var cache = new ByteArrayImageCache();

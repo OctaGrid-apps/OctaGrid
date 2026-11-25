@@ -40,12 +40,18 @@ public class PrinterPageTabsTests
         public Task<IReadOnlyList<ConnectorDescriptor>> GetConnectorsAsync(Guid agentId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ConnectorDescriptor>>(ConnectorList.ToList());
 
-        public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken)
+        /// <summary>Tasks the next file requests wait for, one per request, so a test can hold a request open.</summary>
+        public Queue<Task> FileGates { get; } = new();
+
+        public async Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken)
         {
             FileRequests++;
-            return FilesFailure is { } failure
-                ? Task.FromException<IEnumerable<PrintMetadata>>(failure)
-                : Task.FromResult<IEnumerable<PrintMetadata>>(Files.ToList());
+            if (FileGates.TryDequeue(out var gate))
+            {
+                await gate;
+            }
+
+            return FilesFailure is { } failure ? throw failure : Files.ToList();
         }
 
         public int ConsoleRequests { get; private set; }

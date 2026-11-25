@@ -157,7 +157,9 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
                 FileSortOption.Sort(files.Select(x => new PrintMetadataListItem(x, [])), f => f.Metadata, SelectedSort.Order));
             _logger.LogInformation("Loaded {FileCount} file(s) from printer {PrinterId}", Files.Count, _printerId);
 
-            // The list is shown now; pictures fill in as they arrive instead of holding it back.
+            // The list is shown now; pictures fill in as they arrive instead of holding it back. Another load (after a
+            // delete) may have started its pictures while this one waited for the files, so those are stopped first.
+            StopLoadingThumbnails();
             _thumbnails = new CancellationTokenSource();
             ThumbnailsLoading = LoadThumbnailsAsync(Files.ToList(), _thumbnails.Token);
         }

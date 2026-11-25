@@ -10,19 +10,6 @@ internal sealed class BambuFileCache
 {
     private readonly Dictionary<string, Entry> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _lock = new();
-    private IReadOnlyList<string>? _listedNames;
-
-    /// <summary>The names of the last listing, or null before the first one.</summary>
-    public IReadOnlyList<string>? ListedNames
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return _listedNames;
-            }
-        }
-    }
 
     /// <summary>Finds a file read before, if it has not changed since.</summary>
     public bool TryGet(string name, long size, DateTimeOffset? modifiedAt, out Entry entry)
@@ -62,7 +49,6 @@ internal sealed class BambuFileCache
     {
         lock (_lock)
         {
-            _listedNames = names;
             var present = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
             foreach (var name in _files.Keys.Where(n => !present.Contains(n)).ToList())
             {

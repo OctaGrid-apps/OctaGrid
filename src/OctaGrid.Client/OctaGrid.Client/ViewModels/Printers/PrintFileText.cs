@@ -77,6 +77,16 @@ public static class PrintFileText
     /// <summary>
     /// The day a file was written, in the user's short date format. Only the date: some printers report no time.
     /// </summary>
-    public static string? Date(DateTimeOffset? modifiedAt) =>
-        modifiedAt?.ToLocalTime().ToString("d", CultureInfo.CurrentCulture);
+    public static string? Date(DateTimeOffset? modifiedAt)
+    {
+        if (modifiedAt is not { } at)
+        {
+            return null;
+        }
+
+        // A printer that lists only the date gives it as midnight UTC. That is a calendar day, not an instant: moving it
+        // to local time would show the day before anywhere west of UTC.
+        var day = at.Offset == TimeSpan.Zero && at.TimeOfDay == TimeSpan.Zero ? at.DateTime : at.ToLocalTime().DateTime;
+        return day.ToString("d", CultureInfo.CurrentCulture);
+    }
 }

@@ -42,7 +42,6 @@ public class BambuFileCacheTests
 
         Assert.False(cache.TryGet("a.gcode.3mf", out _));
         Assert.True(cache.TryGet("b.gcode.3mf", out _));
-        Assert.Equal(["b.gcode.3mf"], cache.ListedNames);
     }
 
     [Theory]
