@@ -52,7 +52,7 @@
                                 ContentTemplate="{TemplateBinding HeaderTemplate}"
                                 FontSize="{DynamicResource Font.Size.Lead}"
                                 FontWeight="{DynamicResource Font.Weight.SemiBold}"
-                                Foreground="{DynamicResource SystemControlBackgroundAccentBrush}"
+                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                 IsVisible="{TemplateBinding Header,
                                                             Converter={x:Static converters:ObjectConverters.IsNotNull}}" />
 

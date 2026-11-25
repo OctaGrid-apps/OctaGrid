@@ -8,6 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <!-- The runtime, not the compiler, drives async methods: no generated state machines, shorter live
+         stack traces. Runtime async does not run on WebAssembly, so a future WASM head must opt out. -->
+    <Features>$(Features);runtime-async=on</Features>
     <Product>OctaGrid</Product>
     <Company>OctaGrid</Company>
     <Authors>OctaGrid Contributors</Authors>

@@ -22,8 +22,8 @@
                     TextWrapping="Wrap" />
 
                 <Border
-                    Background="{DynamicResource SystemBaseLowColor}"
-                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                    Background="{DynamicResource TileBackground}"
+                    BorderBrush="{DynamicResource SubtleBorderBrush}"
                     BorderThickness="1"
                     Classes="tile">
                     <StackPanel Classes="card-content">

@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:OctaGrid.Client.Controls">
 
     <ControlTheme x:Key="{x:Type controls:Badge}" TargetType="controls:Badge">
-        <Setter Property="Background" Value="{DynamicResource SystemBaseMediumLowColor}" />
+        <Setter Property="Background" Value="{DynamicResource BadgeBackground}" />
         <Setter Property="Padding" Value="{DynamicResource Padding.Badge}" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />

@@ -55,8 +55,8 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ExtensionItemViewModel">
                             <Border
-                                Background="{DynamicResource SystemBaseLowColor}"
-                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                Background="{DynamicResource TileBackground}"
+                                BorderBrush="{DynamicResource SubtleBorderBrush}"
                                 BorderThickness="1"
                                 Classes="tile">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource Gap.IconLabel}">
@@ -121,8 +121,8 @@
                 </ItemsControl>
 
                 <Border
-                    Background="{DynamicResource SystemBaseLowColor}"
-                    BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                    Background="{DynamicResource TileBackground}"
+                    BorderBrush="{DynamicResource SubtleBorderBrush}"
                     BorderThickness="1"
                     Classes="tile"
                     IsVisible="{Binding CanManage}">

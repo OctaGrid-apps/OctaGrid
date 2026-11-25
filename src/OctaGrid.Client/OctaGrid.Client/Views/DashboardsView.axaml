@@ -78,7 +78,7 @@
                                     BorderThickness="0"
                                     IsChecked="{Binding IsSelected}"
                                     IsVisible="{Binding IsVisible}">
-                                    <!--  The Fluent template reads these keys for every state, so a local Background alone does not win.  -->
+                                    <!--  The Fluent2 template reads these keys for every state, so a local Background alone does not win.  -->
                                     <ToggleButton.Resources>
                                         <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
                                         <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
@@ -109,14 +109,14 @@
                                         </Style>
                                         <Style Selector="ToggleButton:pointerover Border.filter">
                                             <Setter Property="Opacity" Value="1" />
-                                            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
                                         </Style>
                                         <Style Selector="ToggleButton:pressed Border.filter">
                                             <Setter Property="Opacity" Value="0.7" />
                                         </Style>
                                         <Style Selector="ToggleButton:checked Border.filter, ToggleButton:checked:pointerover Border.filter">
                                             <Setter Property="Opacity" Value="1" />
-                                            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                                         </Style>
                                     </ToggleButton.Styles>
                                     <Border Classes="filter">

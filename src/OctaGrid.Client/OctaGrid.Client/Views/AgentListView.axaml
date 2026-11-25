@@ -56,8 +56,8 @@
                     <ItemsControl.DataTemplates>
                         <DataTemplate x:DataType="agents:AgentResponse">
                             <Border
-                                Background="{DynamicResource SystemAltMediumLowColor}"
-                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                Background="{DynamicResource CardBackground}"
+                                BorderBrush="{DynamicResource SubtleBorderBrush}"
                                 BorderThickness="1"
                                 Classes="card"
                                 CornerRadius="{DynamicResource RadiusXl}">
@@ -96,7 +96,7 @@
                                     </DockPanel>
                                     <Border
                                         Padding="0"
-                                        BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                        BorderBrush="{DynamicResource SubtleBorderBrush}"
                                         Classes="divided" />
                                     <Grid
                                         ColumnDefinitions="Auto,*"
