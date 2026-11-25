@@ -3,28 +3,15 @@ using OctaGrid.Extensions.Models;
 namespace OctaGrid.Connectors.BambuLab;
 
 /// <summary>
-/// What one session has already read from the printer's files, so a file is read over FTPS once and not again until it
-/// changes. A file is the same while its name, size and modified time are; a listing drops the files that are gone.
+/// Files a session has read over FTPS, keyed by name. An entry is valid while the file's size and
+/// modified time are unchanged; a listing drops the entries of files that are gone.
 /// </summary>
 internal sealed class BambuFileCache
 {
     private readonly Dictionary<string, Entry> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _lock = new();
-    private IReadOnlyList<string>? _listedNames;
 
-    /// <summary>The names of the last listing, or null before the first one.</summary>
-    public IReadOnlyList<string>? ListedNames
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return _listedNames;
-            }
-        }
-    }
-
-    /// <summary>Finds a file read before, if it has not changed since.</summary>
+    /// <summary>Finds a file's entry if its size and modified time match.</summary>
     public bool TryGet(string name, long size, DateTimeOffset? modifiedAt, out Entry entry)
     {
         lock (_lock)
@@ -40,7 +27,7 @@ internal sealed class BambuFileCache
         return false;
     }
 
-    /// <summary>Finds a file read before by name alone, for requests that do not know its size.</summary>
+    /// <summary>Finds a file's entry by name alone, without checking that it is current.</summary>
     public bool TryGet(string name, out Entry entry)
     {
         lock (_lock)
@@ -57,12 +44,11 @@ internal sealed class BambuFileCache
         }
     }
 
-    /// <summary>Records what a listing found and forgets the files it did not.</summary>
+    /// <summary>Drops the entries of files not in <paramref name="names"/>.</summary>
     public void SetListing(IReadOnlyList<string> names)
     {
         lock (_lock)
         {
-            _listedNames = names;
             var present = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
             foreach (var name in _files.Keys.Where(n => !present.Contains(n)).ToList())
             {
@@ -72,9 +58,10 @@ internal sealed class BambuFileCache
     }
 
     /// <summary>
-    /// Finds the file of a print job on the card. The printer reports the job by its project name ("rubber bolt"), and
-    /// Bambu Studio names the files it exports "&lt;name&gt;.gcode.3mf" or "&lt;name&gt;_&lt;material&gt;_&lt;time&gt;.gcode.3mf".
-    /// Returns null when no file or more than one could be the job's, so the card never shows another file's picture.
+    /// Finds the file of a print job on the card. The printer reports the job by its project name,
+    /// and Bambu Studio exports it as "&lt;name&gt;.gcode.3mf" or
+    /// "&lt;name&gt;_&lt;material&gt;_&lt;time&gt;.gcode.3mf".
+    /// Returns null when no file, or more than one, matches.
     /// </summary>
     public static string? ResolveJobFile(string jobName, IEnumerable<string> fileNames)
     {
@@ -102,6 +89,6 @@ internal sealed class BambuFileCache
         return prefixed.Count == 1 ? prefixed[0] : null;
     }
 
-    /// <summary>A file as it was read: its size and time when read, what it says and its picture.</summary>
+    /// <summary>A file as read: its size and modified time at the read, metadata and thumbnail.</summary>
     internal sealed record Entry(long Size, DateTimeOffset? ModifiedAt, PrintMetadata Metadata, byte[]? Thumbnail);
 }

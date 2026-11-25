@@ -23,7 +23,7 @@ internal sealed class BambuReportMapper(Guid deviceId)
     private string? _subtaskName;
     private int? _totalLayers;
 
-    /// <summary>Whether the printer has an SD card, from the report's <c>sdcard</c> flag; null until a report says.</summary>
+    /// <summary>The report's <c>sdcard</c> flag; null until a report includes it.</summary>
     public bool? HasSdCard { get; private set; }
 
     /// <summary>Applies the "print" object of a report. Returns true if anything visible changed.</summary>

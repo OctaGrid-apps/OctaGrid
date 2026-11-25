@@ -6,7 +6,7 @@ using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Client.Tests;
 
-/// <summary>The list of files on a printer: its order, what each file shows and how its thumbnails load.</summary>
+/// <summary>The printer file list: its order, the text of each file and thumbnail loading.</summary>
 public class FileListTests
 {
     private static readonly DateTimeOffset Today = new(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
@@ -131,6 +131,61 @@ public class FileListTests
         await picker.ThumbnailsLoading;
 
         Assert.Equal(3, asked.Count); // the fourth was never asked for
+    }
+
+    [Fact]
+    public async Task Closing_the_list_stops_the_thumbnails_of_every_load_that_overlapped()
+    {
+        var commands = new PrinterPageTabsTests.FakeCommands();
+        commands.Files.AddRange([File("a.3mf"), File("b.3mf")]);
+        var open = 0;
+        commands.Thumbnails = async (_, ct) =>
+        {
+            Interlocked.Increment(ref open);
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+                return null;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref open);
+            }
+        };
+        var slowFiles = new TaskCompletionSource();
+        commands.FileGates.Enqueue(slowFiles.Task);
+        var picker = Picker(commands);
+
+        // The first load waits for its files while a second one completes and starts its thumbnails.
+        var first = picker.LoadDataCommand.ExecuteAsync(null);
+        await picker.LoadDataCommand.ExecuteAsync(null);
+        var secondThumbnails = picker.ThumbnailsLoading;
+        slowFiles.SetResult();
+        await first;
+
+        picker.StopLoadingThumbnails();
+        // Thumbnails that are never stopped wait forever; the timeout fails the test instead.
+        await Task.WhenAll(secondThumbnails, picker.ThumbnailsLoading)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, Volatile.Read(ref open));
+    }
+
+    [Fact]
+    public void A_printer_that_lists_only_the_date_shows_that_day_in_every_time_zone()
+    {
+        var culture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-GB");
+            var dateOnly = new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero);
+
+            Assert.Equal("06/11/2026", PrintFileText.Date(dateOnly));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 
     [Fact]

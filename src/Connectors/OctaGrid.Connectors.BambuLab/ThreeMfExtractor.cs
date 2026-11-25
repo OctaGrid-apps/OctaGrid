@@ -102,8 +102,8 @@ public static class ThreeMfExtractor
     }
 
     /// <summary>
-    /// The filament a sliced file uses, in grams: the <c>used_g</c> of every <c>&lt;filament&gt;</c> in
-    /// <c>slice_info.config</c>, summed over materials and plates like the time prediction. Null when none is recorded.
+    /// The filament a sliced file uses, in grams: the sum of <c>used_g</c> over every
+    /// <c>&lt;filament&gt;</c> of every plate in <c>slice_info.config</c>. Null when none is recorded.
     /// </summary>
     internal static double? SumFilamentWeight(XDocument sliceInfo)
     {
