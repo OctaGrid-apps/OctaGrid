@@ -57,7 +57,7 @@
         <Border
             Grid.Row="1"
             Padding="0"
-            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
             Classes="divided"
             IsVisible="{Binding !IsFilesLoading}" />
         <ProgressBar

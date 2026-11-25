@@ -81,8 +81,8 @@
 
                         <DataTemplate DataType="models:PrinterListItem">
                             <Border
-                                Background="{DynamicResource SystemAltMediumLowColor}"
-                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                Background="{DynamicResource CardBackground}"
+                                BorderBrush="{DynamicResource SubtleBorderBrush}"
                                 BorderThickness="1"
                                 Classes="card"
                                 Classes.unavailable="{Binding !IsConnectorAvailable}">
@@ -128,7 +128,7 @@
                                         </StackPanel>
                                     </DockPanel>
 
-                                    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" Classes="divided">
                                         <Grid
                                             ColumnDefinitions="Auto,*"
                                             ColumnSpacing="{DynamicResource Gap.CardContent}"
@@ -153,7 +153,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border BorderBrush="{DynamicResource SystemBaseLowColor}" Classes="divided">
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" Classes="divided">
                                         <ToggleSwitch
                                             IsChecked="{Binding Enabled}"
                                             IsEnabled="{Binding #RootControl.((vm:PrinterListViewModel)DataContext).Permissions.CanManagePrinters}"

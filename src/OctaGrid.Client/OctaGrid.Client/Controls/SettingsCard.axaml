@@ -5,8 +5,8 @@
     xmlns:converters="using:Avalonia.Data.Converters">
 
     <ControlTheme x:Key="{x:Type controls:SettingsCard}" TargetType="controls:SettingsCard">
-        <Setter Property="Background" Value="{DynamicResource SystemAltMediumLowColor}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="{DynamicResource Padding.Card}" />
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusLg}" />
@@ -68,7 +68,7 @@
                         <Border
                             Grid.Row="1"
                             Margin="0,12,0,0"
-                            BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                            BorderBrush="{DynamicResource SubtleBorderBrush}"
                             Classes="divided"
                             IsVisible="{TemplateBinding IsRestartRequired}">
                             <StackPanel Classes="inline">
@@ -77,7 +77,7 @@
                                     Height="8"
                                     VerticalAlignment="Center"
                                     Data="{StaticResource circle-filled}"
-                                    Foreground="{DynamicResource SystemControlBackgroundAccentBrush}" />
+                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock
                                     VerticalAlignment="Center"
                                     Classes="caption secondary"
@@ -105,7 +105,7 @@
                         <Panel Grid.Row="2" IsVisible="{TemplateBinding Footer, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
                             <Border
                                 Margin="0,12,0,0"
-                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                BorderBrush="{DynamicResource SubtleBorderBrush}"
                                 Classes="divided"
                                 IsVisible="{TemplateBinding IsFooterVisible}">
                                 <ContentPresenter Content="{TemplateBinding Footer}" ContentTemplate="{TemplateBinding FooterTemplate}" />

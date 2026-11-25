@@ -4,7 +4,7 @@ Requires Spacing.axaml merged into Application.Resources.
 
 Include AFTER the theme so these setters win:
 <Application.Styles>
-<FluentTheme />
+<Fluent2Theme />
 <StyleInclude Source="avares://OctaGrid.Client/Styles/Styles.axaml" />
 </Application.Styles>
 
@@ -52,7 +52,7 @@ DynamicResource is used on purpose: swapping the token dictionary at runtime
     <Style Selector="Rectangle.card-dashed">
         <Setter Property="StrokeDashArray" Value="6,3" />
         <Setter Property="StrokeThickness" Value="1.5" />
-        <Setter Property="Stroke" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="Stroke" Value="{DynamicResource SubtleBorderBrush}" />
         <Setter Property="RadiusX" Value="16" />
         <Setter Property="RadiusY" Value="16" />
     </Style>
@@ -225,27 +225,27 @@ DynamicResource is used on purpose: swapping the token dictionary at runtime
         <Setter Property="Padding" Value="{DynamicResource Padding.Button}" />
         <Setter Property="MinHeight" Value="{DynamicResource ControlHeightMd}" />
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
     </Style>
 
     <Style Selector="Button.primary">
         <Setter Property="Padding" Value="{DynamicResource Padding.Button}" />
         <Setter Property="MinHeight" Value="{DynamicResource ControlHeightMd}" />
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
     </Style>
 
     <Style Selector="Button.small">
         <Setter Property="Padding" Value="{DynamicResource Padding.ButtonSm}" />
         <Setter Property="MinHeight" Value="{DynamicResource ControlHeightSm}" />
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
     </Style>
 
     <Style Selector="Button.icon">
         <Setter Property="Padding" Value="{DynamicResource Padding.IconButton}" />
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource SystemBaseMediumColor}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
     </Style>
 
     <!--  Sidebar entries: covers Button, ToggleButton and RadioButton (all derive from Button)  -->
@@ -257,10 +257,35 @@ DynamicResource is used on purpose: swapping the token dictionary at runtime
         <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
 
+    <!--
+        Chips. RadiusXl rather than RadiusFull: Avalonia 12.2 clips the content presenter to its rounded bounds and does
+        not clamp a 999 radius evenly, so a full radius draws an oval. The fill is overridden on the presenter because
+        Fluent2 paints a checked toggle with a solid accent there; an "off" chip is dimmed instead.
+    -->
     <Style Selector="ToggleButton.chip">
         <Setter Property="Padding" Value="{DynamicResource Padding.Chip}" />
         <Setter Property="MinHeight" Value="{DynamicResource ControlHeightSm}" />
-        <Setter Property="CornerRadius" Value="{DynamicResource RadiusFull}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusXl}" />
+    </Style>
+    <Style Selector="ToggleButton.chip /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="ToggleButton.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ChipBackgroundPointerOver}" />
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ChipBackgroundChecked}" />
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ToggleButton.chip:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ChipBackgroundCheckedPointerOver}" />
+    </Style>
+    <Style Selector="ToggleButton.chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Opacity" Value="0.4" />
     </Style>
 
     <Style Selector="TextBox.search">

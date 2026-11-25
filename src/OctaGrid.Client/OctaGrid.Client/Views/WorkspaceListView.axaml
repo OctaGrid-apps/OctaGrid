@@ -54,8 +54,8 @@
                     <ItemsControl.DataTemplates>
                         <DataTemplate x:DataType="ws:WorkspaceSummaryResponse">
                             <Border
-                                Background="{DynamicResource SystemAltMediumLowColor}"
-                                BorderBrush="{DynamicResource SystemBaseMediumColor}"
+                                Background="{DynamicResource CardBackground}"
+                                BorderBrush="{DynamicResource SubtleBorderBrush}"
                                 BorderThickness="1"
                                 Classes="card"
                                 CornerRadius="{DynamicResource RadiusXl}">
@@ -95,7 +95,7 @@
 
                                     <UniformGrid ColumnSpacing="{DynamicResource Gap.CardContent}" Rows="1">
                                         <Border
-                                            Background="{DynamicResource SystemBaseLowColor}"
+                                            Background="{DynamicResource TileBackground}"
                                             Classes="tile"
                                             ToolTip.Tip="Members">
                                             <StackPanel Classes="gap-0_5">
@@ -108,7 +108,7 @@
                                         </Border>
 
                                         <Border
-                                            Background="{DynamicResource SystemBaseLowColor}"
+                                            Background="{DynamicResource TileBackground}"
                                             Classes="tile"
                                             ToolTip.Tip="Printers">
                                             <StackPanel Classes="gap-0_5">
@@ -121,7 +121,7 @@
                                         </Border>
 
                                         <Border
-                                            Background="{DynamicResource SystemBaseLowColor}"
+                                            Background="{DynamicResource TileBackground}"
                                             Classes="tile"
                                             ToolTip.Tip="Agents">
                                             <StackPanel Classes="gap-0_5">
