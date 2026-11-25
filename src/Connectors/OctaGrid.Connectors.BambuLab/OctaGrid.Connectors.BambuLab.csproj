@@ -2,6 +2,7 @@
   <!-- Built-in connector: Bambu Lab (LAN mode, MQTT + FTPS). References only the SDK, like any third-party connector. -->
   <ItemGroup>
     <PackageReference Include="FluentFTP" />
+    <PackageReference Include="FluentFTP.BouncyCastle" />
     <PackageReference Include="MQTTnet" />
   </ItemGroup>
   <ItemGroup>
