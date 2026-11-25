@@ -64,17 +64,11 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             return [];
         }
 
-        var ftpConfig = new FtpConfig
-        {
-            EncryptionMode = FtpEncryptionMode.Implicit,
-            ValidateAnyCertificate = true,
-            DataConnectionEncryption = true,
-            SocketKeepAlive = true
-        };
-
         _logger.LogDebug("Connecting to FTPS on Bambu printer {DeviceId} ({Endpoint}) to list files", DeviceId, _url);
-        var mainFtp = new AsyncFtpClient(_url, Username, accessCode, 990, ftpConfig);
+        var mainFtp = BambuFtps.CreateClient(_url, accessCode, _logger);
         await mainFtp.Connect(cancellationToken);
+        _logger.LogDebug("FTPS connected to Bambu printer {DeviceId} with {SslProtocol} ({SslCipherSuite})",
+            DeviceId, mainFtp.SslProtocol, mainFtp.SslCipherSuite);
         var items = await mainFtp.GetListing("/", cancellationToken);
 
         var threeMfFiles = items
@@ -94,7 +88,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         var clients = new List<AsyncFtpClient>(maxConcurrency) { mainFtp };
         for (var i = 1; i < maxConcurrency; i++)
         {
-            var extraFtp = new AsyncFtpClient(_url, Username, accessCode, 990, ftpConfig);
+            var extraFtp = BambuFtps.CreateClient(_url, accessCode, _logger);
             await extraFtp.Connect(cancellationToken);
             clients.Add(extraFtp);
         }
@@ -177,13 +171,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             return null;
         }
 
-        var ftp = new AsyncFtpClient(_url, Username, accessCode, 990, new FtpConfig
-        {
-            EncryptionMode = FtpEncryptionMode.Implicit,
-            ValidateAnyCertificate = true,
-            DataConnectionEncryption = true,
-            SocketKeepAlive = true
-        });
+        var ftp = BambuFtps.CreateClient(_url, accessCode, _logger);
 
         try
         {
