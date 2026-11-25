@@ -140,6 +140,8 @@ public sealed class ConnectorCatalogTests
 
         public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();

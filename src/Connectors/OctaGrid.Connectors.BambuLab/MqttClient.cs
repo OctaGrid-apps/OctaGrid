@@ -14,7 +14,7 @@ using StorageUnavailableException = OctaGrid.Extensions.Models.Exceptions.Storag
 
 namespace OctaGrid.Connectors.BambuLab;
 
-internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage, IThumbnails
+internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage, IFileDetails, IThumbnails
 {
     private const int DefaultPort = 8883;
     private const string Username = "bblp";
@@ -37,6 +37,9 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     private volatile IMqttClient? _client;
     private long _lastPushAll;
     private volatile string? _serial;
+
+    // The files of the last listing by name, replaced as a whole on each listing.
+    private volatile IReadOnlyDictionary<string, FtpListItem> _listed = new Dictionary<string, FtpListItem>();
 
     // -1 until the first report, then 0 (no card) or 1. Written by the MQTT thread.
     private int _sdCard = -1;
@@ -88,38 +91,71 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             throw new StorageUnavailableException(NoSdCardMessage);
         }
 
+        // One folder listing. Files read before come with their details; the rest are read when the app asks for
+        // them (GetFileDetailsAsync), so the list shows at once however many files the card holds.
         var sw = Stopwatch.StartNew();
         var threeMfFiles = await ListThreeMfFilesAsync(_ftp, cancellationToken);
-
-        // Only new or changed files are read; the rest come from the cache.
-        var toRead = threeMfFiles.Where(i => !_files.TryGet(i.Name, i.Size, ModifiedAt(i), out _)).ToList();
-        await Parallel.ForEachAsync(toRead, new ParallelOptions
-        {
-            MaxDegreeOfParallelism = _ftp.MaxConnections,
-            CancellationToken = cancellationToken,
-        }, async (item, ct) =>
-        {
-            try
-            {
-                await ReadFileAsync(_ftp, item, ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // The file is still listed, with the listing's name, size and time only.
-                _logger.LogWarning(ex, "Failed to read 3MF file '{FileName}' on Bambu printer {DeviceId}", item.Name, DeviceId);
-            }
-        });
-
         var files = threeMfFiles
             .Select(i => _files.TryGet(i.Name, i.Size, ModifiedAt(i), out var entry)
                 ? entry.Metadata
-                : new PrintMetadata(i.Name, i.Size, null, null, null, ModifiedAt(i)))
+                : new PrintMetadata(i.Name, i.Size, null, null, null, ModifiedAt(i), DetailsPending: true))
             .ToList();
 
-        _logger.LogInformation("Listed {FileCount} 3MF file(s) on Bambu printer {DeviceId}, read {ReadCount}, in {ElapsedMs}ms",
-            files.Count, DeviceId, toRead.Count, sw.ElapsedMilliseconds);
+        _logger.LogInformation("Listed {FileCount} 3MF file(s) on Bambu printer {DeviceId}, {PendingCount} without details, in {ElapsedMs}ms",
+            files.Count, DeviceId, files.Count(f => f.DetailsPending), sw.ElapsedMilliseconds);
         return files;
     }
+
+    public async Task<IReadOnlyList<PrintMetadata>> GetFileDetailsAsync(IReadOnlyList<string> fileNames, CancellationToken cancellationToken)
+    {
+        if (_ftp is null || HasNoSdCard)
+        {
+            return [];
+        }
+
+        // The names come from the last listing, which has each file's size and time; a name it lacks is gone.
+        var listed = _listed;
+        var items = fileNames
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(name => listed.GetValueOrDefault(name))
+            .OfType<FtpListItem>()
+            .ToList();
+
+        var sw = Stopwatch.StartNew();
+        var read = 0;
+        var details = new PrintMetadata[items.Count];
+        await Parallel.ForEachAsync(Enumerable.Range(0, items.Count), new ParallelOptions
+        {
+            MaxDegreeOfParallelism = _ftp.MaxConnections,
+            CancellationToken = cancellationToken,
+        }, async (index, ct) =>
+        {
+            var item = items[index];
+            if (_files.TryGet(item.Name, item.Size, ModifiedAt(item), out var cached))
+            {
+                details[index] = cached.Metadata;
+                return;
+            }
+
+            try
+            {
+                details[index] = (await ReadFileAsync(_ftp, item, ct))?.Metadata ?? ListedOnly(item);
+                Interlocked.Increment(ref read);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Described with what the listing says, so the app does not ask for it again.
+                _logger.LogWarning(ex, "Failed to read 3MF file '{FileName}' on Bambu printer {DeviceId}", item.Name, DeviceId);
+                details[index] = ListedOnly(item);
+            }
+        });
+
+        _logger.LogDebug("Read {ReadCount} of {FileCount} requested 3MF file(s) on Bambu printer {DeviceId} in {ElapsedMs}ms",
+            read, items.Count, DeviceId, sw.ElapsedMilliseconds);
+        return details;
+    }
+
+    private static PrintMetadata ListedOnly(FtpListItem item) => new(item.Name, item.Size, null, null, null, ModifiedAt(item));
 
     /// <summary>
     /// The thumbnail of a .3mf file on the card, or of the print job when <paramref name="fileName"/>
@@ -194,6 +230,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
                         i.Size > 0)
             .ToList();
         _files.SetListing(files.Select(i => i.Name).ToList());
+        _listed = files.ToDictionary(i => i.Name, StringComparer.OrdinalIgnoreCase);
         return files;
     }
 
@@ -210,7 +247,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         var modifiedAt = ModifiedAt(item);
         var metadata = result?.Metadata is { } read
             ? read with { FileName = item.Name, FileSize = item.Size, ModifiedAt = modifiedAt }
-            : new PrintMetadata(item.Name, item.Size, null, null, null, modifiedAt);
+            : ListedOnly(item);
 
         // Unreadable files are cached too, so they are not read again until they change.
         var entry = new BambuFileCache.Entry(item.Size, modifiedAt, metadata, result?.Thumbnail);

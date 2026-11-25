@@ -10,6 +10,10 @@ namespace OctaGrid.Extensions.Models;
 /// <param name="FilamentWeightGrams">
 /// The slicer's estimate of the filament used, in grams, over all materials.
 /// </param>
+/// <param name="DetailsPending">
+/// The listing gave only the name, size and date: the slicer's details have not been read yet. Ask for them with
+/// <c>IFileDetails</c>; the other members are null until then.
+/// </param>
 public sealed record PrintMetadata(
     string FileName,
     long FileSize,
@@ -17,4 +21,5 @@ public sealed record PrintMetadata(
     double? NozzleDiameter,
     double? EstimatedTimeSeconds,
     DateTimeOffset? ModifiedAt = null,
-    double? FilamentWeightGrams = null);
+    double? FilamentWeightGrams = null,
+    bool DetailsPending = false);

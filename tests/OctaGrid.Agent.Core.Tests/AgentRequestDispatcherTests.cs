@@ -58,7 +58,7 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
     }
 
     /// <summary>A session that keeps what is uploaded to it and can be told to refuse commands.</summary>
-    private sealed class StoringSession : IPrinterSession, IPrintControl, IFileStorage, IConsoleInput
+    private sealed class StoringSession : IPrinterSession, IPrintControl, IFileStorage, IFileDetails, IConsoleInput
     {
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -91,6 +91,9 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
 
         public Task<IReadOnlyList<PrintMetadata>> ListFilesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PrintMetadata>>([new PrintMetadata("a.gcode", 10, null, null, null)]);
+
+        public Task<IReadOnlyList<PrintMetadata>> GetFileDetailsAsync(IReadOnlyList<string> fileNames, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PrintMetadata>>(fileNames.Select(n => new PrintMetadata(n, 10, "PLA", 0.4, 60)).ToList());
 
         public async Task UploadFileAsync(Stream content, string fileName, CancellationToken cancellationToken)
         {
@@ -204,6 +207,25 @@ public sealed class AgentRequestDispatcherTests : IAsyncDisposable
         Assert.NotNull(events.Page);
         Assert.NotNull(console.Page);
         Assert.Null(folder.Folder);
+    }
+
+    [Fact]
+    public async Task File_details_are_read_by_the_printers_connector()
+    {
+        await StartPrinterAsync();
+
+        var details = await Ask(new GetPrinterFileDetailsRequest(_printer.PrinterId, ["a.gcode", "b.gcode"]));
+
+        Assert.Equal(["a.gcode", "b.gcode"], details.Files.Select(f => f.FileName));
+        Assert.All(details.Files, f => Assert.Equal("PLA", f.MaterialType));
+    }
+
+    [Fact]
+    public async Task File_details_of_an_unknown_printer_are_none()
+    {
+        var details = await Ask(new GetPrinterFileDetailsRequest(Guid.NewGuid(), ["a.gcode"]));
+
+        Assert.Empty(details.Files);
     }
 
     [Fact]

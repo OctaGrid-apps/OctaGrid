@@ -39,6 +39,9 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) =>
         Task.FromResult<IEnumerable<PrintMetadata>>([]);
 
+    public Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<PrintMetadata>>([]);
+
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
                 Task.FromResult<PrintThumbnail?>(null);
 

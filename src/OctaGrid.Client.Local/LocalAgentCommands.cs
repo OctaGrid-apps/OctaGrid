@@ -33,6 +33,9 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, IEnumerable<PrintMetadata>>(async (printers, userId) => await printers.GetFiles(userId, printerId, cancellationToken), cancellationToken);
 
+    public Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, IReadOnlyList<PrintMetadata>>((printers, userId) => printers.GetFileDetails(userId, printerId, fileNames, cancellationToken), cancellationToken);
+
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService, PrintThumbnail?>((printers, userId) => printers.GetThumbnail(userId, printerId, fileName, cancellationToken), cancellationToken);
 

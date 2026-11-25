@@ -54,6 +54,19 @@ public class PrinterPageTabsTests
             return FilesFailure is { } failure ? throw failure : Files.ToList();
         }
 
+        /// <summary>Each request for file details, with the names it asked for, in order.</summary>
+        public List<IReadOnlyList<string>> DetailRequests { get; } = [];
+
+        /// <summary>Answers requests for file details; by default each file is described as complete.</summary>
+        public Func<IReadOnlyList<string>, CancellationToken, Task<IReadOnlyList<PrintMetadata>>>? Details { get; set; }
+
+        public Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken)
+        {
+            DetailRequests.Add(fileNames);
+            return Details?.Invoke(fileNames, cancellationToken) ?? Task.FromResult<IReadOnlyList<PrintMetadata>>(
+                Files.Where(f => fileNames.Contains(f.FileName)).Select(f => f with { DetailsPending = false, MaterialType = "PLA" }).ToList());
+        }
+
         public int ConsoleRequests { get; private set; }
 
         public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) => Task.CompletedTask;

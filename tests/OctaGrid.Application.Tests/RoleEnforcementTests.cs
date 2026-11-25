@@ -40,6 +40,7 @@ public sealed class RoleEnforcementTests : IDisposable
         ["print.resume"] = (Permission.ControlPrint, (s, u) => s.Commands.ResumePrint(u, s.PrinterId, None)),
         ["print.stop"] = (Permission.ControlPrint, (s, u) => s.Commands.StopPrint(u, s.PrinterId, None)),
         ["files.list"] = (Permission.View, (s, u) => s.Commands.GetFiles(u, s.PrinterId, None)),
+        ["files.details"] = (Permission.View, (s, u) => s.Commands.GetFileDetails(u, s.PrinterId, ["a.gcode.3mf"], None)),
         ["files.upload"] = (Permission.ManageFiles, (s, u) => s.Commands.UploadFile(u, s.PrinterId, new MemoryStream([1, 2, 3]), "a.gcode", None)),
         ["files.delete"] = (Permission.ManageFiles, (s, u) => s.Commands.DeleteFile(u, s.PrinterId, "a.gcode", None)),
         ["console.send"] = (Permission.SendCommands, (s, u) => s.Commands.SendConsoleCommand(u, s.PrinterId, "M105", None)),
