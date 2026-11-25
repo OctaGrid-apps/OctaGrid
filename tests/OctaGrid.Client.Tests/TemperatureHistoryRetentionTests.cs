@@ -38,47 +38,45 @@ public class TemperatureHistoryRetentionTests
     }
 
     [Fact]
-    public void The_sample_that_comes_with_telemetry_is_recorded_without_anything_showing_the_printer()
+    public async Task The_sample_that_comes_with_telemetry_is_recorded_without_anything_showing_the_printer()
     {
         var store = new TemperatureHistoryStore();
-        var handler = new MessageHandler(store);
         var printer = Guid.NewGuid();
 
-        handler.Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, Sample(0, 24));
+        await HeadlessUi.Run(() => new MessageHandler(store).Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, Sample(0, 24)));
 
         var sample = Assert.Single(store.GetOrCreate(printer).Snapshot());
         Assert.Equal(24, Value(sample));
     }
 
     [Fact]
-    public void Telemetry_the_agent_stored_no_sample_for_adds_nothing()
+    public async Task Telemetry_the_agent_stored_no_sample_for_adds_nothing()
     {
         var store = new TemperatureHistoryStore();
-        var handler = new MessageHandler(store);
         var printer = Guid.NewGuid();
 
-        handler.Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, null);
+        await HeadlessUi.Run(() => new MessageHandler(store).Handle(new PrinterTelemetry(printer) { NozzleTemperature = 24 }, null));
 
         Assert.Empty(store.GetOrCreate(printer).Snapshot());
     }
 
     [Fact]
-    public void A_deleted_printer_takes_its_history_with_it()
+    public async Task A_deleted_printer_takes_its_history_with_it()
     {
         var store = new TemperatureHistoryStore();
         var handler = new MessageHandler(store);
         var printer = Guid.NewGuid();
-        handler.Handle(new PrinterTelemetry(printer), Sample(0, 200));
+        await HeadlessUi.Run(() => handler.Handle(new PrinterTelemetry(printer), Sample(0, 200)));
 
-        handler.Handle(new EntityChanged(EntityTypes.Printer, printer, 1, ChangeKind.Deleted, Guid.NewGuid()));
+        await HeadlessUi.Run(() => handler.Handle(new EntityChanged(EntityTypes.Printer, printer, 1, ChangeKind.Deleted, Guid.NewGuid())));
 
         Assert.Empty(store.GetOrCreate(printer).Snapshot());
     }
 
     [Fact]
-    public void A_handler_without_a_store_still_handles_telemetry()
+    public async Task A_handler_without_a_store_still_handles_telemetry()
     {
-        new MessageHandler().Handle(new PrinterTelemetry(Guid.NewGuid()), Sample(0, 200));
+        await HeadlessUi.Run(() => new MessageHandler().Handle(new PrinterTelemetry(Guid.NewGuid()), Sample(0, 200)));
     }
 
     [Fact]
