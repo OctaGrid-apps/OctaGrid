@@ -121,15 +121,14 @@ public static class TailThreeMfFtpReader
     // Fast path
     // ---------------------------------------------------------------------
 
-    private static PrintMetadata BuildMetadata(FtpListItem item, string? material, double? nozzle, double? timeSeconds) =>
+    private static PrintMetadata BuildMetadata(FtpListItem item, string? material, double? nozzle, double? timeSeconds, double? weightGrams) =>
         new(
             FileName: item.Name,
-            FileSize: ClampSize(item.Size),
+            FileSize: item.Size,
             MaterialType: material,
             NozzleDiameter: nozzle,
-            EstimatedTimeSeconds: timeSeconds);
-
-    private static int ClampSize(long size) => (int)Math.Min(size, int.MaxValue);
+            EstimatedTimeSeconds: timeSeconds,
+            FilamentWeightGrams: weightGrams);
 
     private static async Task<(PrintMetadata Metadata, byte[]? Thumbnail)?> DownloadSmallAsync(
         AsyncFtpClient ftp,
@@ -145,7 +144,7 @@ public static class TailThreeMfFtpReader
         }
 
         ms.Position = 0;
-        return ThreeMfExtractor.ExtractFromStream(ms, item.Name, ClampSize(item.Size));
+        return ThreeMfExtractor.ExtractFromStream(ms, item.Name, item.Size);
     }
 
     private static long EstimateEnd(ZipEntryRef e, long fileSize) =>
@@ -261,7 +260,7 @@ public static class TailThreeMfFtpReader
         }
 
         fs.Position = 0;
-        return ThreeMfExtractor.ExtractFromStream(fs, item.Name, ClampSize(item.Size));
+        return ThreeMfExtractor.ExtractFromStream(fs, item.Name, item.Size);
     }
 
     private static bool IsReadable(ZipEntryRef e, out string? reason)
@@ -320,7 +319,7 @@ public static class TailThreeMfFtpReader
     // ---------------------------------------------------------------------
     // Metadata
     // ---------------------------------------------------------------------
-    private static (string? Mat, double? Nozzle, double? Time) ParseSliceInfoDoc(Stream stream)
+    private static (string? Mat, double? Nozzle, double? Time, double? Weight) ParseSliceInfoDoc(Stream stream)
     {
         try
         {
@@ -365,11 +364,11 @@ public static class TailThreeMfFtpReader
 
             var material = filamentTypes.Count > 0 ? string.Join(", ", filamentTypes) : null;
 
-            return (material, nozzle, hasPrediction ? totalPrediction : null);
+            return (material, nozzle, hasPrediction ? totalPrediction : null, ThreeMfExtractor.SumFilamentWeight(doc));
         }
         catch (XmlException)
         {
-            return (null, null, null);
+            return (null, null, null, null);
         }
     }
 
@@ -550,11 +549,12 @@ public static class TailThreeMfFtpReader
         string? material = null;
         double? nozzle = null;
         double? time = null;
+        double? weight = null;
 
         if (hasSlice && payloads.TryGetValue(sliceEntry.Name, out var sliceData))
         {
             using var ms = new MemoryStream(sliceData, writable: false);
-            (material, nozzle, time) = ParseSliceInfoDoc(ms);
+            (material, nozzle, time, weight) = ParseSliceInfoDoc(ms);
         }
 
         byte[]? thumbnail = null;
@@ -563,7 +563,7 @@ public static class TailThreeMfFtpReader
             payloads.TryGetValue(t.Name, out thumbnail);
         }
 
-        return (BuildMetadata(item, material, nozzle, time), thumbnail);
+        return (BuildMetadata(item, material, nozzle, time, weight), thumbnail);
     }
 
     private static bool TryFindEocd(byte[] tail, out long cdOffset, out long cdSize)

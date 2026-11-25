@@ -11,7 +11,7 @@ public class HeadlessUiTests
     [Fact]
     public async Task The_headless_application_keeps_the_ui_thread_when_a_test_posts_to_it_from_another_thread()
     {
-        await Task.Run(() => Dispatcher.UIThread.Post(() => { }));
+        await Task.Run(() => Dispatcher.UIThread.Post(() => { }), TestContext.Current.CancellationToken);
 
         var ready = await HeadlessUi.Run(() => Dispatcher.UIThread.CheckAccess() && Application.Current is App);
 

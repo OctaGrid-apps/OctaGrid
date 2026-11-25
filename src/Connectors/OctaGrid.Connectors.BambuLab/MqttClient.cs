@@ -10,6 +10,7 @@ using MQTTnet.Formatter;
 using MQTTnet.Protocol;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
+using StorageUnavailableException = OctaGrid.Extensions.Models.Exceptions.StorageUnavailableException;
 
 namespace OctaGrid.Connectors.BambuLab;
 
@@ -24,7 +25,12 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan PushAllMinInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    private const string NoSdCardMessage =
+        "This printer has no SD card. Files in its internal storage can only be started from the printer's screen.";
+
     private readonly MqttClientFactory _factory = new();
+    private readonly BambuFileCache _files = new();
+    private readonly BambuFtpPool? _ftp;
     private readonly ILogger<MqttClient> _logger;
     private readonly PrinterProfile _profile;
     private readonly string _url;
@@ -32,182 +38,175 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     private long _lastPushAll;
     private volatile string? _serial;
 
+    // -1 until a report says, then 0 (no card) or 1. Read by file requests, written by the MQTT thread.
+    private int _sdCard = -1;
+
     public MqttClient(PrinterProfile profile, ILogger<MqttClient>? logger = null)
     {
         _profile = profile;
         _url = profile.Get("url") ?? string.Empty;
         _logger = logger ?? NullLogger<MqttClient>.Instance;
+
+        // The profile does not change during a session (a change starts a new one), so neither does the access code.
+        if (profile.Settings.TryGetValue("apiKey", out var accessCode) && !string.IsNullOrEmpty(accessCode))
+        {
+            _ftp = new BambuFtpPool(() => BambuFtps.CreateClient(_url, accessCode, _logger));
+        }
     }
 
     private Guid DeviceId => _profile.PrinterId;
+
+    private bool HasNoSdCard => Volatile.Read(ref _sdCard) == 0;
 
     public Task DeleteFileAsync(string fileName, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Each session owns and disposes its own IMqttClient, and PrinterOrchestrator awaits RunAsync
-        // before disposing the device client, so there is nothing left to release here.
+        // before disposing the device client; only the FTPS connections kept for reuse are left to close.
+        if (_ftp is not null)
+        {
+            await _ftp.DisposeAsync();
+        }
+
         GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
     }
 
-    // ── Not implemented yet: this client currently only connects and reports state ──
     public async Task<IReadOnlyList<PrintMetadata>> ListFilesAsync(CancellationToken cancellationToken)
     {
-        _profile.Settings.TryGetValue("apiKey", out var accessCode);
-        if (string.IsNullOrEmpty(accessCode))
+        if (_ftp is null)
         {
             _logger.LogWarning("Cannot list files on Bambu printer {DeviceId}: LAN access code is not configured", DeviceId);
             return [];
         }
 
-        _logger.LogDebug("Connecting to FTPS on Bambu printer {DeviceId} ({Endpoint}) to list files", DeviceId, _url);
-        var mainFtp = BambuFtps.CreateClient(_url, accessCode, _logger);
-        await mainFtp.Connect(cancellationToken);
-        _logger.LogDebug("FTPS connected to Bambu printer {DeviceId} with {SslProtocol} ({SslCipherSuite})",
-            DeviceId, mainFtp.SslProtocol, mainFtp.SslCipherSuite);
-        var items = await mainFtp.GetListing("/", cancellationToken);
+        if (HasNoSdCard)
+        {
+            throw new StorageUnavailableException(NoSdCardMessage);
+        }
 
-        var threeMfFiles = items
+        var sw = Stopwatch.StartNew();
+        var listing = await _ftp.RunAsync(ftp => ftp.GetListing("/", cancellationToken), cancellationToken);
+        var threeMfFiles = listing
             .Where(i => i.Type == FtpObjectType.File &&
                         i.Name.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase) &&
                         i.Size > 0)
             .ToList();
+        _files.SetListing(threeMfFiles.Select(i => i.Name).ToList());
 
-        if (threeMfFiles.Count == 0)
+        // Only files that are new or changed since they were last read cost a read; the rest come from the cache.
+        var toRead = threeMfFiles.Where(i => !_files.TryGet(i.Name, i.Size, ModifiedAt(i), out _)).ToList();
+        await Parallel.ForEachAsync(toRead, new ParallelOptions
         {
-            _logger.LogDebug("No .3mf files found on Bambu printer {DeviceId}", DeviceId);
-            await mainFtp.Disconnect(cancellationToken);
-            return [];
-        }
-
-        var maxConcurrency = Math.Clamp(threeMfFiles.Count, 1, 3);
-        var clients = new List<AsyncFtpClient>(maxConcurrency) { mainFtp };
-        for (var i = 1; i < maxConcurrency; i++)
-        {
-            var extraFtp = BambuFtps.CreateClient(_url, accessCode, _logger);
-            await extraFtp.Connect(cancellationToken);
-            clients.Add(extraFtp);
-        }
-
-        var clientQueue = new System.Collections.Concurrent.ConcurrentQueue<AsyncFtpClient>(clients);
-        var results = new System.Collections.Concurrent.ConcurrentBag<PrintMetadata>();
-
-        var sw = Stopwatch.StartNew();
-        var completedCount = 0;
-
-        await Parallel.ForEachAsync(threeMfFiles, new ParallelOptions
-        {
-            MaxDegreeOfParallelism = maxConcurrency,
-            CancellationToken = cancellationToken
+            MaxDegreeOfParallelism = _ftp.MaxConnections,
+            CancellationToken = cancellationToken,
         }, async (item, ct) =>
         {
-            AsyncFtpClient client;
-            while (!clientQueue.TryDequeue(out client!))
-            {
-                await Task.Yield();
-            }
-
-            var filesw = Stopwatch.StartNew();
             try
             {
-                var result = await TailThreeMfFtpReader.ExtractFromTailAsync(
-                    client,
-                    item,
-                    extractThumbnail: true,
-                    logger: _logger,
-                    cancellationToken: ct);
-
-                if (result.HasValue)
-                {
-                    results.Add(result.Value.Metadata);
-                }
+                await ReadFileAsync(_ftp, item, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Log warning and continue so one corrupted 3MF doesn't break the whole directory scan
-                _logger.LogWarning(ex, "Failed to extract metadata from 3MF file '{FileName}' on device {DeviceId}", item.Name, DeviceId);
-            }
-            finally
-            {
-                filesw.Stop();
-                var count = Interlocked.Increment(ref completedCount);
-                _logger.LogDebug("Processed 3MF file #{FileIndex} '{FileName}' ({FileSize} bytes) in {ElapsedMs}ms on device {DeviceId}",
-                    count, item.Name, item.Size, filesw.ElapsedMilliseconds, DeviceId);
-                clientQueue.Enqueue(client);
+                // One file that cannot be read must not hide the others; it is listed with what the listing says.
+                _logger.LogWarning(ex, "Failed to read 3MF file '{FileName}' on Bambu printer {DeviceId}", item.Name, DeviceId);
             }
         });
 
-        sw.Stop();
-        _logger.LogInformation("Scanned {FileCount} 3MF file(s) on Bambu printer {DeviceId} in {ElapsedMs}ms",
-            threeMfFiles.Count, DeviceId, sw.ElapsedMilliseconds);
+        var files = threeMfFiles
+            .Select(i => _files.TryGet(i.Name, i.Size, ModifiedAt(i), out var entry)
+                ? entry.Metadata
+                : new PrintMetadata(i.Name, i.Size, null, null, null, ModifiedAt(i)))
+            .ToList();
 
-        foreach (var client in clients)
-        {
-            try
-            {
-                await client.Disconnect(CancellationToken.None);
-                client.Dispose();
-            }
-            catch { }
-        }
-
-        return results.ToList();
+        _logger.LogInformation("Listed {FileCount} 3MF file(s) on Bambu printer {DeviceId}, read {ReadCount}, in {ElapsedMs}ms",
+            files.Count, DeviceId, toRead.Count, sw.ElapsedMilliseconds);
+        return files;
     }
 
+    /// <summary>
+    /// The thumbnail of a file on the card, or of the current print job when <paramref name="fileName"/> is the job's
+    /// name as the printer reports it. Files already listed are answered from the cache without touching the printer.
+    /// </summary>
     public async Task<PrintThumbnail?> GetThumbnailAsync(string fileName, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(fileName))
+        if (string.IsNullOrWhiteSpace(fileName) || _ftp is null || HasNoSdCard)
         {
             return null;
         }
-
-        _profile.Settings.TryGetValue("apiKey", out var accessCode);
-        if (string.IsNullOrEmpty(accessCode))
-        {
-            return null;
-        }
-
-        var ftp = BambuFtps.CreateClient(_url, accessCode, _logger);
 
         try
         {
-            await ftp.Connect(cancellationToken);
-            var path = "/" + fileName.TrimStart('/', '\\').Replace('\\', '/');
-            var item = await ftp.GetObjectInfo(path, token: cancellationToken);
-            if (item is null)
+            var name = fileName.TrimStart('/', '\\').Replace('\\', '/');
+            if (!name.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogDebug("3MF file '{FileName}' not found on Bambu printer {DeviceId} when fetching thumbnail", fileName, DeviceId);
-                return null;
+                var names = _files.ListedNames ?? await ListThreeMfNamesAsync(_ftp, cancellationToken);
+                var resolved = BambuFileCache.ResolveJobFile(name, names);
+                if (resolved is null)
+                {
+                    // Jobs started from internal storage or sent from Bambu Studio are not on the card.
+                    _logger.LogDebug("No file on the card of Bambu printer {DeviceId} matches print job '{JobName}'", DeviceId, name);
+                    return null;
+                }
+
+                name = resolved;
             }
 
-            var result = await TailThreeMfFtpReader.ExtractFromTailAsync(
-                ftp,
-                item,
-                extractThumbnail: true,
-                logger: _logger,
-                cancellationToken: cancellationToken);
-
-            if (result?.Thumbnail is { Length: > 0 } thumbBytes)
+            if (!_files.TryGet(name, out var entry))
             {
-                return new PrintThumbnail("image/png", thumbBytes);
+                entry = await _ftp.RunAsync(async ftp =>
+                {
+                    var item = await ftp.GetObjectInfo("/" + name, token: cancellationToken);
+                    return item is null ? null : await ReadFileAsync(ftp, item, cancellationToken);
+                }, cancellationToken);
             }
 
-            return null;
+            return entry?.Thumbnail is { Length: > 0 } thumbnail ? new PrintThumbnail("image/png", thumbnail) : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogDebug(ex, "Failed to fetch thumbnail for '{FileName}' on Bambu printer {DeviceId}", fileName, DeviceId);
             return null;
         }
-        finally
-        {
-            try { await ftp.Disconnect(CancellationToken.None); } catch { }
-            ftp.Dispose();
-        }
+    }
+
+    // FluentFTP gives no time zone; the printers' vsftpd lists times in UTC, and the H2 series only the date.
+    private static DateTimeOffset? ModifiedAt(FtpListItem item) =>
+        item.Modified == DateTime.MinValue ? null : new DateTimeOffset(DateTime.SpecifyKind(item.Modified, DateTimeKind.Utc));
+
+    private async Task<IReadOnlyList<string>> ListThreeMfNamesAsync(BambuFtpPool pool, CancellationToken cancellationToken)
+    {
+        var listing = await pool.RunAsync(ftp => ftp.GetListing("/", cancellationToken), cancellationToken);
+        var names = listing
+            .Where(i => i.Type == FtpObjectType.File && i.Name.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase))
+            .Select(i => i.Name)
+            .ToList();
+        _files.SetListing(names);
+        return names;
+    }
+
+    private Task<BambuFileCache.Entry?> ReadFileAsync(BambuFtpPool pool, FtpListItem item, CancellationToken cancellationToken) =>
+        pool.RunAsync(ftp => ReadFileAsync(ftp, item, cancellationToken), cancellationToken);
+
+    private async Task<BambuFileCache.Entry?> ReadFileAsync(AsyncFtpClient ftp, FtpListItem item, CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = await TailThreeMfFtpReader.ExtractFromTailAsync(ftp, item, extractThumbnail: true, logger: _logger, cancellationToken: cancellationToken);
+        _logger.LogDebug("Read 3MF file '{FileName}' ({FileSize} bytes) in {ElapsedMs}ms on Bambu printer {DeviceId}",
+            item.Name, item.Size, sw.ElapsedMilliseconds, DeviceId);
+
+        var modifiedAt = ModifiedAt(item);
+        var metadata = result?.Metadata is { } read
+            ? read with { FileName = item.Name, FileSize = item.Size, ModifiedAt = modifiedAt }
+            : new PrintMetadata(item.Name, item.Size, null, null, null, modifiedAt);
+
+        // A file that is not a readable 3MF is remembered too, so it is not read again until it changes.
+        var entry = new BambuFileCache.Entry(item.Size, modifiedAt, metadata, result?.Thumbnail);
+        _files.Store(item.Name, entry);
+        return entry;
     }
 
     public Task PausePrintAsync(CancellationToken cancellationToken)
@@ -384,6 +383,11 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         }
 
         var changed = mapper.Apply(print);
+        if (mapper.HasSdCard is { } hasSdCard)
+        {
+            Volatile.Write(ref _sdCard, hasSdCard ? 1 : 0);
+        }
+
         firstReport.TrySetResult();
 
         if (changed)

@@ -96,17 +96,30 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         _logger.LogDebug("Listing files on Moonraker device {DeviceId}", DeviceId);
         var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
 
-        var filePaths = files.EnumerateArray()
-            .Select(f => f.GetProperty("path").GetString())
-            .Where(x => !string.IsNullOrWhiteSpace(x))
+        // The listing gives each file's path, size and modified time (Unix seconds); the rest comes from its metadata.
+        var listed = files.EnumerateArray()
+            .Select(f => (
+                Path: f.TryGetProperty("path", out var path) ? path.GetString() : null,
+                Size: f.TryGetDouble("size", out var size) ? (long)size : 0,
+                ModifiedAt: f.TryGetDouble("modified", out var modified)
+                    ? DateTimeOffset.FromUnixTimeMilliseconds((long)(modified * 1000))
+                    : (DateTimeOffset?)null))
+            .Where(f => !string.IsNullOrWhiteSpace(f.Path))
             .ToList();
 
-        var metadata = new List<PrintMetadata>(filePaths.Count);
+        var metadata = new List<PrintMetadata>(listed.Count);
 
-        foreach (var filePath in filePaths)
+        foreach (var file in listed)
         {
-            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, filePath!, cancellationToken, _logger).ConfigureAwait(false);
-            metadata.Add(new PrintMetadata(fileMetadata.FileName, fileMetadata.FileSize, fileMetadata.MaterialType, fileMetadata.NozzleDiameter, fileMetadata.EstimatedTimeSeconds));
+            var fileMetadata = await MoonrakerFileClient.GetFileMetadataAsync(rpc, file.Path!, cancellationToken, _logger).ConfigureAwait(false);
+            metadata.Add(new PrintMetadata(
+                file.Path!,
+                file.Size > 0 ? file.Size : fileMetadata.FileSize,
+                fileMetadata.MaterialType,
+                fileMetadata.NozzleDiameter,
+                fileMetadata.EstimatedTimeSeconds,
+                file.ModifiedAt,
+                fileMetadata.FilamentWeightGrams));
         }
 
         _logger.LogDebug("Retrieved metadata for {FileCount} file(s) on Moonraker device {DeviceId}", metadata.Count, DeviceId);

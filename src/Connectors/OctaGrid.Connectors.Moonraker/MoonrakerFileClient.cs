@@ -25,12 +25,13 @@ internal sealed class MoonrakerFileClient(string host, ILogger<MoonrakerFileClie
 
     public readonly record struct FileMetadataResult(
         string FileName,
-        int FileSize,
+        long FileSize,
         string? MaterialType,
         double? NozzleDiameter,
         double? EstimatedTimeSeconds,
         string? ThumbnailFilePath,
-        LayerMetadata Layers = default);
+        LayerMetadata Layers = default,
+        double? FilamentWeightGrams = null);
 
     public static async Task<FileMetadataResult> GetFileMetadataAsync(
         JsonRpc rpc,
@@ -63,7 +64,7 @@ internal sealed class MoonrakerFileClient(string host, ILogger<MoonrakerFileClie
             : null;
 
         var size = metadata.TryGetProperty("size", out var fileSize) && fileSize.ValueKind == JsonValueKind.Number
-            ? fileSize.GetInt32()
+            ? fileSize.GetInt64()
             : 0;
 
         var materialType = metadata.TryGetProperty("filament_type", out var filament) && filament.ValueKind == JsonValueKind.String
@@ -80,7 +81,8 @@ internal sealed class MoonrakerFileClient(string host, ILogger<MoonrakerFileClie
             metadata.TryGetDouble("layer_height", out var layerHeight) ? layerHeight : null,
             metadata.TryGetDouble("first_layer_height", out var firstLayerHeight) ? firstLayerHeight : null,
             metadata.TryGetDouble("object_height", out var objectHeight) ? objectHeight : null);
-        return new FileMetadataResult(fileName, size, materialType, nozzle_diameter, estimatedTime, thumbnailPath, layers);
+        double? filamentWeight = metadata.TryGetDouble("filament_weight_total", out var weight) ? weight : null;
+        return new FileMetadataResult(fileName, size, materialType, nozzle_diameter, estimatedTime, thumbnailPath, layers, filamentWeight);
     }
 
     public async Task<PrintThumbnail?> DownloadBestThumbnailAsync(string fileName, string thumbnailPath, CancellationToken cancellationToken)

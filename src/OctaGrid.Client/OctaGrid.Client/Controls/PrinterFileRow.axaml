@@ -13,7 +13,7 @@
         BorderBrush="{DynamicResource CardBorderBrush}"
         BorderThickness="1"
         CornerRadius="{DynamicResource RadiusMd}">
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource Gap.CardGrid}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="{DynamicResource Gap.CardGrid}">
 
             <controls:FileThumbnail
                 Width="{DynamicResource Space12}"
@@ -32,9 +32,18 @@
                     Text="{Binding DetailsText}" />
             </StackPanel>
 
-            <!--  The page hides this when it is narrow (class file-estimate), so the name keeps its room  -->
+            <!--  The page hides these when it is narrow (class file-estimate), so the name keeps its room  -->
             <StackPanel
                 Grid.Column="2"
+                MinWidth="{DynamicResource Space16}"
+                VerticalAlignment="Center"
+                Classes="file-estimate">
+                <TextBlock Classes="caption secondary" Text="Added" />
+                <TextBlock Classes="body" Text="{Binding File.DateText, FallbackValue=---, TargetNullValue=---}" />
+            </StackPanel>
+
+            <StackPanel
+                Grid.Column="3"
                 MinWidth="{DynamicResource Space16}"
                 VerticalAlignment="Center"
                 Classes="file-estimate">
@@ -42,8 +51,17 @@
                 <TextBlock Classes="body" Text="{Binding File.Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay, FallbackValue=---}" />
             </StackPanel>
 
+            <!--  Size stays when the page is narrow: it is what the user looks at to free space.  -->
+            <StackPanel
+                Grid.Column="4"
+                MinWidth="{DynamicResource Space16}"
+                VerticalAlignment="Center">
+                <TextBlock Classes="caption secondary" Text="Size" />
+                <TextBlock Classes="body" Text="{Binding File.SizeText}" />
+            </StackPanel>
+
             <Button
-                Grid.Column="3"
+                Grid.Column="5"
                 MinWidth="{DynamicResource Space16}"
                 VerticalAlignment="Center"
                 HorizontalContentAlignment="Center"
@@ -56,7 +74,7 @@
             </Button>
 
             <Button
-                Grid.Column="4"
+                Grid.Column="6"
                 VerticalAlignment="Center"
                 AutomationProperties.Name="More actions"
                 Classes="icon"
