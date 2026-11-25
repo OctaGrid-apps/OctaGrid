@@ -11,15 +11,6 @@ namespace OctaGrid.Client.Controls;
 /// </summary>
 public partial class FileThumbnail : UserControl
 {
-    public static readonly StyledProperty<byte[]?> DataProperty =
-        AvaloniaProperty.Register<FileThumbnail, byte[]?>(nameof(Data));
-
-    public static readonly DirectProperty<FileThumbnail, bool> HasImageProperty =
-        AvaloniaProperty.RegisterDirect<FileThumbnail, bool>(nameof(HasImage), o => o.HasImage);
-
-    public static readonly DirectProperty<FileThumbnail, Bitmap?> PictureProperty =
-        AvaloniaProperty.RegisterDirect<FileThumbnail, Bitmap?>(nameof(Picture), o => o.Picture);
-
     private bool _isAttached;
 
     public FileThumbnail()
@@ -28,33 +19,19 @@ public partial class FileThumbnail : UserControl
     }
 
     /// <summary>The encoded image; null or empty shows the placeholder.</summary>
-    public byte[]? Data
-    {
-        get => GetValue(DataProperty);
-        set => SetValue(DataProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial byte[]? Data { get; set; }
 
     /// <summary>True when there is a picture to show, and not the placeholder.</summary>
-    public bool HasImage
-    {
-        get;
-        private set => SetAndRaise(HasImageProperty, ref field, value);
-    }
+    [GeneratedDirectProperty]
+    public partial bool HasImage { get; private set; }
 
-    /// <summary>The decoded picture, shared by everything in the tile that shows it; null when there is none.</summary>
-    public Bitmap? Picture
-    {
-        get;
-        private set
-        {
-            var old = field;
-            if (SetAndRaise(PictureProperty, ref field, value))
-            {
-                // After the bindings moved to the new picture, so nothing shows one that is already disposed.
-                old?.Dispose();
-            }
-        }
-    }
+    /// <summary>
+    /// The decoded picture, shared by everything in the tile that shows it; null when there is none. Set it only through
+    /// <see cref="ShowPicture" />, which disposes the one it replaces.
+    /// </summary>
+    [GeneratedDirectProperty]
+    public partial Bitmap? Picture { get; private set; }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -92,7 +69,7 @@ public partial class FileThumbnail : UserControl
         try
         {
             using var stream = new MemoryStream(bytes);
-            Picture = new Bitmap(stream);
+            ShowPicture(new Bitmap(stream));
             HasImage = true;
         }
         catch (Exception)
@@ -104,7 +81,19 @@ public partial class FileThumbnail : UserControl
 
     private void Release()
     {
-        Picture = null;
+        ShowPicture(null);
         HasImage = false;
+    }
+
+    private void ShowPicture(Bitmap? picture)
+    {
+        var old = Picture;
+        Picture = picture;
+
+        // After the bindings moved to the new picture, so nothing shows one that is already disposed.
+        if (!ReferenceEquals(old, picture))
+        {
+            old?.Dispose();
+        }
     }
 }

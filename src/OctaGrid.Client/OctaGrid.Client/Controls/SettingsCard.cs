@@ -11,110 +11,47 @@ namespace OctaGrid.Client.Controls;
 /// optional description, optional leading icon, right-aligned action content,
 /// built-in restart prompt, and optional custom footer content.
 /// </summary>
-public class SettingsCard : HeaderedContentControl
+public partial class SettingsCard : HeaderedContentControl
 {
-    /// <summary>
-    /// Defines the <see cref="Description"/> property.
-    /// </summary>
-    public static readonly StyledProperty<string?> DescriptionProperty =
-        AvaloniaProperty.Register<SettingsCard, string?>(nameof(Description), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="Footer"/> property.
-    /// </summary>
-    public static readonly StyledProperty<object?> FooterProperty =
-        AvaloniaProperty.Register<SettingsCard, object?>(nameof(Footer), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="FooterTemplate"/> property.
-    /// </summary>
-    public static readonly StyledProperty<IDataTemplate?> FooterTemplateProperty =
-        AvaloniaProperty.Register<SettingsCard, IDataTemplate?>(nameof(FooterTemplate), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="Icon"/> property.
-    /// </summary>
-    public static readonly StyledProperty<StreamGeometry?> IconProperty =
-        AvaloniaProperty.Register<SettingsCard, StreamGeometry?>(nameof(Icon), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="IsFooterVisible"/> property.
-    /// </summary>
-    public static readonly StyledProperty<bool> IsFooterVisibleProperty =
-        AvaloniaProperty.Register<SettingsCard, bool>(nameof(IsFooterVisible), defaultValue: true);
-
-    /// <summary>
-    /// Defines the <see cref="IsRestartRequired"/> property.
-    /// </summary>
-    public static readonly StyledProperty<bool> IsRestartRequiredProperty =
-        AvaloniaProperty.Register<SettingsCard, bool>(nameof(IsRestartRequired), defaultValue: false);
-
-    /// <summary>
-    /// Defines the <see cref="RestartCommand"/> property.
-    /// </summary>
-    public static readonly StyledProperty<ICommand?> RestartCommandProperty =
-        AvaloniaProperty.Register<SettingsCard, ICommand?>(nameof(RestartCommand), defaultValue: null);
-
     /// <summary>
     /// Gets or sets the optional supporting description text displayed below the header.
     /// </summary>
-    public string? Description
-    {
-        get => GetValue(DescriptionProperty);
-        set => SetValue(DescriptionProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial string? Description { get; set; }
 
     /// <summary>
     /// Gets or sets optional custom footer content displayed at the bottom of the card.
     /// </summary>
-    public object? Footer
-    {
-        get => GetValue(FooterProperty);
-        set => SetValue(FooterProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial object? Footer { get; set; }
 
     /// <summary>
     /// Gets or sets the data template for <see cref="Footer"/>.
     /// </summary>
-    public IDataTemplate? FooterTemplate
-    {
-        get => GetValue(FooterTemplateProperty);
-        set => SetValue(FooterTemplateProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IDataTemplate? FooterTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the optional leading icon geometry.
     /// </summary>
-    public StreamGeometry? Icon
-    {
-        get => GetValue(IconProperty);
-        set => SetValue(IconProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial StreamGeometry? Icon { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the custom <see cref="Footer"/> section is visible.
     /// </summary>
-    public bool IsFooterVisible
-    {
-        get => GetValue(IsFooterVisibleProperty);
-        set => SetValue(IsFooterVisibleProperty, value);
-    }
+    [GeneratedStyledProperty(DefaultValue = true)]
+    public partial bool IsFooterVisible { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the built-in restart prompt banner is shown.
     /// </summary>
-    public bool IsRestartRequired
-    {
-        get => GetValue(IsRestartRequiredProperty);
-        set => SetValue(IsRestartRequiredProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial bool IsRestartRequired { get; set; }
 
     /// <summary>
     /// Gets or sets the command invoked when the user clicks the restart action in the banner.
     /// </summary>
-    public ICommand? RestartCommand
-    {
-        get => GetValue(RestartCommandProperty);
-        set => SetValue(RestartCommandProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial ICommand? RestartCommand { get; set; }
 }
