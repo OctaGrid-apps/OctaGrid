@@ -30,6 +30,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource OverlayDialogBorderBrush}" />
         <Setter Property="Background" Value="{DynamicResource OverlayDialogBackground}" />
+        <Setter Property="OverlayBrush" Value="{DynamicResource OverlayDialogScrimBrush}" />
         <Setter Property="Template">
             <ControlTemplate>
                 <controls:DialogHost

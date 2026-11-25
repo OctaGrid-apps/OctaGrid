@@ -1,4 +1,4 @@
-﻿<!--
+<!--
     OctaGrid.Client — the one application theme, built on Fluent2.
     Written for a Mica backdrop: the window is transparent and surfaces are translucent overlays
     (#05FFFFFF - #24FFFFFF) so the OS surface shows through.
@@ -32,6 +32,7 @@
                     <!--  3. OverlayDialog Surface Brushes (opaque floating surface)  -->
                     <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#1A000000" />
+                    <SolidColorBrush x:Key="OverlayDialogScrimBrush" Color="#80000000" />
 
                     <!--  4. SettingsExpander Sub-Card Surface Brush  -->
                     <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#80FFFFFF" />
@@ -69,6 +70,7 @@
                     <!--  3. OverlayDialog Surface Brushes (opaque floating surface over Mica window)  -->
                     <SolidColorBrush x:Key="OverlayDialogBackground" Color="#FF2C2C2C" />
                     <SolidColorBrush x:Key="OverlayDialogBorderBrush" Color="#24FFFFFF" />
+                    <SolidColorBrush x:Key="OverlayDialogScrimBrush" Color="#80000000" />
 
                     <!--  4. SettingsExpander Sub-Card Surface Brush  -->
                     <SolidColorBrush x:Key="SettingsExpanderItemBackground" Color="#02FFFFFF" />

@@ -10,17 +10,8 @@ namespace OctaGrid.Client.Services;
 /// Provides the infrastructure for connecting ViewModels to their corresponding UI elements
 /// using attached properties to establish the ViewModel-to-View relationship.
 /// </summary>
-public class DialogManager
+public partial class DialogManager
 {
-    /// <summary>
-    /// Attached property used to bind Views to their ViewModels.
-    /// Set this property in XAML to register the ViewModel-View relationship.
-    /// Typically bound to the ViewModel's DataContext or DataContext property.
-    /// </summary>
-    public static readonly AttachedProperty<IDialogParticipant> RegisterProperty =
-        AvaloniaProperty.RegisterAttached<DialogManager, Visual, IDialogParticipant>(
-            "Register");
-
     /// <summary>
     /// Internal weak table that maps ViewModels (IDialogParticipant) to their Visual elements.
     /// Uses ConditionalWeakTable so registrations do not keep ViewModels or Views alive when they are no longer in use.
@@ -39,15 +30,14 @@ public class DialogManager
     }
 
     /// <summary>
-    /// Gets the RegisterProperty attached property from an element.
-    /// Used internally to retrieve the associated ViewModel.
+    /// Attached property used to bind Views to their ViewModels.
+    /// Set this property in XAML to register the ViewModel-View relationship.
+    /// Typically bound to the ViewModel's DataContext or DataContext property.
     /// </summary>
     /// <param name="element">The Visual control to get the registered ViewModel from</param>
     /// <returns>The registered ViewModel or null if none is registered</returns>
-    public static IDialogParticipant GetRegister(AvaloniaObject element)
-    {
-        return element.GetValue(RegisterProperty);
-    }
+    [GeneratedAttachedProperty]
+    public static partial IDialogParticipant? GetRegister(Visual element);
 
     /// <summary>
     /// Finds the TopLevel (Window or equivalent) for a dialog participant.
@@ -99,17 +89,6 @@ public class DialogManager
         }
 
         return RegistrationMapper.TryGetValue(context, out var visual) ? visual : null;
-    }
-
-    /// <summary>
-    /// Sets the RegisterProperty attached property on an element.
-    /// Called by XAML binding engine or manually in code.
-    /// </summary>
-    /// <param name="element">The Visual control to register the ViewModel on</param>
-    /// <param name="value">The ViewModel implementing IDialogParticipant</param>
-    public static void SetRegister(AvaloniaObject element, IDialogParticipant value)
-    {
-        element.SetValue(RegisterProperty, value);
     }
 
     /// <summary>

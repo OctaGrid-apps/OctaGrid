@@ -14,69 +14,8 @@ namespace OctaGrid.Client.Controls;
 
 [TemplatePart("PART_TopListBox", typeof(ListBox))]
 [TemplatePart("PART_FooterListBox", typeof(ListBox))]
-public class NavigationRail : TemplatedControl
+public partial class NavigationRail : TemplatedControl
 {
-    public static readonly StyledProperty<IBrush?> ContentBackgroundProperty =
-            AvaloniaProperty.Register<NavigationRail, IBrush?>(nameof(ContentBackground));
-
-    public static readonly StyledProperty<Control?> CurrentPageProperty =
-            AvaloniaProperty.Register<NavigationRail, Control?>(nameof(CurrentPage));
-
-    /// <summary>
-    /// A page opened on top of <see cref="CurrentPage" />, for example a printer's page. The current page stays
-    /// alive underneath, so closing the detail brings back the page exactly as the user left it. It is cleared when an
-    /// item of the rail is chosen, including the one that is already selected.
-    /// </summary>
-    public static readonly StyledProperty<object?> DetailContentProperty =
-            AvaloniaProperty.Register<NavigationRail, object?>(
-                nameof(DetailContent),
-                defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
-
-    public static readonly DirectProperty<NavigationRail, AvaloniaList<NavigationRailItem>> FooterItemsProperty =
-            AvaloniaProperty.RegisterDirect<NavigationRail, AvaloniaList<NavigationRailItem>>(
-                nameof(FooterItems),
-                o => o.FooterItems);
-
-    /// <summary>
-    /// Attached property to set a header label directly on any Control (such as a UserControl).
-    /// </summary>
-    public static readonly AttachedProperty<object?> HeaderProperty =
-        AvaloniaProperty.RegisterAttached<NavigationRail, Control, object?>("Header");
-
-    public static readonly StyledProperty<bool> HideHeaderWhenSelectedProperty =
-            AvaloniaProperty.Register<NavigationRail, bool>(nameof(HideHeaderWhenSelected), defaultValue: false);
-
-    /// <summary>
-    /// Attached property to set an icon (StreamGeometry, Geometry, PathIcon, string path, IImage)
-    /// directly on any Page or UserControl.
-    /// </summary>
-    public static readonly AttachedProperty<object?> IconProperty =
-        AvaloniaProperty.RegisterAttached<NavigationRail, Control, object?>("Icon");
-
-    public static readonly DirectProperty<NavigationRail, AvaloniaList<NavigationRailItem>> ItemsProperty =
-        AvaloniaProperty.RegisterDirect<NavigationRail, AvaloniaList<NavigationRailItem>>(
-            nameof(Items),
-            o => o.Items);
-
-    public static readonly StyledProperty<IBrush?> PaneBackgroundProperty =
-        AvaloniaProperty.Register<NavigationRail, IBrush?>(nameof(PaneBackground));
-
-    public static readonly StyledProperty<object?> PaneHeaderProperty =
-        AvaloniaProperty.Register<NavigationRail, object?>(nameof(PaneHeader));
-
-    public static readonly StyledProperty<IDataTemplate?> PaneHeaderTemplateProperty =
-        AvaloniaProperty.Register<NavigationRail, IDataTemplate?>(nameof(PaneHeaderTemplate));
-
-    public static readonly StyledProperty<double> PaneWidthProperty =
-        AvaloniaProperty.Register<NavigationRail, double>(nameof(PaneWidth), defaultValue: 72.0);
-
-    public static readonly StyledProperty<NavigationRailItem?> SelectedItemProperty =
-        AvaloniaProperty.Register<NavigationRail, NavigationRailItem?>(nameof(SelectedItem));
-
-    private readonly AvaloniaList<NavigationRailItem> _footerItems = [];
-
-    private readonly AvaloniaList<NavigationRailItem> _items = [];
-
     private ListBox? _footerListBox;
 
     private bool _isSyncingSelection;
@@ -89,75 +28,61 @@ public class NavigationRail : TemplatedControl
         FooterItems.CollectionChanged += OnItemsChanged;
     }
 
-    public IBrush? ContentBackground
-    {
-        get => GetValue(ContentBackgroundProperty);
-        set => SetValue(ContentBackgroundProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IBrush? ContentBackground { get; set; }
 
-    public Control? CurrentPage
-    {
-        get => GetValue(CurrentPageProperty);
-        private set => SetValue(CurrentPageProperty, value);
-    }
+    /// <summary>The page of the selected item. Only the rail sets it, so it is a direct property and read-only outside.</summary>
+    [GeneratedDirectProperty]
+    public partial Control? CurrentPage { get; private set; }
 
-    public object? DetailContent
-    {
-        get => GetValue(DetailContentProperty);
-        set => SetValue(DetailContentProperty, value);
-    }
+    /// <summary>
+    /// A page opened on top of <see cref="CurrentPage" />, for example a printer's page. The current page stays
+    /// alive underneath, so closing the detail brings back the page exactly as the user left it. It is cleared when an
+    /// item of the rail is chosen, including the one that is already selected.
+    /// </summary>
+    [GeneratedStyledProperty(DefaultBindingMode = Avalonia.Data.BindingMode.TwoWay)]
+    public partial object? DetailContent { get; set; }
 
-    public AvaloniaList<NavigationRailItem> FooterItems => _footerItems;
+    [GeneratedDirectProperty]
+    public partial AvaloniaList<NavigationRailItem> FooterItems { get; private set; } = [];
 
     /// <summary>
     /// When true, hides the text label of the active item and centers its icon.
     /// </summary>
-    public bool HideHeaderWhenSelected
-    {
-        get => GetValue(HideHeaderWhenSelectedProperty);
-        set => SetValue(HideHeaderWhenSelectedProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial bool HideHeaderWhenSelected { get; set; }
 
     [Content]
-    public AvaloniaList<NavigationRailItem> Items => _items;
+    [GeneratedDirectProperty]
+    public partial AvaloniaList<NavigationRailItem> Items { get; private set; } = [];
 
-    public IBrush? PaneBackground
-    {
-        get => GetValue(PaneBackgroundProperty);
-        set => SetValue(PaneBackgroundProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IBrush? PaneBackground { get; set; }
 
-    public object? PaneHeader
-    {
-        get => GetValue(PaneHeaderProperty);
-        set => SetValue(PaneHeaderProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial object? PaneHeader { get; set; }
 
-    public IDataTemplate? PaneHeaderTemplate
-    {
-        get => GetValue(PaneHeaderTemplateProperty);
-        set => SetValue(PaneHeaderTemplateProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IDataTemplate? PaneHeaderTemplate { get; set; }
 
-    public double PaneWidth
-    {
-        get => GetValue(PaneWidthProperty);
-        set => SetValue(PaneWidthProperty, value);
-    }
+    [GeneratedStyledProperty(DefaultValue = 72.0)]
+    public partial double PaneWidth { get; set; }
 
-    public NavigationRailItem? SelectedItem
-    {
-        get => GetValue(SelectedItemProperty);
-        set => SetValue(SelectedItemProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial NavigationRailItem? SelectedItem { get; set; }
 
-    public static object? GetHeader(Control element) => element.GetValue(HeaderProperty);
+    /// <summary>
+    /// Attached property to set a header label directly on any Control (such as a UserControl).
+    /// </summary>
+    [GeneratedAttachedProperty]
+    public static partial object? GetHeader(Control element);
 
-    public static object? GetIcon(Control element) => element.GetValue(IconProperty);
-
-    public static void SetHeader(Control element, object? value) => element.SetValue(HeaderProperty, value);
-
-    public static void SetIcon(Control element, object? value) => element.SetValue(IconProperty, value);
+    /// <summary>
+    /// Attached property to set an icon (StreamGeometry, Geometry, PathIcon, string path, IImage)
+    /// directly on any Page or UserControl.
+    /// </summary>
+    [GeneratedAttachedProperty]
+    public static partial object? GetIcon(Control element);
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {

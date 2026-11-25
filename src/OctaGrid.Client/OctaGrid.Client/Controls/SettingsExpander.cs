@@ -21,77 +21,8 @@ namespace OctaGrid.Client.Controls;
 [TemplatePart("PART_ActionPresenter", typeof(Control))]
 [TemplatePart("PART_RestartBanner", typeof(Control))]
 [TemplatePart("PART_FooterPresenter", typeof(Control))]
-public class SettingsExpander : ItemsControl
+public partial class SettingsExpander : ItemsControl
 {
-    /// <summary>
-    /// Defines the <see cref="Content"/> property for the right-aligned action control in the header card.
-    /// </summary>
-    public static readonly StyledProperty<object?> ContentProperty =
-        AvaloniaProperty.Register<SettingsExpander, object?>(nameof(Content), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="ContentTemplate"/> property for <see cref="Content"/>.
-    /// </summary>
-    public static readonly StyledProperty<IDataTemplate?> ContentTemplateProperty =
-        AvaloniaProperty.Register<SettingsExpander, IDataTemplate?>(nameof(ContentTemplate), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="Description"/> property.
-    /// </summary>
-    public static readonly StyledProperty<string?> DescriptionProperty =
-        AvaloniaProperty.Register<SettingsExpander, string?>(nameof(Description), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="Footer"/> property.
-    /// </summary>
-    public static readonly StyledProperty<object?> FooterProperty =
-        AvaloniaProperty.Register<SettingsExpander, object?>(nameof(Footer), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="FooterTemplate"/> property.
-    /// </summary>
-    public static readonly StyledProperty<IDataTemplate?> FooterTemplateProperty =
-        AvaloniaProperty.Register<SettingsExpander, IDataTemplate?>(nameof(FooterTemplate), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="Header"/> property.
-    /// </summary>
-    public static readonly StyledProperty<string?> HeaderProperty =
-        AvaloniaProperty.Register<SettingsExpander, string?>(nameof(Header), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="Icon"/> property.
-    /// </summary>
-    public static readonly StyledProperty<StreamGeometry?> IconProperty =
-        AvaloniaProperty.Register<SettingsExpander, StreamGeometry?>(nameof(Icon), defaultValue: null);
-
-    /// <summary>
-    /// Defines the <see cref="IsExpanded"/> property.
-    /// </summary>
-    public static readonly StyledProperty<bool> IsExpandedProperty =
-        AvaloniaProperty.Register<SettingsExpander, bool>(
-            nameof(IsExpanded),
-            defaultValue: false,
-            defaultBindingMode: BindingMode.TwoWay);
-
-    /// <summary>
-    /// Defines the <see cref="IsFooterVisible"/> property.
-    /// </summary>
-    public static readonly StyledProperty<bool> IsFooterVisibleProperty =
-        AvaloniaProperty.Register<SettingsExpander, bool>(nameof(IsFooterVisible), defaultValue: true);
-
-    /// <summary>
-    /// Defines the <see cref="IsRestartRequired"/> property.
-    /// </summary>
-    public static readonly StyledProperty<bool> IsRestartRequiredProperty =
-        AvaloniaProperty.Register<SettingsExpander, bool>(nameof(IsRestartRequired), defaultValue: false);
-
-    /// <summary>
-    /// Defines the <see cref="RestartCommand"/> property.
-    /// </summary>
-    public static readonly StyledProperty<ICommand?> RestartCommandProperty =
-        AvaloniaProperty.Register<SettingsExpander, ICommand?>(nameof(RestartCommand), defaultValue: null);
-
     private Control? _actionPresenter;
     private Control? _footerPresenter;
     private Border? _headerBorder;
@@ -100,101 +31,68 @@ public class SettingsExpander : ItemsControl
     /// <summary>
     /// Gets or sets the right-aligned action content displayed in the expander header card.
     /// </summary>
-    public object? Content
-    {
-        get => GetValue(ContentProperty);
-        set => SetValue(ContentProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial object? Content { get; set; }
 
     /// <summary>
     /// Gets or sets the data template used to display <see cref="Content"/>.
     /// </summary>
-    public IDataTemplate? ContentTemplate
-    {
-        get => GetValue(ContentTemplateProperty);
-        set => SetValue(ContentTemplateProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IDataTemplate? ContentTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the optional supporting description text of the expander header card.
     /// </summary>
-    public string? Description
-    {
-        get => GetValue(DescriptionProperty);
-        set => SetValue(DescriptionProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial string? Description { get; set; }
 
     /// <summary>
     /// Gets or sets optional custom footer content displayed at the bottom of the header card.
     /// </summary>
-    public object? Footer
-    {
-        get => GetValue(FooterProperty);
-        set => SetValue(FooterProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial object? Footer { get; set; }
 
     /// <summary>
     /// Gets or sets the data template for <see cref="Footer"/>.
     /// </summary>
-    public IDataTemplate? FooterTemplate
-    {
-        get => GetValue(FooterTemplateProperty);
-        set => SetValue(FooterTemplateProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IDataTemplate? FooterTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the primary title text of the expander header card.
     /// </summary>
-    public string? Header
-    {
-        get => GetValue(HeaderProperty);
-        set => SetValue(HeaderProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial string? Header { get; set; }
 
     /// <summary>
     /// Gets or sets the optional leading icon geometry of the expander header card.
     /// </summary>
-    public StreamGeometry? Icon
-    {
-        get => GetValue(IconProperty);
-        set => SetValue(IconProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial StreamGeometry? Icon { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the child settings cards are expanded and visible.
     /// </summary>
-    public bool IsExpanded
-    {
-        get => GetValue(IsExpandedProperty);
-        set => SetValue(IsExpandedProperty, value);
-    }
+    [GeneratedStyledProperty(DefaultBindingMode = BindingMode.TwoWay)]
+    public partial bool IsExpanded { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the custom <see cref="Footer"/> section is visible.
     /// </summary>
-    public bool IsFooterVisible
-    {
-        get => GetValue(IsFooterVisibleProperty);
-        set => SetValue(IsFooterVisibleProperty, value);
-    }
+    [GeneratedStyledProperty(DefaultValue = true)]
+    public partial bool IsFooterVisible { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the built-in restart prompt banner is shown on the header card.
     /// </summary>
-    public bool IsRestartRequired
-    {
-        get => GetValue(IsRestartRequiredProperty);
-        set => SetValue(IsRestartRequiredProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial bool IsRestartRequired { get; set; }
 
     /// <summary>
     /// Gets or sets the command invoked when the user clicks the restart action in the banner.
     /// </summary>
-    public ICommand? RestartCommand
-    {
-        get => GetValue(RestartCommandProperty);
-        set => SetValue(RestartCommandProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial ICommand? RestartCommand { get; set; }
 
     protected override bool NeedsContainerOverride(object? item, int index, out object? recycleKey)
     {

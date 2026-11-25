@@ -18,23 +18,8 @@ namespace OctaGrid.Client.Controls;
 /// scroll left as new readings arrive. Pointing at the chart shows every visible value at that moment. Series colours come
 /// from the theme (<see cref="ChartSeriesBrushes" />), the rest from properties.
 /// </summary>
-public class TemperatureChart : Control, ICustomHitTest
+public partial class TemperatureChart : Control, ICustomHitTest
 {
-    public static readonly StyledProperty<IBrush?> GridBrushProperty =
-        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(GridBrush));
-
-    public static readonly StyledProperty<IReadOnlyCollection<string>?> HiddenKeysProperty =
-        AvaloniaProperty.Register<TemperatureChart, IReadOnlyCollection<string>?>(nameof(HiddenKeys));
-
-    public static readonly StyledProperty<IBrush?> ReadOutBackgroundProperty =
-        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(ReadOutBackground));
-
-    public static readonly StyledProperty<TemperatureHistory?> SourceProperty =
-        AvaloniaProperty.Register<TemperatureChart, TemperatureHistory?>(nameof(Source));
-
-    public static readonly StyledProperty<IBrush?> TextBrushProperty =
-        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(TextBrush));
-
     private const double LeftMargin = 40;
     private const double BottomMargin = 20;
     private const double TopMargin = 8;
@@ -73,37 +58,22 @@ public class TemperatureChart : Control, ICustomHitTest
         AffectsRender<TemperatureChart>(GridBrushProperty, HiddenKeysProperty, ReadOutBackgroundProperty, TextBrushProperty);
     }
 
-    public IBrush? GridBrush
-    {
-        get => GetValue(GridBrushProperty);
-        set => SetValue(GridBrushProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IBrush? GridBrush { get; set; }
 
     /// <summary>Reading keys that are not drawn. They still count for nothing else, so hiding one rescales the chart.</summary>
-    public IReadOnlyCollection<string>? HiddenKeys
-    {
-        get => GetValue(HiddenKeysProperty);
-        set => SetValue(HiddenKeysProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IReadOnlyCollection<string>? HiddenKeys { get; set; }
 
     /// <summary>The background of the box that shows the values under the pointer.</summary>
-    public IBrush? ReadOutBackground
-    {
-        get => GetValue(ReadOutBackgroundProperty);
-        set => SetValue(ReadOutBackgroundProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IBrush? ReadOutBackground { get; set; }
 
-    public TemperatureHistory? Source
-    {
-        get => GetValue(SourceProperty);
-        set => SetValue(SourceProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial TemperatureHistory? Source { get; set; }
 
-    public IBrush? TextBrush
-    {
-        get => GetValue(TextBrushProperty);
-        set => SetValue(TextBrushProperty, value);
-    }
+    [GeneratedStyledProperty]
+    public partial IBrush? TextBrush { get; set; }
 
     /// <summary>The whole control answers the pointer, not only where a line is drawn.</summary>
     public bool HitTest(Point point) => new Rect(Bounds.Size).Contains(point);
