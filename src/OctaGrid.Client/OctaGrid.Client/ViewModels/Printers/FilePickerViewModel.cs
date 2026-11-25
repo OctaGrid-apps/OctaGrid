@@ -12,7 +12,7 @@ namespace OctaGrid.Client.ViewModels;
 
 public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<PrintMetadata>
 {
-    // Thumbnails asked for at once. The agent reads at most three files from a printer at a time anyway.
+    // Matches the agent's limit of three FTPS connections per printer.
     private const int ThumbnailConcurrency = 3;
 
     private readonly IAgentCommandsService _agentCommandsService;
@@ -42,14 +42,13 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial ObservableCollection<PrintMetadataListItem> Files { get; set; } = [];
 
-    /// <summary>The orders the files can be listed in.</summary>
     public IReadOnlyList<FileSortOption> SortOptions => FileSortOption.All;
 
-    /// <summary>How the files are ordered; newest first by default, as the printer's own screen lists them.</summary>
+    /// <summary>The file order; newest first by default, as on the printer's screen.</summary>
     [ObservableProperty]
     public partial FileSortOption SelectedSort { get; set; } = FileSortOption.All[0];
 
-    // Re-ordering keeps the items, so thumbnails already shown stay and those still loading land where they belong.
+    // Reuses the items, so loaded and pending thumbnails stay with their files.
     partial void OnSelectedSortChanged(FileSortOption value)
     {
         if (value is not null)
@@ -157,8 +156,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
                 FileSortOption.Sort(files.Select(x => new PrintMetadataListItem(x, [])), f => f.Metadata, SelectedSort.Order));
             _logger.LogInformation("Loaded {FileCount} file(s) from printer {PrinterId}", Files.Count, _printerId);
 
-            // The list is shown now; pictures fill in as they arrive instead of holding it back. Another load (after a
-            // delete) may have started its pictures while this one waited for the files, so those are stopped first.
+            // Thumbnails load after the list is shown. An overlapping load may have started its own.
             StopLoadingThumbnails();
             _thumbnails = new CancellationTokenSource();
             ThumbnailsLoading = LoadThumbnailsAsync(Files.ToList(), _thumbnails.Token);
@@ -178,10 +176,10 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
     }
 
-    /// <summary>The thumbnails of the last load, finished when every one arrived, failed or was stopped.</summary>
+    /// <summary>Completes when every thumbnail of the last load arrived, failed or was stopped.</summary>
     internal Task ThumbnailsLoading { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Stops asking for thumbnails, when the list is closed or loaded again.</summary>
+    /// <summary>Cancels the thumbnail requests of the last load.</summary>
     public void StopLoadingThumbnails()
     {
         _thumbnails?.Cancel();
@@ -189,8 +187,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         _thumbnails = null;
     }
 
-    // Started from the UI thread, so each picture is set there when its request returns; the gate only limits how many
-    // requests are open at once.
+    // Runs on the UI thread, so each thumbnail is set there; the gate only limits open requests.
     private async Task LoadThumbnailsAsync(IReadOnlyList<PrintMetadataListItem> items, CancellationToken cancellationToken)
     {
         using var gate = new SemaphoreSlim(ThumbnailConcurrency);
@@ -207,8 +204,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
 
             try
             {
-                // Stopping ends the open requests, and one of them can hand its slot to a waiter before the waiter
-                // sees the cancellation; that waiter must not ask after all.
+                // A cancelled request can pass its slot to a waiter before the waiter sees the cancellation.
                 if (!cancellationToken.IsCancellationRequested)
                 {
                     await TryGetThumbnail(item, cancellationToken);
@@ -229,7 +225,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
             return;
         }
 
-        // The cache is shared by every printer, and a file can be replaced by another of the same name.
+        // The cache is shared by all printers, and a file can be replaced under the same name.
         var key = $"{_printerId}/{file.FileName}/{file.FileSize}/{file.ModifiedAt?.UtcTicks}";
         try
         {
@@ -248,7 +244,7 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
         catch (OperationCanceledException)
         {
-            // The list was closed or loaded again; this picture is no longer wanted.
+            // Stopped by StopLoadingThumbnails.
         }
         catch (Exception ex)
         {

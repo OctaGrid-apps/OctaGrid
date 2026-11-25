@@ -278,7 +278,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
             return;
         }
 
-        // The cache is shared by every printer, and two printers can run jobs of the same name.
+        // The cache is shared by all printers, and two printers can run jobs of the same name.
         var key = $"{Item.Id}/job/{Item.PrintFileName}";
         try
         {

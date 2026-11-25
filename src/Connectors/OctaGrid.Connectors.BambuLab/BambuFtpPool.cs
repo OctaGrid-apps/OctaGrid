@@ -1,12 +1,15 @@
 using System.Collections.Concurrent;
 using FluentFTP;
+using FluentFTP.Exceptions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OctaGrid.Connectors.BambuLab;
 
 /// <summary>Creates the pool of FTPS connections to one printer.</summary>
 internal static class BambuFtpPool
 {
-    public static BambuFtpPool<AsyncFtpClient> Create(Func<AsyncFtpClient> factory) =>
+    public static BambuFtpPool<AsyncFtpClient> Create(Func<AsyncFtpClient> factory, ILogger? logger = null) =>
         new(
             async cancellationToken =>
             {
@@ -36,24 +39,29 @@ internal static class BambuFtpPool
                 {
                     client.Dispose();
                 }
-            });
+            },
+            // The server answered with an error code, so the connection is still alive.
+            isConnectionLost: ex => ex is not FtpCommandException,
+            logger: logger);
 }
 
 /// <summary>
-/// Reuses FTPS connections to one printer. Connecting costs a TLS handshake that is slow on the printer, and a file list
-/// followed by its thumbnails used to pay it for every request. At most <see cref="MaxConnections"/> are open at once.
+/// Reuses FTPS connections to one printer, because the TLS handshake is slow on the printer.
+/// At most <see cref="MaxConnections"/> are open at once.
 /// </summary>
 /// <typeparam name="TClient">The connection; an FTPS client, or a fake in tests.</typeparam>
 internal sealed class BambuFtpPool<TClient> : IAsyncDisposable
     where TClient : class
 {
-    // The printer's vsftpd drops idle sessions after a few minutes; one idle for longer than this is not trusted.
+    // The printer's vsftpd drops idle sessions after a few minutes.
     private static readonly TimeSpan MaxIdle = TimeSpan.FromSeconds(60);
 
     private readonly Func<TClient, Task> _close;
     private readonly Func<CancellationToken, Task<TClient>> _connect;
     private readonly ConcurrentStack<(TClient Client, long ReturnedAt)> _idle = new();
     private readonly Func<TClient, bool> _isConnected;
+    private readonly Func<Exception, bool> _isConnectionLost;
+    private readonly ILogger _logger;
     private readonly SemaphoreSlim _slots;
     private readonly TimeProvider _time;
     private volatile bool _disposed;
@@ -62,23 +70,27 @@ internal sealed class BambuFtpPool<TClient> : IAsyncDisposable
         Func<CancellationToken, Task<TClient>> connect,
         Func<TClient, bool> isConnected,
         Func<TClient, Task> close,
+        Func<Exception, bool>? isConnectionLost = null,
         int maxConnections = 3,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        ILogger? logger = null)
     {
         _connect = connect;
         _isConnected = isConnected;
         _close = close;
+        _isConnectionLost = isConnectionLost ?? (_ => true);
         MaxConnections = maxConnections;
         _slots = new SemaphoreSlim(maxConnections, maxConnections);
         _time = time ?? TimeProvider.System;
+        _logger = logger ?? NullLogger.Instance;
     }
 
     public int MaxConnections { get; }
 
     /// <summary>
-    /// Runs <paramref name="operation"/> on a connected client, waiting for one to be free. A kept connection the printer
-    /// has dropped still looks connected, so an operation that fails on one is run once more on a new connection; an
-    /// operation must therefore be safe to repeat (every one here only reads).
+    /// Runs <paramref name="operation"/> on a connected client, waiting for one to be free.
+    /// A kept connection the printer dropped still reports itself connected, so an operation that loses it
+    /// runs once more on a new connection. Operations must be safe to repeat.
     /// </summary>
     public async Task<T> RunAsync<T>(Func<TClient, Task<T>> operation, CancellationToken cancellationToken)
     {
@@ -94,9 +106,15 @@ internal sealed class BambuFtpPool<TClient> : IAsyncDisposable
                     await ReturnAsync(kept);
                     return result;
                 }
-                catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested && _isConnectionLost(ex))
+                {
+                    _logger.LogDebug(ex, "Kept FTPS connection failed; retrying on a new connection");
+                    await CloseAsync(kept);
+                }
+                catch
                 {
                     await CloseAsync(kept);
+                    throw;
                 }
             }
 
@@ -109,7 +127,7 @@ internal sealed class BambuFtpPool<TClient> : IAsyncDisposable
             }
             catch
             {
-                // A connection whose operation failed may be in any state, so it is closed rather than reused.
+                // The state of a connection after a failed operation is unknown.
                 await CloseAsync(client);
                 throw;
             }
@@ -130,7 +148,7 @@ internal sealed class BambuFtpPool<TClient> : IAsyncDisposable
     {
         _idle.Push((client, _time.GetTimestamp()));
 
-        // DisposeAsync may have closed the idle connections between the check in RunAsync and this push.
+        // DisposeAsync may have run between the check in RunAsync and the push.
         if (_disposed)
         {
             await CloseIdleAsync();
@@ -166,9 +184,10 @@ internal sealed class BambuFtpPool<TClient> : IAsyncDisposable
         {
             await _close(client);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Closing is best effort: the printer may already have dropped the session.
+            // Best effort: the printer may already have dropped the session.
+            _logger.LogDebug(ex, "Closing an FTPS connection failed");
         }
     }
 }

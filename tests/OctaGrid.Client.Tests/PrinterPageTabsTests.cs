@@ -40,7 +40,7 @@ public class PrinterPageTabsTests
         public Task<IReadOnlyList<ConnectorDescriptor>> GetConnectorsAsync(Guid agentId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ConnectorDescriptor>>(ConnectorList.ToList());
 
-        /// <summary>Tasks the next file requests wait for, one per request, so a test can hold a request open.</summary>
+        /// <summary>Tasks that the next file requests await, one per request.</summary>
         public Queue<Task> FileGates { get; } = new();
 
         public async Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken)
@@ -83,7 +83,7 @@ public class PrinterPageTabsTests
             return Task.CompletedTask;
         }
 
-        /// <summary>Answers thumbnail requests; none of the files has one unless a test says otherwise.</summary>
+        /// <summary>Answers thumbnail requests; null means no file has a thumbnail.</summary>
         public Func<string, CancellationToken, Task<PrintThumbnail?>>? Thumbnails { get; set; }
 
         public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>

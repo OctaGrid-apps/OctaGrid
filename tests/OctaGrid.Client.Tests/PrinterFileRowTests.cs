@@ -186,4 +186,24 @@ public class PrinterFileRowTests
             window.Close();
         });
     }
+
+    [Fact]
+    public async Task A_file_without_an_estimate_or_a_date_shows_dashes()
+    {
+        await HeadlessUi.Run(() =>
+        {
+            var item = new PrintMetadataListItem(new PrintMetadata("a.3mf", 1, null, null, null), []);
+            var control = new PrinterFileRow
+            {
+                DataContext = new PrinterFileRowViewModel(item, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, () => true),
+            };
+            var window = new Window { Content = control, Width = 900, Height = 200 };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            var texts = control.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToList();
+            Assert.Equal(2, texts.Count(t => t == "---"));
+            window.Close();
+        });
+    }
 }

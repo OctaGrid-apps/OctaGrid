@@ -34,6 +34,6 @@ public sealed class PrinterFileRowViewModel
     /// <summary>Deletes the file from the printer, after asking.</summary>
     public IAsyncRelayCommand DeleteCommand { get; }
 
-    /// <summary>Material, nozzle and filament weight under the file name, for example "PLA • 0.4 mm • 12.5 g".</summary>
+    /// <summary>The line under the file name, for example "PLA • 0.4 mm • 12.5 g".</summary>
     public string DetailsText => File.DetailsText;
 }

@@ -96,7 +96,7 @@ internal sealed class MoonrakerClient : IPrinterSession, IPrintControl, IFileSto
         _logger.LogDebug("Listing files on Moonraker device {DeviceId}", DeviceId);
         var files = await rpc.InvokeWithParameterObjectAsync<JsonElement>("server.files.list", cancellationToken: cancellationToken);
 
-        // The listing gives each file's path, size and modified time (Unix seconds); the rest comes from its metadata.
+        // Path, size and modified time (Unix seconds) come from the listing; the rest from metadata.
         var listed = files.EnumerateArray()
             .Select(f => (
                 Path: f.TryGetProperty("path", out var path) ? path.GetString() : null,

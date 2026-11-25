@@ -4,13 +4,13 @@ using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.ViewModels;
 
-/// <summary>How a file on the printer is described in lists, in the user's number and date format.</summary>
+/// <summary>Formats a printer file's details for lists, in the current culture.</summary>
 public static class PrintFileText
 {
     private const string Separator = " • ";
     private static readonly string[] SizeUnits = ["B", "KB", "MB", "GB", "TB"];
 
-    /// <summary>What the print needs: material, nozzle and filament weight, for example "PLA • 0.4 mm • 12.5 g".</summary>
+    /// <summary>Material, nozzle and filament weight, for example "PLA • 0.4 mm • 12.5 g".</summary>
     public static string Details(PrintMetadata file)
     {
         var parts = new List<string>(3);
@@ -32,7 +32,7 @@ public static class PrintFileText
         return string.Join(Separator, parts);
     }
 
-    /// <summary>Everything on one line, for the compact file picker: details, time, size and date.</summary>
+    /// <summary>Details, estimated time, size and date on one line.</summary>
     public static string Summary(PrintMetadata file)
     {
         var parts = new List<string>(4);
@@ -55,11 +55,11 @@ public static class PrintFileText
         return string.Join(Separator, parts);
     }
 
-    /// <summary>The filament the print uses, for example "12.5 g"; null when the file does not say.</summary>
+    /// <summary>A filament weight, for example "12.5 g"; null when unknown.</summary>
     public static string? Weight(double? grams) =>
         grams is > 0 ? $"{grams.Value.ToString(grams.Value < 100 ? "0.#" : "0", CultureInfo.CurrentCulture)} g" : null;
 
-    /// <summary>A size in bytes as people read it, for example "4.2 MB".</summary>
+    /// <summary>A size in bytes in binary units, for example "4.2 MB".</summary>
     public static string Size(long bytes)
     {
         double value = Math.Max(bytes, 0);
@@ -74,9 +74,7 @@ public static class PrintFileText
         return $"{value.ToString(format, CultureInfo.CurrentCulture)} {SizeUnits[unit]}";
     }
 
-    /// <summary>
-    /// The day a file was written, in the user's short date format. Only the date: some printers report no time.
-    /// </summary>
+    /// <summary>The day a file was written, as a short date; some printers report no time.</summary>
     public static string? Date(DateTimeOffset? modifiedAt)
     {
         if (modifiedAt is not { } at)
@@ -84,8 +82,8 @@ public static class PrintFileText
             return null;
         }
 
-        // A printer that lists only the date gives it as midnight UTC. That is a calendar day, not an instant: moving it
-        // to local time would show the day before anywhere west of UTC.
+        // Date-only values arrive as midnight UTC. Converting them to local time would show
+        // the previous day west of UTC.
         var day = at.Offset == TimeSpan.Zero && at.TimeOfDay == TimeSpan.Zero ? at.DateTime : at.ToLocalTime().DateTime;
         return day.ToString("d", CultureInfo.CurrentCulture);
     }

@@ -6,21 +6,18 @@ namespace OctaGrid.Client.ViewModels;
 /// <summary>The orders the printer's files can be listed in.</summary>
 public enum FileSortOrder
 {
-    /// <summary>Most recently added first, as the printer's own screen lists them.</summary>
     NewestFirst,
     OldestFirst,
     NameAscending,
     NameDescending,
-
-    /// <summary>Largest first, to find what to delete when the card is full.</summary>
     LargestFirst,
     SmallestFirst,
 }
 
-/// <summary>A sort order as offered in the sort menu.</summary>
+/// <summary>A sort order and its label in the sort menu.</summary>
 public sealed record FileSortOption(FileSortOrder Order, string Label)
 {
-    /// <summary>Every order, in the order the menu offers them.</summary>
+    /// <summary>Every order, as the menu lists them.</summary>
     public static IReadOnlyList<FileSortOption> All { get; } =
     [
         new(FileSortOrder.NewestFirst, "Newest first"),
@@ -34,8 +31,8 @@ public sealed record FileSortOption(FileSortOrder Order, string Label)
     public override string ToString() => Label;
 
     /// <summary>
-    /// Sorts files by <paramref name="order"/>. Ties, and files whose date the printer does not report, fall back to
-    /// the name, compared as people read it ("plate_2" before "plate_10").
+    /// Sorts files by <paramref name="order"/>. Ties are ordered by name, with numbers compared
+    /// by value ("plate_2" before "plate_10").
     /// </summary>
     public static IEnumerable<T> Sort<T>(IEnumerable<T> files, Func<T, PrintMetadata> metadata, FileSortOrder order)
     {
@@ -44,7 +41,7 @@ public sealed record FileSortOption(FileSortOrder Order, string Label)
 
         return order switch
         {
-            // Files without a date go last in both directions: they are neither new nor old.
+            // Files without a date go last in both directions.
             FileSortOrder.NewestFirst => files
                 .OrderBy(f => metadata(f).ModifiedAt is null)
                 .ThenByDescending(f => metadata(f).ModifiedAt)

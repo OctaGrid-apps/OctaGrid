@@ -38,7 +38,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     private long _lastPushAll;
     private volatile string? _serial;
 
-    // -1 until a report says, then 0 (no card) or 1. Read by file requests, written by the MQTT thread.
+    // -1 until the first report, then 0 (no card) or 1. Written by the MQTT thread.
     private int _sdCard = -1;
 
     public MqttClient(PrinterProfile profile, ILogger<MqttClient>? logger = null)
@@ -47,10 +47,10 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         _url = profile.Get("url") ?? string.Empty;
         _logger = logger ?? NullLogger<MqttClient>.Instance;
 
-        // The profile does not change during a session (a change starts a new one), so neither does the access code.
+        // A profile change starts a new session, so the access code is fixed for this one.
         if (profile.Settings.TryGetValue("apiKey", out var accessCode) && !string.IsNullOrEmpty(accessCode))
         {
-            _ftp = BambuFtpPool.Create(() => BambuFtps.CreateClient(_url, accessCode, _logger));
+            _ftp = BambuFtpPool.Create(() => BambuFtps.CreateClient(_url, accessCode, _logger), _logger);
         }
     }
 
@@ -66,7 +66,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     public async ValueTask DisposeAsync()
     {
         // Each session owns and disposes its own IMqttClient, and PrinterOrchestrator awaits RunAsync
-        // before disposing the device client; only the FTPS connections kept for reuse are left to close.
+        // before disposing the device client; only the pooled FTPS connections remain.
         if (_ftp is not null)
         {
             await _ftp.DisposeAsync();
@@ -91,7 +91,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         var sw = Stopwatch.StartNew();
         var threeMfFiles = await ListThreeMfFilesAsync(_ftp, cancellationToken);
 
-        // Only files that are new or changed since they were last read cost a read; the rest come from the cache.
+        // Only new or changed files are read; the rest come from the cache.
         var toRead = threeMfFiles.Where(i => !_files.TryGet(i.Name, i.Size, ModifiedAt(i), out _)).ToList();
         await Parallel.ForEachAsync(toRead, new ParallelOptions
         {
@@ -105,7 +105,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // One file that cannot be read must not hide the others; it is listed with what the listing says.
+                // The file is still listed, with the listing's name, size and time only.
                 _logger.LogWarning(ex, "Failed to read 3MF file '{FileName}' on Bambu printer {DeviceId}", item.Name, DeviceId);
             }
         });
@@ -122,8 +122,8 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     }
 
     /// <summary>
-    /// The thumbnail of a file on the card, or of the current print job when <paramref name="fileName"/> is the job's
-    /// name as the printer reports it. Files already listed are answered from the cache without reading them again.
+    /// The thumbnail of a .3mf file on the card, or of the print job when <paramref name="fileName"/>
+    /// is a job name as the printer reports it.
     /// </summary>
     public async Task<PrintThumbnail?> GetThumbnailAsync(string fileName, CancellationToken cancellationToken)
     {
@@ -138,7 +138,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             BambuFileCache.Entry? entry;
             if (name.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase))
             {
-                // A file name comes from a listing the client just loaded, which already read every changed file.
+                // File names come from a listing, which refreshed the entries of changed files.
                 if (!_files.TryGet(name, out entry))
                 {
                     entry = await _ftp.RunAsync(async ftp =>
@@ -162,19 +162,18 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         }
     }
 
-    // FluentFTP gives no time zone; the printers' vsftpd lists times in UTC, and the H2 series only the date.
+    // FluentFTP gives no time zone. The printers' vsftpd lists UTC times; the H2 series lists dates only.
     private static DateTimeOffset? ModifiedAt(FtpListItem item) =>
         item.Modified == DateTime.MinValue ? null : new DateTimeOffset(DateTime.SpecifyKind(item.Modified, DateTimeKind.Utc));
 
-    // The job's file may have been added or overwritten since the user last opened the list, so the card is listed again
-    // (one command on a kept connection) and the cache is trusted only while the file's size and time are unchanged.
+    // Lists the card again: the job's file may have been added or replaced since the last listing.
     private async Task<BambuFileCache.Entry?> GetJobFileAsync(BambuFtpPool<AsyncFtpClient> pool, string jobName, CancellationToken cancellationToken)
     {
         var files = await ListThreeMfFilesAsync(pool, cancellationToken);
         var resolved = BambuFileCache.ResolveJobFile(jobName, files.Select(i => i.Name));
         if (resolved is null)
         {
-            // Jobs started from internal storage or sent from Bambu Studio are not on the card.
+            // Jobs started from internal storage or sent from Bambu Studio have no file on the card.
             _logger.LogDebug("No file on the card of Bambu printer {DeviceId} matches print job '{JobName}'", DeviceId, jobName);
             return null;
         }
@@ -185,7 +184,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             : await ReadFileAsync(pool, item, cancellationToken);
     }
 
-    // The printable files on the card, as both the file list and job lookups see them; the cache forgets the rest.
+    // Lists the printable files on the card and drops cache entries of files that are gone.
     private async Task<IReadOnlyList<FtpListItem>> ListThreeMfFilesAsync(BambuFtpPool<AsyncFtpClient> pool, CancellationToken cancellationToken)
     {
         var listing = await pool.RunAsync(ftp => ftp.GetListing("/", cancellationToken), cancellationToken);
@@ -213,7 +212,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             ? read with { FileName = item.Name, FileSize = item.Size, ModifiedAt = modifiedAt }
             : new PrintMetadata(item.Name, item.Size, null, null, null, modifiedAt);
 
-        // A file that is not a readable 3MF is remembered too, so it is not read again until it changes.
+        // Unreadable files are cached too, so they are not read again until they change.
         var entry = new BambuFileCache.Entry(item.Size, modifiedAt, metadata, result?.Thumbnail);
         _files.Store(item.Name, entry);
         return entry;

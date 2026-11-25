@@ -6,7 +6,7 @@ using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Client.Tests;
 
-/// <summary>The list of files on a printer: its order, what each file shows and how its thumbnails load.</summary>
+/// <summary>The printer file list: its order, the text of each file and thumbnail loading.</summary>
 public class FileListTests
 {
     private static readonly DateTimeOffset Today = new(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
@@ -156,7 +156,7 @@ public class FileListTests
         commands.FileGates.Enqueue(slowFiles.Task);
         var picker = Picker(commands);
 
-        // The first load waits for its files while a second one (as after a delete) finishes and starts its pictures.
+        // The first load waits for its files while a second one completes and starts its thumbnails.
         var first = picker.LoadDataCommand.ExecuteAsync(null);
         await picker.LoadDataCommand.ExecuteAsync(null);
         var secondThumbnails = picker.ThumbnailsLoading;
@@ -164,7 +164,7 @@ public class FileListTests
         await first;
 
         picker.StopLoadingThumbnails();
-        // A load whose pictures were never stopped would wait forever; the timeout turns that into a failure.
+        // Thumbnails that are never stopped wait forever; the timeout fails the test instead.
         await Task.WhenAll(secondThumbnails, picker.ThumbnailsLoading)
             .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 

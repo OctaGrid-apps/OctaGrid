@@ -19,7 +19,8 @@ public class BambuFtpPoolTests
             {
                 c.Closed = true;
                 return Task.CompletedTask;
-            });
+            },
+            isConnectionLost: ex => ex is IOException);
 
     [Fact]
     public async Task A_connection_is_kept_and_used_again()
@@ -47,6 +48,19 @@ public class BambuFtpPoolTests
 
         Assert.Equal(2, result);
         Assert.True(_opened[0].Closed);
+    }
+
+    [Fact]
+    public async Task An_error_the_printer_answered_on_a_kept_connection_is_not_retried()
+    {
+        await using var pool = Pool();
+        await pool.RunAsync(c => Task.FromResult(c.Number), TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            pool.RunAsync<int>(_ => throw new InvalidOperationException("550 File not found"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Single(_opened);
     }
 
     [Fact]

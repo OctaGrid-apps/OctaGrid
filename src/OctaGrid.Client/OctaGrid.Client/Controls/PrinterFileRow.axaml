@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="OctaGrid.Client.Controls.PrinterFileRow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -32,7 +32,7 @@
                     Text="{Binding DetailsText}" />
             </StackPanel>
 
-            <!--  The page hides these when it is narrow (class file-estimate), so the name keeps its room  -->
+            <!--  Hidden on a narrow page (class file-estimate) to leave room for the name  -->
             <StackPanel
                 Grid.Column="2"
                 MinWidth="{DynamicResource Space16}"
@@ -48,10 +48,9 @@
                 VerticalAlignment="Center"
                 Classes="file-estimate">
                 <TextBlock Classes="caption secondary" Text="Estimated time" />
-                <TextBlock Classes="body" Text="{Binding File.Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay, FallbackValue=---}" />
+                <TextBlock Classes="body" Text="{Binding File.Metadata.EstimatedTimeSeconds, Converter={x:Static conv:SecondsToReadableTimeConverter.Instance}, Mode=OneWay, FallbackValue=---, TargetNullValue=---}" />
             </StackPanel>
 
-            <!--  Size stays when the page is narrow: it is what the user looks at to free space.  -->
             <StackPanel
                 Grid.Column="4"
                 MinWidth="{DynamicResource Space16}"

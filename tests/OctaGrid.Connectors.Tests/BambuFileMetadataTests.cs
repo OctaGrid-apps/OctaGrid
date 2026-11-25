@@ -8,7 +8,7 @@ namespace OctaGrid.Connectors.Tests;
 /// <summary>What the Bambu connector reads from a sliced file and from the printer's report.</summary>
 public class BambuFileMetadataTests
 {
-    // slice_info.config as Bambu Studio writes it for a two-plate, two-material project (trimmed to what is read).
+    // slice_info.config of a two-plate, two-material Bambu Studio project, trimmed to the fields read.
     private const string SliceInfo = """
         <?xml version="1.0" encoding="UTF-8"?>
         <config>
@@ -52,7 +52,7 @@ public class BambuFileMetadataTests
         Assert.Equal(18.0, metadata.FilamentWeightGrams);
         Assert.Equal(4200, metadata.EstimatedTimeSeconds);
         Assert.Equal("PLA, PETG", metadata.MaterialType);
-        Assert.Equal(5_000_000_000, metadata.FileSize); // more than int.MaxValue: sizes are not cut off any more
+        Assert.Equal(5_000_000_000, metadata.FileSize); // over int.MaxValue
     }
 
     [Fact]
