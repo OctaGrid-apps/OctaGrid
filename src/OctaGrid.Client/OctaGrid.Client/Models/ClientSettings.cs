@@ -26,6 +26,13 @@ public sealed record ClientSettings
     /// <summary>Id of the connector the list dashboard is filtered by; null shows printers of every connector.</summary>
     public string? DashboardConnectorFilter { get; init; }
 
+    /// <summary>
+    /// The order printer files were last listed in, on the printer page and in the file picker; the same for every
+    /// printer. Null lists the newest first, as the printers do.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public FileSortOrder? FileSortOrder { get; init; }
+
     /// <summary>Reading keys (such as "bed") the user hid from the temperature chart; the same for every printer.</summary>
     public IReadOnlyList<string> HiddenChartSeries { get; init; } = [];
 

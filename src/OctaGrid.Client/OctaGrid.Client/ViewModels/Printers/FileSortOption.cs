@@ -1,18 +1,8 @@
 using System.Globalization;
+using OctaGrid.Client.Models;
 using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Client.ViewModels;
-
-/// <summary>The orders the printer's files can be listed in.</summary>
-public enum FileSortOrder
-{
-    NewestFirst,
-    OldestFirst,
-    NameAscending,
-    NameDescending,
-    LargestFirst,
-    SmallestFirst,
-}
 
 /// <summary>A sort order and its label in the sort menu.</summary>
 public sealed record FileSortOption(FileSortOrder Order, string Label)
@@ -29,6 +19,9 @@ public sealed record FileSortOption(FileSortOrder Order, string Label)
     ];
 
     public override string ToString() => Label;
+
+    /// <summary>The menu entry of <paramref name="order"/>; newest first when there is none.</summary>
+    public static FileSortOption Of(FileSortOrder? order) => All.FirstOrDefault(o => o.Order == order) ?? All[0];
 
     /// <summary>
     /// Sorts files by <paramref name="order"/>. Ties are ordered by name, with numbers compared

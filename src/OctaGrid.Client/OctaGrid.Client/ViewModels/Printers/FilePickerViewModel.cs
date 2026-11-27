@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Client.Contracts;
+using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
@@ -23,19 +24,26 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     private readonly Guid _printerId;
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILogger<FilePickerViewModel> _logger;
+    private readonly IAppSettingsStore? _settings;
 
+    /// <param name="settings">Where the chosen order is kept, so every file list opens in it. Without it, newest first.</param>
     public FilePickerViewModel(
         Guid printerId,
         IAgentCommandsService agentCommands,
         IByteArrayImageCache imageCache,
         ILogger<FilePickerViewModel>? logger = null,
-        WorkspacePermissions? permissions = null)
+        WorkspacePermissions? permissions = null,
+        IAppSettingsStore? settings = null)
     {
         _agentCommandsService = agentCommands;
         _imageCache = imageCache;
         _logger = logger ?? NullLogger<FilePickerViewModel>.Instance;
         _printerId = printerId;
         Permissions = permissions ?? WorkspacePermissions.Unrestricted;
+        SelectedSort = FileSortOption.Of(settings?.ClientSettings.FileSortOrder);
+
+        // Set after the saved order is applied, so opening a list does not write it back.
+        _settings = settings;
     }
 
     /// <summary>What the user may do with the files. Buttons for anything else are not shown.</summary>
@@ -47,16 +55,24 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
 
     public IReadOnlyList<FileSortOption> SortOptions => FileSortOption.All;
 
-    /// <summary>The file order; newest first by default, as on the printer's screen.</summary>
+    /// <summary>
+    /// The file order: the one last chosen in any file list, or newest first, as on the printer's screen.
+    /// </summary>
     [ObservableProperty]
     public partial FileSortOption SelectedSort { get; set; } = FileSortOption.All[0];
 
     // Reuses the items, so loaded and pending thumbnails stay with their files.
     partial void OnSelectedSortChanged(FileSortOption value)
     {
-        if (value is not null)
+        if (value is null)
         {
-            Files = new ObservableCollection<PrintMetadataListItem>(FileSortOption.Sort(Files, f => f.Metadata, value.Order));
+            return;
+        }
+
+        Files = new ObservableCollection<PrintMetadataListItem>(FileSortOption.Sort(Files, f => f.Metadata, value.Order));
+        if (_settings is not null && _settings.ClientSettings.FileSortOrder != value.Order)
+        {
+            _settings.Update(s => s with { FileSortOrder = value.Order });
         }
     }
 
