@@ -35,6 +35,9 @@ public sealed record AgentError(
     /// </summary>
     public AppException ToException() => TypeUri switch
     {
+        // One field's message is the error's own message, which the user is shown.
+        ValidationException.Uri when Errors is { Count: 1 } && Errors.Single() is var (field, message) && message == Detail =>
+            new ValidationException(field, message),
         ValidationException.Uri when Errors is { Count: > 0 } => new ValidationException(Errors),
         AuthenticationException.Uri => new AuthenticationException(Detail),
         NotFoundException.Uri => new NotFoundException(Detail),

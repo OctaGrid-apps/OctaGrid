@@ -13,10 +13,12 @@ internal static class Payload
         WriteIndented = false,
     };
 
-    private static int _sequence;
+    // Bambu Studio and the printer's own screen send commands too, numbered from low values; starting high keeps
+    // a reply to theirs from being taken for a reply to ours.
+    private static int _sequence = Random.Shared.Next(100_000, 1_000_000);
 
     /// <summary>Load filament from a tray (target = global tray id, 255 = unload/external depending on model).</summary>
-    public static string AmsChangeFilament(int target, int currentTemp, int targetTemp) =>
+    public static BambuCommand AmsChangeFilament(int target, int currentTemp, int targetTemp) =>
         Build("print", "ams_change_filament", b =>
         {
             b["target"] = target;
@@ -24,7 +26,7 @@ internal static class Payload
             b["tar_temp"] = targetTemp;
         });
 
-    public static string AmsControlCommand(AmsControl action) =>
+    public static BambuCommand AmsControlCommand(AmsControl action) =>
         Build("print", "ams_control", b => b["param"] = action switch
         {
             AmsControl.Pause => "pause",
@@ -34,7 +36,7 @@ internal static class Payload
         });
 
     /// <summary>Send raw gcode. Multiple lines are separated by '\n'.</summary>
-    public static string GcodeLine(string gcode)
+    public static BambuCommand GcodeLine(string gcode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gcode);
         var text = gcode.TrimEnd('\r', '\n') + "\n";
@@ -42,25 +44,25 @@ internal static class Payload
     }
 
     // ───────────────────────── G-code ─────────────────────────
-    public static string GcodeLines(IEnumerable<string> lines) =>
+    public static BambuCommand GcodeLines(IEnumerable<string> lines) =>
         GcodeLine(string.Join("\n", lines));
 
     /// <summary>Request firmware/hardware module versions.</summary>
-    public static string GetVersion() => Build("info", "get_version");
+    public static BambuCommand GetVersion() => Build("info", "get_version");
 
-    public static string Home() => GcodeLine("G28");
+    public static BambuCommand Home() => GcodeLine("G28");
 
-    public static string Pause() => Build("print", "pause");
+    public static BambuCommand Pause() => Build("print", "pause");
 
     /// <summary>Print a gcode file stored on the printer. Takes an absolute path.</summary>
-    public static string PrintGcodeFile(string fileName)
+    public static BambuCommand PrintGcodeFile(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         return Build("print", "gcode_file", b => b["param"] = fileName);
     }
 
     /// <summary>Print a plate from a .3mf project stored on the printer.</summary>
-    public static string PrintProjectFile(ProjectFileOptions o)
+    public static BambuCommand PrintProjectFile(ProjectFileOptions o)
     {
         ArgumentNullException.ThrowIfNull(o);
 
@@ -94,17 +96,17 @@ internal static class Payload
     }
 
     /// <summary>Request full status report from the printer.</summary>
-    public static string PushAll() =>
+    public static BambuCommand PushAll() =>
         Build("pushing", "pushall", b =>
         {
             b["version"] = 1;
             b["push_target"] = 1;
         });
 
-    public static string Resume() => Build("print", "resume");
+    public static BambuCommand Resume() => Build("print", "resume");
 
     /// <summary>Set filament type/color/temps on an AMS tray. Color is RRGGBBAA hex, e.g. "FF0000FF".</summary>
-    public static string SetAmsFilament(
+    public static BambuCommand SetAmsFilament(
         int amsId,
         int trayId,
         string filamentType,
@@ -129,14 +131,14 @@ internal static class Payload
         });
     }
 
-    public static string SetBedTemperature(int celsius)
+    public static BambuCommand SetBedTemperature(int celsius)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(celsius);
         return GcodeLine($"M140 S{celsius}");
     }
 
     /// <summary>Set fan speed in percent (0–100).</summary>
-    public static string SetFanSpeed(FanType fan, int percent)
+    public static BambuCommand SetFanSpeed(FanType fan, int percent)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(percent, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(percent, 100);
@@ -144,7 +146,7 @@ internal static class Payload
         return GcodeLine($"M106 P{(int)fan} S{pwm}");
     }
 
-    public static string SetLed(
+    public static BambuCommand SetLed(
         LedNode node,
         LedMode mode,
         int onTimeMs = 500,
@@ -172,34 +174,35 @@ internal static class Payload
             b["interval_time"] = intervalMs;
         });
 
-    public static string SetNozzleTemperature(int celsius)
+    public static BambuCommand SetNozzleTemperature(int celsius)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(celsius);
         return GcodeLine($"M104 S{celsius}");
     }
 
-    public static string SetPrintSpeed(PrintSpeed speed) =>
+    public static BambuCommand SetPrintSpeed(PrintSpeed speed) =>
         Build("print", "print_speed", b =>
             b["param"] = ((int)speed).ToString(CultureInfo.InvariantCulture));
 
-    public static string Stop() => Build("print", "stop");
+    public static BambuCommand Stop() => Build("print", "stop");
 
     // ───────────────────────── Status / info ─────────────────────────
     // ───────────────────────── Print control ─────────────────────────
     // ───────────────────────── Lights ─────────────────────────
     // ───────────────────────── AMS / filament ─────────────────────────
-    public static string UnloadFilament() => Build("print", "unload_filament");
+    public static BambuCommand UnloadFilament() => Build("print", "unload_filament");
 
-    private static string Build(string category, string command, Action<JsonObject>? configure = null)
+    private static BambuCommand Build(string category, string command, Action<JsonObject>? configure = null)
     {
+        var sequenceId = NextSequenceId();
         var body = new JsonObject
         {
-            ["sequence_id"] = NextSequenceId(),
+            ["sequence_id"] = sequenceId,
             ["command"] = command,
         };
         configure?.Invoke(body);
 
-        return new JsonObject { [category] = body }.ToJsonString(JsonOptions);
+        return new BambuCommand(command, sequenceId, new JsonObject { [category] = body }.ToJsonString(JsonOptions));
     }
 
     private static string NextSequenceId() =>

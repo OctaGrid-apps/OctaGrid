@@ -32,10 +32,30 @@ internal sealed record ProjectFileOptions
     /// </summary>
     public IReadOnlyList<int>? AmsMapping { get; init; }
 
-    public static ProjectFileOptions FromSdCard(string fileName, int plate = 1) => new()
+    /// <summary>Prints a plate of a file in the SD card's root, with the given spools and the default options.</summary>
+    public static ProjectFileOptions FromSdCard(string fileName, int plate, BambuFilamentMapping filaments) => new()
     {
         Param = $"Metadata/plate_{plate}.gcode",
         Url = $"file:///sdcard/{fileName}",
-        SubtaskName = Path.GetFileNameWithoutExtension(fileName),
+        SubtaskName = JobName(fileName),
+        UseAms = filaments.UseAms,
+        AmsMapping = filaments.AmsMapping,
     };
+
+    /// <summary>
+    /// The name the printer reports the job by: the file name without ".gcode.3mf" or ".3mf", as Bambu Studio names
+    /// the jobs it sends.
+    /// </summary>
+    public static string JobName(string fileName)
+    {
+        foreach (var extension in (string[])[".gcode.3mf", ".3mf"])
+        {
+            if (fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase) && fileName.Length > extension.Length)
+            {
+                return fileName[..^extension.Length];
+            }
+        }
+
+        return fileName;
+    }
 }

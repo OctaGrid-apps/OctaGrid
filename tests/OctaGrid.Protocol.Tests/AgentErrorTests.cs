@@ -18,6 +18,18 @@ public sealed class AgentErrorTests
     }
 
     [Fact]
+    public void A_validation_error_of_one_field_keeps_its_message()
+    {
+        // The message is what the user is shown, as when the printer refuses a print and says why.
+        var original = new ValidationException("printer", "The printer refused to start the print.");
+
+        var back = Assert.IsType<ValidationException>(AgentError.From(original).ToException());
+
+        Assert.Equal("The printer refused to start the print.", back.Message);
+        Assert.Equal(original.Errors, back.Errors);
+    }
+
+    [Fact]
     public void A_not_found_error_keeps_its_message()
     {
         var original = new NotFoundException("Printer", Guid.Empty);

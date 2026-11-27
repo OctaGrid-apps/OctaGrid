@@ -472,11 +472,78 @@ public static class TailThreeMfFtpReader
         return buffer;
     }
 
-    private static async Task<(PrintMetadata Metadata, byte[]? Thumbnail)?> TryExtractViaRangesAsync(
-                                                        AsyncFtpClient ftp,
+    /// <summary>
+    /// Reads one entry of a .3mf on the printer, such as <c>Metadata/slice_info.config</c>, with as few transfers as
+    /// the file's layout allows. Null when the file has no such entry or cannot be read.
+    /// </summary>
+    internal static async Task<byte[]?> ReadEntryAsync(
+        AsyncFtpClient ftp,
         FtpListItem item,
-        bool extractThumbnail,
+        string entryName,
         ILogger? logger,
+        CancellationToken ct)
+    {
+        if (item.Size <= 0)
+        {
+            return null;
+        }
+
+        if (item.Size > SmallFileThreshold)
+        {
+            try
+            {
+                if (await TryReadDirectoryAsync(ftp, item, ct) is { } directory)
+                {
+                    if (!directory.Entries.TryGetValue(entryName, out var entry))
+                    {
+                        return null;
+                    }
+
+                    var payloads = await ReadEntriesAsync(
+                        ftp, item.FullName, item.Size, [entry], directory.Tail, directory.TailOffset, logger, ct);
+                    return payloads.GetValueOrDefault(entry.Name);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger?.LogWarning(ex, "Ranged read of {Entry} failed for {File}, using full download", entryName, item.FullName);
+            }
+        }
+
+        // Small files, and files the ranged read cannot handle (ZIP64), are downloaded whole.
+        await using var file = item.Size <= SmallFileThreshold
+            ? new MemoryStream((int)item.Size)
+            : (Stream)new FileStream(
+                Path.Combine(Path.GetTempPath(), $"octagrid-{Guid.NewGuid():N}.3mf"),
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 81920,
+                FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        if (!await ftp.DownloadStream(file, item.FullName, token: ct))
+        {
+            logger?.LogWarning("FTP download returned failure for {File}", item.FullName);
+            return null;
+        }
+
+        file.Position = 0;
+        using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true);
+        var found = archive.GetEntry(entryName);
+        if (found is null || found.Length > MaxEntryBytes)
+        {
+            return null;
+        }
+
+        using var content = found.Open();
+        var data = new byte[found.Length];
+        content.ReadExactly(data);
+        return data;
+    }
+
+    // The zip's central directory, and the tail read to find it, which often already holds the wanted entries.
+    private static async Task<(Dictionary<string, ZipEntryRef> Entries, byte[] Tail, long TailOffset)?> TryReadDirectoryAsync(
+        AsyncFtpClient ftp,
+        FtpListItem item,
         CancellationToken ct)
     {
         var fileSize = item.Size;
@@ -523,10 +590,24 @@ public static class TailThreeMfFtpReader
         }
 
         var entries = ParseCentralDirectory(cd);
-        if (entries.Count == 0)
+        return entries.Count == 0 ? null : (entries, tail, tailOffset);
+    }
+
+    private static async Task<(PrintMetadata Metadata, byte[]? Thumbnail)?> TryExtractViaRangesAsync(
+        AsyncFtpClient ftp,
+        FtpListItem item,
+        bool extractThumbnail,
+        ILogger? logger,
+        CancellationToken ct)
+    {
+        var fileSize = item.Size;
+        var path = item.FullName;
+        if (await TryReadDirectoryAsync(ftp, item, ct) is not { } directory)
         {
             return null;
         }
+
+        var (entries, tail, tailOffset) = directory;
 
         // 4. Choose entries to read
         var wanted = new List<ZipEntryRef>(2);

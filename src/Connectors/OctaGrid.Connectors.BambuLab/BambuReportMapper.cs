@@ -14,7 +14,12 @@ namespace OctaGrid.Connectors.BambuLab;
 /// </summary>
 internal sealed class BambuReportMapper(Guid deviceId)
 {
+    // print_error 0x0300400C: "The task was cancelled", from the printer's screen, Bambu Studio or a stop command.
+    private const long CancelledPrintError = 0x0300400C;
+
+    private readonly BambuAmsTracker _ams = new();
     private readonly PrinterTelemetry _telemetry = new(deviceId);
+    private bool _cancelled;
 
     private string? _gcodeFile;
     private string? _gcodeState;
@@ -26,12 +31,16 @@ internal sealed class BambuReportMapper(Guid deviceId)
     /// <summary>The report's <c>sdcard</c> flag; null until a report includes it.</summary>
     public bool? HasSdCard { get; private set; }
 
+    /// <summary>The spools loaded in the AMS and on the external holder. Not part of the telemetry.</summary>
+    public BambuLoadedFilaments LoadedFilaments => _ams.Loaded;
+
     /// <summary>Applies the "print" object of a report. Returns true if anything visible changed.</summary>
     public bool Apply(JsonElement print)
     {
         var t = _telemetry;
         var p = t.PrintStatus;
         var changed = false;
+        _ams.Apply(print);
 
         if (print.TryGetProperty("sdcard", out var sdCard) && sdCard.ValueKind is JsonValueKind.True or JsonValueKind.False)
         {
@@ -104,10 +113,32 @@ internal sealed class BambuReportMapper(Guid deviceId)
             changed = true;
         }
 
+        var stateReported = false;
         if (TryGetString(print, "gcode_state", out var gcodeState))
         {
             _gcodeState = gcodeState;
-            var state = ToPrinterState(_gcodeState);
+            stateReported = true;
+
+            // A job that is no longer FAILED was not cancelled: the printer went on to the next one.
+            if (!IsFailed(gcodeState))
+            {
+                _cancelled = false;
+            }
+        }
+
+        // The printer clears print_error to 0 a moment after a cancel while the job stays FAILED, so 0 keeps what
+        // the last real error said. Known limit: the flag lives only as long as this mapper, one MQTT session. A
+        // session that starts after the error was cleared sees FAILED with print_error 0 and reports Failed, even
+        // though the job was cancelled.
+        if (TryGetNumber(print, "print_error", out var printError) && printError != 0)
+        {
+            _cancelled = (long)printError == CancelledPrintError;
+            stateReported |= _gcodeState is not null;
+        }
+
+        if (stateReported)
+        {
+            var state = ToPrinterState(_gcodeState, _cancelled);
             if (t.State != state)
             {
                 t.State = state;
@@ -124,17 +155,21 @@ internal sealed class BambuReportMapper(Guid deviceId)
 
     // gcode_state describes the JOB (IDLE | PREPARE | RUNNING | PAUSE | FINISH | FAILED), so — as
     // with Moonraker's print_stats — a failed job is Failed, never the printer-level Error: the
-    // printer is fine and can take the next print.
-    private static UniversalPrinterState ToPrinterState(string? gcodeState) =>
+    // printer is fine and can take the next print. A stopped job is reported as FAILED too; its
+    // print_error says it was cancelled.
+    private static UniversalPrinterState ToPrinterState(string? gcodeState, bool cancelled) =>
         gcodeState?.ToUpperInvariant() switch
         {
             "RUNNING" => UniversalPrinterState.Printing,
             "PAUSE" => UniversalPrinterState.Paused,
             "PREPARE" or "SLICING" => UniversalPrinterState.Preparing,
             "FINISH" => UniversalPrinterState.Completed,
+            "FAILED" when cancelled => UniversalPrinterState.Cancelled,
             "FAILED" => UniversalPrinterState.Failed,
             _ => UniversalPrinterState.Idle // "IDLE", or a value this version doesn't know about
         };
+
+    private static bool IsFailed(string? gcodeState) => string.Equals(gcodeState, "FAILED", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryGetNumber(JsonElement element, string name, out double value)
     {
