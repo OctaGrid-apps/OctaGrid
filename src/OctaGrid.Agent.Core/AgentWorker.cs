@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Events;
 using OctaGrid.Agent.Core.Extensions;
+using OctaGrid.Agent.Core.Files;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.AgentLink.Notifications;
@@ -25,10 +26,12 @@ public class AgentWorker : IAsyncDisposable
     private IReadOnlyList<PrinterProfile> _profiles = [];
 
     /// <param name="extensions">The installed extensions and which of them are enabled.</param>
+    /// <param name="fileCache">Keeps what was read from printers' files across requests and restarts; optional.</param>
     public AgentWorker(
         ExtensionManager extensions,
         ILoggerFactory? loggerFactory = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        PrinterFileCache? fileCache = null)
     {
         var factory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = factory.CreateLogger<AgentWorker>();
@@ -40,7 +43,8 @@ public class AgentWorker : IAsyncDisposable
             extensions.Registry,
             new EventRecordingTelemetrySink(new HistorySink(this), _events, factory.CreateLogger<EventRecordingTelemetrySink>()),
             factory,
-            console: _console);
+            console: _console,
+            fileCache: fileCache);
     }
 
     /// <summary>

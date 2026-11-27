@@ -36,7 +36,10 @@ public static class DependencyInjection
         // talks to the agent directly: requests and what the agent reports both go over IAgentLink.
         services.AddOctaGridAgent(() => new AgentHostingOptions(
             OctaGridDataPaths.ExtensionsFolder,
-            Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json")));
+            Path.Combine(OctaGridDataPaths.DataFolder, "extensions.json"),
+            // Its own folder, so an Agent app on the same machine never prunes the in-process agent's printers.
+            FileCacheFolder: Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OctaGrid.Data", "file-cache", "local")));
 
         services.AddSingleton<LocalAgent>();
         services.AddSingleton<IAgentLink, InProcessAgentLink>();

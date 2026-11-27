@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core.Connectors;
+using OctaGrid.Agent.Core.Files;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
 
@@ -440,6 +441,41 @@ public class PrinterOrchestratorTests
         Assert.Single(files);
         Assert.Equal("image/png", thumbnail?.ContentType);
         await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_thumbnail_kept_in_the_file_cache_is_not_asked_of_the_printer_again()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "octagrid-file-cache-tests", Guid.NewGuid().ToString("N"));
+        var sessions = new List<FakeSession>();
+        var connector = new FakeConnector(Id, _ =>
+        {
+            var session = new FakeSession();
+            sessions.Add(session);
+            return session;
+        });
+        var orchestrator = new PrinterOrchestrator(
+            new ConnectorRegistry().Add(connector), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"),
+            fileCache: new PrinterFileCache(root));
+        var profile = Profile();
+        var ct = CancellationToken.None;
+        try
+        {
+            await orchestrator.ApplyProfilesAsync([profile]);
+            await orchestrator.GetPrinterFilesAsync(profile.PrinterId, ct);
+
+            var first = await orchestrator.GetThumbnailAsync(profile.PrinterId, "a.gcode", ct);
+            var second = await orchestrator.GetThumbnailAsync(profile.PrinterId, "a.gcode", ct);
+
+            Assert.Equal(["list", "thumb:a.gcode"], sessions.Single().Calls);
+            Assert.Equal(first!.Data, second!.Data);
+        }
+        finally
+        {
+            await orchestrator.DisposeAsync();
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
