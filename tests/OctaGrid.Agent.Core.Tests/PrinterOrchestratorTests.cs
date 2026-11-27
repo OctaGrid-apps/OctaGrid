@@ -459,7 +459,10 @@ public class PrinterOrchestratorTests
         public Task<PrintStartPlan> GetStartPlanAsync(string fileName, CancellationToken cancellationToken)
         {
             Calls.Add($"plan:{fileName}");
-            return Task.FromResult(new PrintStartPlan(fileName, [new PrintPlate(1), new PrintPlate(2)], []));
+            return Task.FromResult(new PrintStartPlan(
+                fileName,
+                [new PrintPlate(1, Thumbnail: new PrintThumbnail("image/png", [1])), new PrintPlate(2, Thumbnail: new PrintThumbnail("image/png", [2]))],
+                []));
         }
 
         public Task StartPrintAsync(string fileName, PrintStartChoices choices, CancellationToken cancellationToken)
@@ -518,6 +521,60 @@ public class PrinterOrchestratorTests
 
         Assert.Equal(["start:a.gcode"], sessions.Single().Calls);
         await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_started_print_keeps_the_picture_of_the_plate_the_user_chose()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "octagrid-file-cache-tests", Guid.NewGuid().ToString("N"));
+        var orchestrator = new PrinterOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => new PlanningSession())), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"),
+            fileCache: new PrinterFileCache(root));
+        var profile = Profile();
+        var ct = CancellationToken.None;
+        try
+        {
+            await orchestrator.ApplyProfilesAsync([profile]);
+
+            await orchestrator.GetPrintStartPlanAsync(profile.PrinterId, "a.gcode.3mf", ct);
+            await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode.3mf", new PrintStartChoices(2), ct);
+
+            // The printer reports the job by the file's name without its extension.
+            Assert.Equal([2], (await orchestrator.GetJobPictureAsync(profile.PrinterId, "a", ct))?.Data);
+        }
+        finally
+        {
+            await orchestrator.DisposeAsync();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_print_started_without_a_plan_keeps_the_files_thumbnail()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "octagrid-file-cache-tests", Guid.NewGuid().ToString("N"));
+        var session = new FakeSession();
+        var orchestrator = new PrinterOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"),
+            fileCache: new PrinterFileCache(root));
+        var profile = Profile();
+        var ct = CancellationToken.None;
+        try
+        {
+            await orchestrator.ApplyProfilesAsync([profile]);
+
+            await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", null, ct);
+
+            Assert.Equal(["start:a.gcode", "thumb:a.gcode"], session.Calls);
+            Assert.Equal([9], (await orchestrator.GetJobPictureAsync(profile.PrinterId, "a", ct))?.Data);
+        }
+        finally
+        {
+            await orchestrator.DisposeAsync();
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
