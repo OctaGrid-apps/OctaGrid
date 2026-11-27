@@ -45,6 +45,34 @@ public sealed class PrinterCommandsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task File_details_are_asked_of_the_printers_agent_for_the_named_files()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        await using var context = _fixture.NewContext();
+        await NewService(context).GetFileDetails(_fixture.UserId, printer.Id, ["a.gcode.3mf", "b.gcode.3mf"], CancellationToken.None);
+
+        var (agentId, request) = Assert.Single(_fixture.Link.Sent);
+        Assert.Equal(_fixture.AgentId, agentId);
+        var details = Assert.IsType<GetPrinterFileDetailsRequest>(request);
+        Assert.Equal(["a.gcode.3mf", "b.gcode.3mf"], details.FileNames);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(51)]
+    public async Task File_details_are_asked_for_at_least_one_and_at_most_fifty_files(int count)
+    {
+        var printer = await _fixture.CreatePrinter();
+        var names = Enumerable.Range(0, count).Select(i => $"{i}.gcode.3mf").ToList();
+
+        await using var context = _fixture.NewContext();
+        await Assert.ThrowsAsync<ValidationException>(
+            () => NewService(context).GetFileDetails(_fixture.UserId, printer.Id, names, CancellationToken.None));
+        Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
     public async Task A_printer_without_an_agent_cannot_be_commanded()
     {
         var printer = await _fixture.CreatePrinter();

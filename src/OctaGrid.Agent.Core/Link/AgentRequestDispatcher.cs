@@ -115,6 +115,8 @@ public sealed class AgentRequestDispatcher : IDisposable
 
             case ListPrinterFilesRequest r:
                 return new PrinterFilesReply((await _worker.GetPrinterFilesAsync(r.PrinterId, ct)).ToList());
+            case GetPrinterFileDetailsRequest r:
+                return new PrinterFilesReply(await _worker.GetPrinterFileDetailsAsync(r.PrinterId, r.FileNames, ct));
             case GetPrintThumbnailRequest r:
                 return new PrintThumbnailReply(await _worker.GetThumbnailAsync(r.PrinterId, r.FileName, ct));
             case DeletePrinterFileRequest r:

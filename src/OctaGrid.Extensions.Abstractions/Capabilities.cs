@@ -31,6 +31,20 @@ public interface IFileStorage
     Task DeleteFileAsync(string fileName, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Optional part of <see cref="IFileStorage"/>: reading what the slicer recorded in a file costs a connector a lot (a
+/// read over the network per file), so <see cref="IFileStorage.ListFilesAsync"/> may return only the name, size and
+/// date, with <see cref="PrintMetadata.DetailsPending"/> set, and the app asks here for the files it shows.
+/// </summary>
+public interface IFileDetails
+{
+    /// <summary>
+    /// The full metadata of the named files, in any order. Files that are gone or cannot be read are left out or
+    /// returned with what is known, never with <see cref="PrintMetadata.DetailsPending"/> set.
+    /// </summary>
+    Task<IReadOnlyList<PrintMetadata>> GetFileDetailsAsync(IReadOnlyList<string> fileNames, CancellationToken cancellationToken);
+}
+
 /// <summary>Optional capability: thumbnails. Declare <see cref="ConnectorCapabilities.Thumbnails"/>.</summary>
 public interface IThumbnails
 {

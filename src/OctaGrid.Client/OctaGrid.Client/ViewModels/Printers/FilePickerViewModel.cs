@@ -16,6 +16,9 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
     private const int ThumbnailConcurrency = 3;
 
     private readonly IAgentCommandsService _agentCommandsService;
+    // Files whose details are asked for at once: about a screenful, and few enough to come back quickly.
+    private const int DetailsBatchSize = 8;
+
     private CancellationTokenSource? _thumbnails;
     private readonly Guid _printerId;
     private readonly IByteArrayImageCache _imageCache;
@@ -156,10 +159,10 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
                 FileSortOption.Sort(files.Select(x => new PrintMetadataListItem(x, [])), f => f.Metadata, SelectedSort.Order));
             _logger.LogInformation("Loaded {FileCount} file(s) from printer {PrinterId}", Files.Count, _printerId);
 
-            // Thumbnails load after the list is shown. An overlapping load may have started its own.
+            // Details and thumbnails fill in after the list is shown. An overlapping load may have started its own.
             StopLoadingThumbnails();
             _thumbnails = new CancellationTokenSource();
-            ThumbnailsLoading = LoadThumbnailsAsync(Files.ToList(), _thumbnails.Token);
+            ThumbnailsLoading = FillInAsync(_thumbnails.Token);
         }
         catch (OperationCanceledException)
         {
@@ -176,8 +179,62 @@ public partial class FilePickerViewModel : ViewModelBase, IDialogParticipant<Pri
         }
     }
 
-    /// <summary>Completes when every thumbnail of the last load arrived, failed or was stopped.</summary>
+    /// <summary>Completes when every detail and thumbnail of the last load arrived, failed or was stopped.</summary>
     internal Task ThumbnailsLoading { get; private set; } = Task.CompletedTask;
+
+    // Walks the files in the order they are shown, a batch at a time: first the details the listing left out, then
+    // the thumbnails. The top of the list fills first, and a new sort order applies from the next batch on.
+    private async Task FillInAsync(CancellationToken cancellationToken)
+    {
+        var done = new HashSet<PrintMetadataListItem>();
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var batch = Files.Where(f => !done.Contains(f)).Take(DetailsBatchSize).ToList();
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            done.UnionWith(batch);
+            var pending = batch.Where(f => f.Metadata.DetailsPending).ToList();
+            if (pending.Count > 0)
+            {
+                await FillDetailsAsync(pending, cancellationToken);
+            }
+
+            await LoadThumbnailsAsync(batch, cancellationToken);
+        }
+    }
+
+    private async Task FillDetailsAsync(IReadOnlyList<PrintMetadataListItem> items, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<PrintMetadata> details;
+        try
+        {
+            details = await _agentCommandsService.GetPrinterFileDetailsAsync(
+                _printerId, items.Select(i => i.Metadata.FileName).ToList(), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to read file details on printer {PrinterId}", _printerId);
+            details = [];
+        }
+
+        // A file the printer did not describe keeps what the listing said, rather than "reading" for ever.
+        var byName = details
+            .GroupBy(d => d.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            item.Metadata = byName.TryGetValue(item.Metadata.FileName, out var read)
+                ? read with { DetailsPending = false }
+                : item.Metadata with { DetailsPending = false };
+        }
+    }
 
     /// <summary>Cancels the thumbnail requests of the last load.</summary>
     public void StopLoadingThumbnails()

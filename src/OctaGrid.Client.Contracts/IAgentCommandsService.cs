@@ -30,6 +30,12 @@ public interface IAgentCommandsService
 
     Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The full metadata of files <see cref="GetPrinterFilesAsync"/> returned with
+    /// <see cref="PrintMetadata.DetailsPending"/> set, in any order. Ask for the files on screen, a few at a time.
+    /// </summary>
+    Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken);
+
     Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
 
     Task PausePrintJobAsync(Guid printerId, CancellationToken cancellationToken);

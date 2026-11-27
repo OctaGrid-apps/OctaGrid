@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="OctaGrid.Client.Controls.PrinterFileRow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -28,8 +28,8 @@
                     ToolTip.Tip="{Binding File.Metadata.FileName}" />
                 <TextBlock
                     Classes="small secondary"
-                    IsVisible="{Binding DetailsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                    Text="{Binding DetailsText}" />
+                    IsVisible="{Binding File.DetailsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Text="{Binding File.DetailsText}" />
             </StackPanel>
 
             <!--  Hidden on a narrow page (class file-estimate) to leave room for the name  -->

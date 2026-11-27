@@ -157,6 +157,7 @@ internal sealed class RecordingAgentLink : IAgentLink
             // Small pieces, so a short stream still arrives as several of them.
             BeginUploadRequest => new UploadStartedReply(UploadId, MaxChunkSize: 4),
             ListPrinterFilesRequest => new PrinterFilesReply([]),
+            GetPrinterFileDetailsRequest => new PrinterFilesReply([]),
             GetConnectorsRequest => new ConnectorsReply(Connectors.ToList()),
             GetExtensionsRequest => new ExtensionsReply([]),
             GetDeveloperFolderRequest => new DeveloperFolderReply(null),

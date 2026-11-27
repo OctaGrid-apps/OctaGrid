@@ -8,6 +8,9 @@ namespace OctaGrid.Client.ViewModels;
 public static class PrintFileText
 {
     private const string Separator = " • ";
+
+    /// <summary>Shown in place of a file's details while they are read from the printer.</summary>
+    public const string ReadingDetails = "Reading details…";
     private static readonly string[] SizeUnits = ["B", "KB", "MB", "GB", "TB"];
 
     /// <summary>Material, nozzle and filament weight, for example "PLA • 0.4 mm • 12.5 g".</summary>

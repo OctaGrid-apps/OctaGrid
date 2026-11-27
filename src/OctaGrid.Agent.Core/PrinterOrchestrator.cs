@@ -118,6 +118,13 @@ public class PrinterOrchestrator : IAsyncDisposable
             ? await files.ListFilesAsync(cancellationToken)
             : [];
 
+    /// <summary>The full metadata of listed files; empty when the printer's connector lists everything at once.</summary>
+    public async Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(
+        Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken) =>
+        _sessions.TryGetValue(printerId, out var session) && session.Session is IFileDetails details
+            ? await details.GetFileDetailsAsync(fileNames, cancellationToken)
+            : [];
+
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
         _sessions.TryGetValue(printerId, out var session) && session.Session is IThumbnails thumbnails
             ? thumbnails.GetThumbnailAsync(fileName, cancellationToken)

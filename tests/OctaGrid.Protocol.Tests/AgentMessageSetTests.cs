@@ -53,7 +53,7 @@ public sealed class AgentMessageSetTests
             "connection.test", "connectors.get", "console.get", "console.send", "events.get",
             "extensions.approve", "extensions.dev-folder.get", "extensions.dev-folder.reload", "extensions.dev-folder.set",
             "extensions.get", "extensions.install", "extensions.set-enabled", "extensions.uninstall",
-            "files.delete", "files.list", "files.store", "files.thumbnail",
+            "files.delete", "files.details", "files.list", "files.store", "files.thumbnail",
             "print.pause", "print.resume", "print.start", "print.stop",
             "profiles.apply", "telemetry.backfill", "telemetry.watch", "upload.abort", "upload.begin", "upload.chunk",
         ];

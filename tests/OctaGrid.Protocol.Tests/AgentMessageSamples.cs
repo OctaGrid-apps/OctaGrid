@@ -35,6 +35,7 @@ internal static class AgentMessageSamples
         new ResumePrintRequest(PrinterId),
         new StopPrintRequest(PrinterId),
         new ListPrinterFilesRequest(PrinterId),
+        new GetPrinterFileDetailsRequest(PrinterId, ["benchy.gcode.3mf", "cube.gcode.3mf"]),
         new GetPrintThumbnailRequest(PrinterId, "benchy.gcode"),
         new DeletePrinterFileRequest(PrinterId, "benchy.gcode"),
         new StorePrinterFileRequest(PrinterId, UploadId, "benchy.gcode"),

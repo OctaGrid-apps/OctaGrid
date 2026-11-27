@@ -1,6 +1,7 @@
 using OctaGrid.Application.Agents;
 using OctaGrid.Application.Authorization;
 using OctaGrid.Application.Secrets;
+using OctaGrid.Application.Validation;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.AgentLink.Requests;
@@ -15,6 +16,8 @@ namespace OctaGrid.Application.Services;
 /// </summary>
 public sealed class PrinterCommandsService
 {
+    private static readonly FileDetailsRequestValidator FileDetailsValidator = new();
+
     private readonly WorkspaceAccess _access;
     private readonly IAgentLink _link;
     private readonly PrinterRouting _routing;
@@ -51,6 +54,15 @@ public sealed class PrinterCommandsService
 
     public async Task<IReadOnlyList<PrintMetadata>> GetFiles(Guid userId, Guid printerId, CancellationToken cancellationToken) =>
         (await _link.SendAsync(await AgentOf(userId, printerId, Permission.View, cancellationToken), new ListPrinterFilesRequest(printerId), cancellationToken)).Files;
+
+    /// <summary>The full metadata of files the listing returned with <see cref="PrintMetadata.DetailsPending"/> set.</summary>
+    public async Task<IReadOnlyList<PrintMetadata>> GetFileDetails(
+        Guid userId, Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken)
+    {
+        var agentId = await AgentOf(userId, printerId, Permission.View, cancellationToken);
+        FileDetailsValidator.ValidateOrThrow(fileNames);
+        return (await _link.SendAsync(agentId, new GetPrinterFileDetailsRequest(printerId, fileNames), cancellationToken)).Files;
+    }
 
     public async Task<PrintThumbnail?> GetThumbnail(Guid userId, Guid printerId, string fileName, CancellationToken cancellationToken) =>
         (await _link.SendAsync(await AgentOf(userId, printerId, Permission.View, cancellationToken), new GetPrintThumbnailRequest(printerId, fileName), cancellationToken)).Thumbnail;

@@ -143,6 +143,10 @@ public class AgentWorker : IAsyncDisposable
     public Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken) =>
             _orchestrator.GetPrinterFilesAsync(printerId, cancellationToken);
 
+    public Task<IReadOnlyList<PrintMetadata>> GetPrinterFileDetailsAsync(
+        Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken) =>
+            _orchestrator.GetPrinterFileDetailsAsync(printerId, fileNames, cancellationToken);
+
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
             _orchestrator.GetThumbnailAsync(printerId, fileName, cancellationToken);
 
