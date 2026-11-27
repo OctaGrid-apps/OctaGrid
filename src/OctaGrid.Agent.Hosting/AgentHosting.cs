@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OctaGrid.Agent.Core;
 using OctaGrid.Agent.Core.Extensions;
+using OctaGrid.Agent.Core.Files;
 using OctaGrid.Agent.Core.Link;
 
 namespace OctaGrid.Agent.Hosting;
@@ -46,6 +47,10 @@ public static class AgentHosting
         services.AddSingleton(sp => new AgentUploads(
             options().UploadsFolder ?? Path.Combine(Path.GetTempPath(), "OctaGrid", "uploads"),
             logger: sp.GetService<ILogger<AgentUploads>>()));
+        services.AddSingleton(sp => new PrinterFileCache(
+            options().FileCacheFolder ?? PrinterFileCache.DefaultRoot,
+            sp.GetService<TimeProvider>(),
+            sp.GetService<ILogger<PrinterFileCache>>()));
         services.AddSingleton<AgentWorker>();
         services.AddSingleton<AgentRequestDispatcher>();
 
