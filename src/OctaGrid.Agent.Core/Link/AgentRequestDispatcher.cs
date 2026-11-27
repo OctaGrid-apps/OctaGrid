@@ -145,7 +145,7 @@ public sealed class AgentRequestDispatcher : IDisposable
                 return Ack;
 
             case ApplyPrinterProfilesRequest r:
-                await _worker.ApplyProfilesAsync(r.Profiles, ct);
+                await _worker.ApplyProfilesAsync(r.Profiles, r.DisabledPrinterIds, ct);
                 _states.Retain(r.Profiles.Select(p => p.PrinterId).ToList());
                 return Ack;
             case TestConnectionRequest r:

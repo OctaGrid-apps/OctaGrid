@@ -9,28 +9,27 @@ using OctaGrid.Extensions.Models;
 namespace OctaGrid.Agent.Core.Files;
 
 /// <summary>
-/// What the agent has read from printers' files (metadata and thumbnails), kept on disk so a file is read over the
-/// network once, also across restarts, and whatever connector the printer uses. An entry belongs to a file as long
-/// as the file's name, size and modified time are the same as when it was read.
+/// File details and thumbnails read from printers, kept on disk across restarts for every connector.
+/// An entry is valid while the file's name, size and modified time match the ones it was read with.
 /// <para>
-/// Entries are kept after a file leaves the listing, so a card taken out and put back is not read again. They are
-/// removed when no listing has shown them for <c>maxAge</c>, when the total size passes <c>maxBytes</c> (the
-/// longest unseen first), and with their printer's folder when the printer is no longer one of the agent's.
+/// Entries outlive their file's listing, so a card that is swapped back in is not read again. An entry is
+/// removed after <c>maxAge</c> without a listing showing it, oldest first when the total passes
+/// <c>maxBytes</c>, and with its printer's folder when the printer is no longer the agent's.
 /// </para>
-/// The cache is best effort: a disk error is logged, and the file is read from the printer again.
+/// Best effort: disk errors are logged and the file is read from the printer instead.
 /// </summary>
 public sealed class PrinterFileCache
 {
     /// <summary>How long an entry is kept after the last listing that showed its file.</summary>
     public static readonly TimeSpan DefaultMaxAge = TimeSpan.FromDays(30);
 
-    /// <summary>The most the cache keeps on disk, metadata and thumbnails together.</summary>
+    /// <summary>The most the cache keeps on disk, details and thumbnails together.</summary>
     public const long DefaultMaxBytes = 256L * 1024 * 1024;
 
     private const string IndexFileName = "index.json";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly Lock _lock = new();
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ILogger _logger;
     private readonly long _maxBytes;
     private readonly TimeSpan _maxAge;
@@ -54,20 +53,28 @@ public sealed class PrinterFileCache
         _maxBytes = maxBytes;
     }
 
-    /// <summary>The default folder: <c>%LocalAppData%/OctaGrid.Data/file-cache</c>. A cache, so it does not roam.</summary>
+    /// <summary>The default folder: <c>%LocalAppData%/OctaGrid.Data/file-cache</c>.</summary>
     public static string DefaultRoot { get; } = Path.Combine(AgentLocalData.Root, "file-cache");
 
     /// <summary>
-    /// Takes a printer's file listing: remembers which files it shows, fills in the details of files read before
-    /// and keeps the details the listing itself carries. Returns the listing with what the cache knows.
+    /// Records a printer's file listing and returns it with cached details filled in. Details the listing
+    /// itself carries are cached.
     /// </summary>
-    public IReadOnlyList<PrintMetadata> ApplyListing(Guid printerId, IReadOnlyList<PrintMetadata> listing)
+    public async Task<IReadOnlyList<PrintMetadata>> ApplyListingAsync(
+        Guid printerId, IReadOnlyList<PrintMetadata> listing, CancellationToken cancellationToken)
     {
-        lock (_lock)
+        await _gate.WaitAsync(cancellationToken);
+        try
         {
-            var printer = Printer(printerId);
+            var printer = await PrinterAsync(printerId, cancellationToken);
             var now = _time.GetUtcNow();
-            printer.Listed = listing.ToDictionary(f => f.FileName, f => (f.FileSize, f.ModifiedAt), StringComparer.OrdinalIgnoreCase);
+
+            // Indexer, not ToDictionary: a name listed twice must not fail the listing.
+            printer.Listed = new Dictionary<string, (long, DateTimeOffset?)>(listing.Count, StringComparer.Ordinal);
+            foreach (var file in listing)
+            {
+                printer.Listed[file.FileName] = (file.FileSize, file.ModifiedAt);
+            }
 
             var result = new List<PrintMetadata>(listing.Count);
             foreach (var file in listing)
@@ -98,17 +105,23 @@ public sealed class PrinterFileCache
 
             printer.Dirty = true;
             RemoveExpired(printer, now);
-            Save(printerId, printer);
+            await SaveAsync(printer, cancellationToken);
             return result;
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
-    /// <summary>Keeps the details of files of the last listing; details of other files are not kept.</summary>
-    public void StoreDetails(Guid printerId, IReadOnlyList<PrintMetadata> details)
+    /// <summary>Caches the details of files in the last listing; other files are ignored.</summary>
+    public async Task StoreDetailsAsync(
+        Guid printerId, IReadOnlyList<PrintMetadata> details, CancellationToken cancellationToken)
     {
-        lock (_lock)
+        await _gate.WaitAsync(cancellationToken);
+        try
         {
-            var printer = Printer(printerId);
+            var printer = await PrinterAsync(printerId, cancellationToken);
             foreach (var file in details.Where(f => !f.DetailsPending))
             {
                 if (EntryOfListed(printer, file.FileName) is { } entry)
@@ -118,52 +131,65 @@ public sealed class PrinterFileCache
                 }
             }
 
-            Save(printerId, printer);
+            await SaveAsync(printer, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
-    /// <summary>
-    /// The thumbnail of a file of the last listing, if it was kept: true with the picture, or true with null when
-    /// the file is known to have none. False when the cache does not know, so the printer must be asked.
-    /// </summary>
-    public bool TryGetThumbnail(Guid printerId, string fileName, out PrintThumbnail? thumbnail)
+    /// <summary>The cached thumbnail of a file in the last listing, or null when none is cached.</summary>
+    public async Task<PrintThumbnail?> GetThumbnailAsync(
+        Guid printerId, string fileName, CancellationToken cancellationToken)
     {
-        thumbnail = null;
-        lock (_lock)
+        await _gate.WaitAsync(cancellationToken);
+        try
         {
-            var printer = Printer(printerId);
-            if (EntryOfListed(printer, fileName) is not { ThumbnailKnown: true } entry)
+            var printer = await PrinterAsync(printerId, cancellationToken);
+            if (EntryOfListed(printer, fileName) is not { ThumbnailFile: { } file } entry)
             {
-                return false;
-            }
-
-            if (entry.ThumbnailFile is null)
-            {
-                return true;
+                return null;
             }
 
             try
             {
-                thumbnail = new PrintThumbnail(entry.ThumbnailContentType ?? "image/png", File.ReadAllBytes(Path.Combine(Folder(printerId), entry.ThumbnailFile)));
-                return true;
+                var data = await File.ReadAllBytesAsync(Path.Combine(Folder(printerId), file), cancellationToken);
+                return new PrintThumbnail(entry.ThumbnailContentType ?? "image/png", data);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                _logger.LogDebug(ex, "Cached thumbnail of '{FileName}' on printer {PrinterId} could not be read", fileName, printerId);
-                entry.ThumbnailKnown = false;
+                _logger.LogDebug(ex, "Cached thumbnail of '{FileName}' on printer {PrinterId} could not be read",
+                    fileName, printerId);
                 entry.ThumbnailFile = null;
+                entry.ThumbnailBytes = 0;
                 printer.Dirty = true;
-                return false;
+                return null;
             }
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
-    /// <summary>Keeps the thumbnail of a file of the last listing, or that it has none.</summary>
-    public void StoreThumbnail(Guid printerId, string fileName, PrintThumbnail? thumbnail)
+    /// <summary>
+    /// Caches the thumbnail of a file in the last listing. A missing thumbnail is never cached: connectors
+    /// also return null when the read failed.
+    /// </summary>
+    public async Task StoreThumbnailAsync(
+        Guid printerId, string fileName, PrintThumbnail thumbnail, CancellationToken cancellationToken)
     {
-        lock (_lock)
+        ArgumentNullException.ThrowIfNull(thumbnail);
+        if (thumbnail.Data.Length == 0)
         {
-            var printer = Printer(printerId);
+            return;
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var printer = await PrinterAsync(printerId, cancellationToken);
             if (EntryOfListed(printer, fileName) is not { } entry)
             {
                 return;
@@ -172,58 +198,64 @@ public sealed class PrinterFileCache
             try
             {
                 DeleteThumbnail(printerId, entry);
-                if (thumbnail is { Data.Length: > 0 })
-                {
-                    Directory.CreateDirectory(Folder(printerId));
-                    var file = $"{Hash(entry.Key)}.img";
-                    File.WriteAllBytes(Path.Combine(Folder(printerId), file), thumbnail.Data);
-                    entry.ThumbnailFile = file;
-                    entry.ThumbnailContentType = thumbnail.ContentType;
-                    entry.ThumbnailBytes = thumbnail.Data.Length;
-                }
-
-                entry.ThumbnailKnown = true;
+                Directory.CreateDirectory(Folder(printerId));
+                var file = $"{Hash(entry.Key)}.img";
+                await File.WriteAllBytesAsync(Path.Combine(Folder(printerId), file), thumbnail.Data, cancellationToken);
+                entry.ThumbnailFile = file;
+                entry.ThumbnailContentType = thumbnail.ContentType;
+                entry.ThumbnailBytes = thumbnail.Data.Length;
                 printer.Dirty = true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                _logger.LogDebug(ex, "Thumbnail of '{FileName}' on printer {PrinterId} could not be kept", fileName, printerId);
+                _logger.LogDebug(ex, "Thumbnail of '{FileName}' on printer {PrinterId} could not be cached",
+                    fileName, printerId);
             }
 
-            Save(printerId, printer);
-            EnforceSizeLimit();
+            await SaveAsync(printer, cancellationToken);
+            await EnforceSizeLimitAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
     /// <summary>
-    /// Removes what is kept for printers that are no longer the agent's, and entries no listing has shown for too
-    /// long. Run when the agent gets its printers, which is also at startup.
+    /// Removes the cache of printers not in <paramref name="printers"/> and entries past their age limit.
     /// </summary>
-    public void Prune(IReadOnlyCollection<Guid> printers)
+    /// <param name="printers">All of the agent's printers, enabled or not.</param>
+    /// <param name="cancellationToken">Cancels the cleanup; what is done so far stays done.</param>
+    public async Task PruneAsync(IReadOnlyCollection<Guid> printers, CancellationToken cancellationToken)
     {
-        lock (_lock)
+        await _gate.WaitAsync(cancellationToken);
+        try
         {
-            LoadAll();
+            await LoadAllAsync(cancellationToken);
             var keep = printers.ToHashSet();
             foreach (var printerId in _printers.Keys.Where(id => !keep.Contains(id)).ToList())
             {
-                _logger.LogInformation("Removing cached files of printer {PrinterId}: it is no longer one of the agent's printers", printerId);
+                _logger.LogInformation("Removing the file cache of printer {PrinterId}: not one of the agent's printers",
+                    printerId);
                 _printers.Remove(printerId);
                 DeleteFolder(printerId);
             }
 
             var now = _time.GetUtcNow();
-            foreach (var (printerId, printer) in _printers.ToList())
+            foreach (var printer in _printers.Values.ToList())
             {
                 RemoveExpired(printer, now);
-                Save(printerId, printer);
+                await SaveAsync(printer, cancellationToken);
             }
 
-            EnforceSizeLimit();
+            await EnforceSizeLimitAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
-    // A printer that has not answered a listing for long loses its entries one by one, and its folder with the last.
     private void RemoveExpired(PrinterIndex printer, DateTimeOffset now)
     {
         foreach (var (key, entry) in printer.Entries.Where(e => now - e.Value.LastSeen > _maxAge).ToList())
@@ -232,7 +264,7 @@ public sealed class PrinterFileCache
         }
     }
 
-    private void EnforceSizeLimit()
+    private async Task EnforceSizeLimitAsync(CancellationToken cancellationToken)
     {
         var total = _printers.Values.Sum(p => p.Entries.Values.Sum(e => e.Bytes));
         if (total <= _maxBytes)
@@ -240,8 +272,8 @@ public sealed class PrinterFileCache
             return;
         }
 
-        var oldestFirst = _printers
-            .SelectMany(p => p.Value.Entries.Select(e => (Printer: p.Value, e.Key, Entry: e.Value)))
+        var oldestFirst = _printers.Values
+            .SelectMany(p => p.Entries.Select(e => (Printer: p, e.Key, Entry: e.Value)))
             .OrderBy(e => e.Entry.LastSeen)
             .ToList();
         foreach (var (printer, key, entry) in oldestFirst)
@@ -255,9 +287,9 @@ public sealed class PrinterFileCache
             RemoveEntry(printer, key, entry);
         }
 
-        foreach (var (printerId, printer) in _printers.ToList())
+        foreach (var printer in _printers.Values.ToList())
         {
-            Save(printerId, printer);
+            await SaveAsync(printer, cancellationToken);
         }
     }
 
@@ -274,39 +306,38 @@ public sealed class PrinterFileCache
             ? entry
             : null;
 
-    private PrinterIndex Printer(Guid printerId)
+    private async Task<PrinterIndex> PrinterAsync(Guid printerId, CancellationToken cancellationToken)
     {
         if (!_printers.TryGetValue(printerId, out var printer))
         {
-            printer = Load(printerId);
+            printer = await LoadAsync(printerId, cancellationToken);
             _printers[printerId] = printer;
         }
 
         return printer;
     }
 
-    private void LoadAll()
+    private async Task LoadAllAsync(CancellationToken cancellationToken)
     {
         if (_loaded)
         {
             return;
         }
 
-        _loaded = true;
         try
         {
-            if (!Directory.Exists(_root))
+            if (Directory.Exists(_root))
             {
-                return;
-            }
-
-            foreach (var folder in Directory.EnumerateDirectories(_root))
-            {
-                if (Guid.TryParseExact(Path.GetFileName(folder), "N", out var printerId) && !_printers.ContainsKey(printerId))
+                foreach (var folder in Directory.EnumerateDirectories(_root))
                 {
-                    _printers[printerId] = Load(printerId);
+                    if (Guid.TryParseExact(Path.GetFileName(folder), "N", out var printerId))
+                    {
+                        await PrinterAsync(printerId, cancellationToken);
+                    }
                 }
             }
+
+            _loaded = true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -314,23 +345,30 @@ public sealed class PrinterFileCache
         }
     }
 
-    private PrinterIndex Load(Guid printerId)
+    private async Task<PrinterIndex> LoadAsync(Guid printerId, CancellationToken cancellationToken)
     {
         var path = Path.Combine(Folder(printerId), IndexFileName);
         try
         {
             if (File.Exists(path))
             {
-                var stored = JsonSerializer.Deserialize<StoredIndex>(File.ReadAllText(path), JsonOptions);
+                await using var stream = File.OpenRead(path);
+                var stored = await JsonSerializer.DeserializeAsync<StoredIndex>(stream, JsonOptions, cancellationToken);
                 if (stored is not null)
                 {
-                    return new PrinterIndex(printerId, stored.Entries.ToDictionary(e => e.Key));
+                    // Indexer, not ToDictionary: an index from an older key format may repeat a key.
+                    var entries = new Dictionary<string, Entry>(stored.Entries.Count);
+                    foreach (var entry in stored.Entries)
+                    {
+                        entries[entry.Key] = entry;
+                    }
+
+                    return new PrinterIndex(printerId, entries);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            // A broken index is not worth keeping: start the printer's cache again.
             _logger.LogWarning(ex, "The file cache of printer {PrinterId} could not be read and is reset", printerId);
             DeleteFolder(printerId);
         }
@@ -338,32 +376,41 @@ public sealed class PrinterFileCache
         return new PrinterIndex(printerId, []);
     }
 
-    private void Save(Guid printerId, PrinterIndex printer)
+    private async Task SaveAsync(PrinterIndex printer, CancellationToken cancellationToken)
     {
         if (!printer.Dirty)
         {
             return;
         }
 
-        printer.Dirty = false;
         try
         {
             if (printer.Entries.Count == 0)
             {
-                DeleteFolder(printerId);
-                return;
+                DeleteFolder(printer.Id);
+            }
+            else
+            {
+                var folder = Folder(printer.Id);
+                Directory.CreateDirectory(folder);
+                var path = Path.Combine(folder, IndexFileName);
+                var temp = path + ".tmp";
+
+                // Written aside and moved, so a crash never leaves a half-written index.
+                await using (var stream = File.Create(temp))
+                {
+                    await JsonSerializer.SerializeAsync(
+                        stream, new StoredIndex(printer.Entries.Values.ToList()), JsonOptions, cancellationToken);
+                }
+
+                File.Move(temp, path, overwrite: true);
             }
 
-            var folder = Folder(printerId);
-            Directory.CreateDirectory(folder);
-            var path = Path.Combine(folder, IndexFileName);
-            var temp = path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(new StoredIndex(printer.Entries.Values.ToList()), JsonOptions));
-            File.Move(temp, path, overwrite: true);
+            printer.Dirty = false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning(ex, "The file cache of printer {PrinterId} could not be saved", printerId);
+            _logger.LogWarning(ex, "The file cache of printer {PrinterId} could not be saved", printer.Id);
         }
     }
 
@@ -377,14 +424,14 @@ public sealed class PrinterFileCache
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                _logger.LogDebug(ex, "Cached thumbnail {ThumbnailFile} of printer {PrinterId} could not be deleted", file, printerId);
+                _logger.LogDebug(ex, "Cached thumbnail {ThumbnailFile} of printer {PrinterId} could not be deleted",
+                    file, printerId);
             }
         }
 
         entry.ThumbnailFile = null;
         entry.ThumbnailContentType = null;
         entry.ThumbnailBytes = 0;
-        entry.ThumbnailKnown = false;
     }
 
     private void DeleteFolder(Guid printerId)
@@ -405,20 +452,28 @@ public sealed class PrinterFileCache
 
     private string Folder(Guid printerId) => Path.Combine(_root, printerId.ToString("N"));
 
-    // Names on the printer are compared without case, as the card's FAT file system does.
+    // Case-sensitive: Klipper's file system can hold both "A.gcode" and "a.gcode".
     private static string Key(string name, long size, DateTimeOffset? modifiedAt) =>
-        $"{name.ToUpperInvariant()}|{size}|{modifiedAt?.UtcTicks}";
+        $"{name}|{size}|{modifiedAt?.UtcTicks}";
 
-    private static string Hash(string key) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32];
+    private static string Hash(string key) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32];
 
-    private sealed class PrinterIndex(Guid id, Dictionary<string, Entry> entries)
+    private sealed class PrinterIndex
     {
-        public Guid Id { get; } = id;
+        public PrinterIndex(Guid id, Dictionary<string, Entry> entries)
+        {
+            Id = id;
+            Entries = entries;
+        }
 
-        public Dictionary<string, Entry> Entries { get; } = entries;
+        public Guid Id { get; }
 
-        /// <summary>The files of the last listing, by name: what a request for one file is checked against.</summary>
-        public Dictionary<string, (long Size, DateTimeOffset? ModifiedAt)> Listed { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, Entry> Entries { get; }
+
+        /// <summary>Files of the last listing by name, for checking single-file requests.</summary>
+        public Dictionary<string, (long Size, DateTimeOffset? ModifiedAt)> Listed { get; set; } =
+            new(StringComparer.Ordinal);
 
         public bool Dirty { get; set; }
     }
@@ -433,8 +488,6 @@ public sealed class PrinterFileCache
 
         public PrintMetadata? Metadata { get; set; }
 
-        public bool ThumbnailKnown { get; set; }
-
         public string? ThumbnailFile { get; set; }
 
         public string? ThumbnailContentType { get; set; }
@@ -445,7 +498,7 @@ public sealed class PrinterFileCache
 
         public DateTimeOffset? ModifiedAt { get; init; }
 
-        // What an entry costs on disk: its picture, and roughly its line in the index.
+        // Size on disk: the thumbnail plus an estimate for the entry's share of the index.
         [JsonIgnore]
         public long Bytes => ThumbnailBytes + 512;
 

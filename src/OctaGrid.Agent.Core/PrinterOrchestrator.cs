@@ -35,7 +35,9 @@ public class PrinterOrchestrator : IAsyncDisposable
 
     /// <param name="stopTimeout">How long to wait for a session to end after it is told to stop. Defaults to ten seconds.</param>
     /// <param name="console">Where the console output of sessions that report it is kept. Without it, that output is dropped.</param>
-    /// <param name="fileCache">Keeps what was read from printers' files. Without it, files are read from the printer each time.</param>
+    /// <param name="fileCache">
+    /// Caches file details and thumbnails. Without it, every request reads from the printer.
+    /// </param>
     public PrinterOrchestrator(
         ConnectorRegistry registry,
         ITelemetrySink telemetry,
@@ -94,9 +96,6 @@ public class PrinterOrchestrator : IAsyncDisposable
             }
         }
 
-        // These are all of the agent's printers: what the file cache keeps for any other printer can go.
-        _fileCache?.Prune(desiredMap.Keys);
-
         _logger.LogDebug("PrinterOrchestrator active session count: {ActiveSessions}", _sessions.Count);
     }
 
@@ -121,7 +120,7 @@ public class PrinterOrchestrator : IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>The printer's files, with the details the file cache kept filled in for files read before.</summary>
+    /// <summary>The printer's files, with details from the file cache filled in.</summary>
     public async Task<IEnumerable<PrintMetadata>> GetPrinterFilesAsync(Guid printerId, CancellationToken cancellationToken)
     {
         if (!TryGetCapability<IFileStorage>(printerId, "get printer files", out var files))
@@ -130,7 +129,7 @@ public class PrinterOrchestrator : IAsyncDisposable
         }
 
         var listing = await files.ListFilesAsync(cancellationToken);
-        return _fileCache?.ApplyListing(printerId, listing) ?? listing;
+        return _fileCache is null ? listing : await _fileCache.ApplyListingAsync(printerId, listing, cancellationToken);
     }
 
     /// <summary>The full metadata of listed files; empty when the printer's connector lists everything at once.</summary>
@@ -143,28 +142,50 @@ public class PrinterOrchestrator : IAsyncDisposable
         }
 
         var read = await details.GetFileDetailsAsync(fileNames, cancellationToken);
-        _fileCache?.StoreDetails(printerId, read);
+        if (_fileCache is not null)
+        {
+            await _fileCache.StoreDetailsAsync(printerId, read, cancellationToken);
+        }
+
         return read;
     }
 
-    /// <summary>
-    /// A file's thumbnail, from the file cache when it was read before. The current print job's thumbnail (asked for
-    /// by the job's name, not a listed file) always comes from the printer.
-    /// </summary>
-    public async Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken)
+    /// <summary>A file's thumbnail, from the file cache when it holds one.</summary>
+    public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        GetThumbnailAsync(printerId, fileName, fromPrinter: false, cancellationToken);
+
+    /// <summary>A file's thumbnail, from the file cache when it holds one.</summary>
+    /// <param name="printerId">The printer.</param>
+    /// <param name="fileName">A listed file, or the print job's name as the printer reports it.</param>
+    /// <param name="fromPrinter">
+    /// Bypasses the file cache. For the current print job, whose file may have been replaced since the last
+    /// listing the cache checks against.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    public async Task<PrintThumbnail?> GetThumbnailAsync(
+        Guid printerId, string fileName, bool fromPrinter, CancellationToken cancellationToken)
     {
         if (!_sessions.TryGetValue(printerId, out var session) || session.Session is not IThumbnails thumbnails)
         {
             return null;
         }
 
-        if (_fileCache is not null && _fileCache.TryGetThumbnail(printerId, fileName, out var cached))
+        if (fromPrinter || _fileCache is null)
+        {
+            return await thumbnails.GetThumbnailAsync(fileName, cancellationToken);
+        }
+
+        if (await _fileCache.GetThumbnailAsync(printerId, fileName, cancellationToken) is { } cached)
         {
             return cached;
         }
 
         var thumbnail = await thumbnails.GetThumbnailAsync(fileName, cancellationToken);
-        _fileCache?.StoreThumbnail(printerId, fileName, thumbnail);
+        if (thumbnail is not null)
+        {
+            await _fileCache.StoreThumbnailAsync(printerId, fileName, thumbnail, cancellationToken);
+        }
+
         return thumbnail;
     }
 
