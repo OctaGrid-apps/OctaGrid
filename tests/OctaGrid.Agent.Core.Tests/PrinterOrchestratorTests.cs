@@ -3,6 +3,7 @@ using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Files;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -426,7 +427,7 @@ public class PrinterOrchestratorTests
         var ct = CancellationToken.None;
         await orchestrator.ApplyProfilesAsync([profile]);
 
-        await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", ct);
+        await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", null, ct);
         await orchestrator.PausePrintJobAsync(profile.PrinterId, ct);
         await orchestrator.ResumePrintJobAsync(profile.PrinterId, ct);
         await orchestrator.StopPrintJobAsync(profile.PrinterId, ct);
@@ -440,6 +441,82 @@ public class PrinterOrchestratorTests
             sessions.Single().Calls);
         Assert.Single(files);
         Assert.Equal("image/png", thumbnail?.ContentType);
+        await orchestrator.DisposeAsync();
+    }
+
+    private sealed class PlanningSession : IPrinterSession, IPrintControl, IPrintStartOptions
+    {
+        public List<string> Calls { get; } = [];
+
+        public PrintStartChoices? Choices { get; private set; }
+
+        public Task RunAsync(ITelemetrySink telemetry, CancellationToken cancellationToken) =>
+            Task.Delay(Timeout.Infinite, cancellationToken);
+
+        public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ConnectionTestResult.Ok());
+
+        public Task<PrintStartPlan> GetStartPlanAsync(string fileName, CancellationToken cancellationToken)
+        {
+            Calls.Add($"plan:{fileName}");
+            return Task.FromResult(new PrintStartPlan(fileName, [new PrintPlate(1), new PrintPlate(2)], []));
+        }
+
+        public Task StartPrintAsync(string fileName, PrintStartChoices choices, CancellationToken cancellationToken)
+        {
+            Calls.Add($"start-with-choices:{fileName}");
+            Choices = choices;
+            return Task.CompletedTask;
+        }
+
+        public Task StartPrintAsync(string fileName, CancellationToken cancellationToken)
+        {
+            Calls.Add($"start:{fileName}");
+            return Task.CompletedTask;
+        }
+
+        public Task PausePrintAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ResumePrintAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopPrintAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task A_connector_with_start_choices_gets_asked_for_the_plan_and_given_the_choices()
+    {
+        var session = new PlanningSession();
+        var orchestrator = new PrinterOrchestrator(
+            new ConnectorRegistry().Add(new FakeConnector(Id, _ => session)), new FakeTelemetry(),
+            dataRoot: Path.Combine(Path.GetTempPath(), "octagrid-tests"));
+        var profile = Profile();
+        var choices = new PrintStartChoices(2);
+        var ct = CancellationToken.None;
+        await orchestrator.ApplyProfilesAsync([profile]);
+
+        var plan = await orchestrator.GetPrintStartPlanAsync(profile.PrinterId, "a.gcode.3mf", ct);
+        await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode.3mf", choices, ct);
+
+        Assert.Equal(2, plan?.Plates.Count);
+        Assert.Equal(["plan:a.gcode.3mf", "start-with-choices:a.gcode.3mf"], session.Calls);
+        Assert.Same(choices, session.Choices);
+        await orchestrator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_connector_without_start_choices_has_no_plan_and_starts_as_before()
+    {
+        var (orchestrator, _, sessions, _) = Create();
+        var profile = Profile();
+        var ct = CancellationToken.None;
+        await orchestrator.ApplyProfilesAsync([profile]);
+
+        Assert.Null(await orchestrator.GetPrintStartPlanAsync(profile.PrinterId, "a.gcode", ct));
+        await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", new PrintStartChoices(), ct);
+
+        Assert.Equal(["start:a.gcode"], sessions.Single().Calls);
         await orchestrator.DisposeAsync();
     }
 
@@ -485,11 +562,22 @@ public class PrinterOrchestratorTests
         var unknown = Guid.NewGuid();
         var ct = CancellationToken.None;
 
-        await orchestrator.StartPrintJobAsync(unknown, "a.gcode", ct);
         await orchestrator.PausePrintJobAsync(unknown, ct);
 
         Assert.Empty(await orchestrator.GetPrinterFilesAsync(unknown, ct));
         Assert.Null(await orchestrator.GetThumbnailAsync(unknown, "a.gcode", ct));
+    }
+
+    [Fact]
+    public async Task Starting_on_a_printer_without_a_session_fails_instead_of_doing_nothing()
+    {
+        var (orchestrator, _, _, _) = Create();
+        var unknown = Guid.NewGuid();
+        var ct = CancellationToken.None;
+
+        await Assert.ThrowsAsync<NotFoundException>(() => orchestrator.GetPrintStartPlanAsync(unknown, "a.gcode.3mf", ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => orchestrator.StartPrintJobAsync(unknown, "a.gcode.3mf", new PrintStartChoices(), ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => orchestrator.StartPrintJobAsync(unknown, "a.gcode.3mf", null, ct));
     }
 
     [Fact]
@@ -503,11 +591,14 @@ public class PrinterOrchestratorTests
         var ct = CancellationToken.None;
         await orchestrator.ApplyProfilesAsync([profile]);
 
-        await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", ct);
         await orchestrator.DeleteFileAsync(profile.PrinterId, "a.gcode", ct);
 
         Assert.Empty(await orchestrator.GetPrinterFilesAsync(profile.PrinterId, ct));
         Assert.Null(await orchestrator.GetThumbnailAsync(profile.PrinterId, "a.gcode", ct));
+
+        // A start the user confirmed must not vanish: it says the printer cannot print.
+        await Assert.ThrowsAsync<ValidationException>(() => orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", null, ct));
+        await Assert.ThrowsAsync<ValidationException>(() => orchestrator.GetPrintStartPlanAsync(profile.PrinterId, "a.gcode", ct));
         await orchestrator.DisposeAsync();
     }
 

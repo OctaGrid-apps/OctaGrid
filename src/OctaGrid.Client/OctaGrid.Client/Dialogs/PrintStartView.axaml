@@ -1,0 +1,205 @@
+<UserControl
+    x:Class="OctaGrid.Client.Dialogs.PrintStartView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:OctaGrid.Client.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:OctaGrid.Client.Services"
+    xmlns:vm="using:OctaGrid.Client.ViewModels"
+    Width="460"
+    d:DesignWidth="460"
+    services:DialogManager.Register="{Binding}"
+    x:DataType="vm:PrintStartViewModel"
+    mc:Ignorable="d">
+
+    <UserControl.DataTemplates>
+        <DataTemplate x:DataType="vm:PrintPlateViewModel">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource Gap.IconLabel}">
+                <controls:FileThumbnail
+                    Width="{DynamicResource Space16}"
+                    Height="{DynamicResource Space16}"
+                    Data="{Binding ThumbnailData}" />
+                <StackPanel
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Spacing="{DynamicResource Gap.FormField}">
+                    <TextBlock Classes="body" Text="{Binding Title}" />
+                    <TextBlock Classes="small secondary" Text="{Binding Summary}" />
+                    <TextBlock
+                        Classes="caption"
+                        Foreground="{DynamicResource SystemErrorTextColor}"
+                        IsVisible="{Binding !CanStart}"
+                        Text="Cannot start now" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid RowDefinitions="*,Auto" RowSpacing="{DynamicResource Gap.Form}">
+        <!--  Scrolls when the window is too short for the plates and options; the buttons below stay in view.  -->
+        <ScrollViewer Padding="{DynamicResource Padding.ScrollGutter}" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Classes="form">
+                <TextBlock
+                    Classes="small secondary"
+                    Text="{Binding FileName}"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip.Tip="{Binding FileName}" />
+
+                <!--  Loading  -->
+                <StackPanel IsVisible="{Binding IsLoading}" Spacing="{DynamicResource Gap.Inline}">
+                    <TextBlock Classes="small secondary" Text="Reading the file from the printer…" />
+                    <ProgressBar IsIndeterminate="True" />
+                </StackPanel>
+
+                <!--  Error  -->
+                <StackPanel IsVisible="{Binding HasError}" Spacing="{DynamicResource Gap.Inline}">
+                    <TextBlock
+                        Classes="body"
+                        Foreground="{DynamicResource SystemErrorTextColor}"
+                        Text="{Binding ErrorMessage}"
+                        TextWrapping="Wrap" />
+                    <Button
+                        HorizontalAlignment="Left"
+                        Command="{Binding LoadCommand}"
+                        Content="Try again" />
+                </StackPanel>
+
+                <!--  Plate: a choice when there are several, otherwise the only one  -->
+                <StackPanel IsVisible="{Binding IsReady}" Spacing="{DynamicResource Gap.Form}">
+                    <ListBox
+                        AutomationProperties.Name="Plate"
+                        IsVisible="{Binding HasPlateChoice}"
+                        ItemsSource="{Binding Plates}"
+                        SelectedItem="{Binding SelectedPlate}" />
+                    <ContentControl Content="{Binding SelectedPlate}" IsVisible="{Binding !HasPlateChoice}" />
+
+                    <StackPanel IsVisible="{Binding SelectedPlate, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="{DynamicResource Gap.KeyValue}">
+                        <TextBlock Classes="small secondary" Text="Filament" />
+                        <ItemsControl ItemsSource="{Binding SelectedPlate.Filaments}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="{DynamicResource Gap.KeyValue}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PlateFilamentViewModel">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource Gap.Inline}">
+                                        <Border
+                                            Width="{DynamicResource Space4}"
+                                            Height="{DynamicResource Space4}"
+                                            VerticalAlignment="Center"
+                                            Background="{Binding ColorHex}"
+                                            BorderBrush="{DynamicResource SubtleBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="{DynamicResource RadiusFull}"
+                                            IsVisible="{Binding HasColor}" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            Classes="small"
+                                            Text="{Binding Name}" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Classes="small secondary"
+                                            IsVisible="{Binding IsMatched}"
+                                            Text="{Binding Source}" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Classes="small"
+                                            Foreground="{DynamicResource SystemErrorTextColor}"
+                                            IsVisible="{Binding !IsMatched}"
+                                            Text="{Binding Source}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock
+                            Classes="small"
+                            Foreground="{DynamicResource SystemErrorTextColor}"
+                            IsVisible="{Binding !SelectedPlate.CanStart, FallbackValue=False}"
+                            Text="{Binding SelectedPlate.Problem}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ItemsControl IsVisible="{Binding HasOptions}" ItemsSource="{Binding Options}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="{DynamicResource Gap.Inline}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SettingFieldViewModel">
+                                <!--  Toggles and choices sit beside the label; text and numbers take the full width below it  -->
+                                <Grid
+                                    ColumnDefinitions="*,Auto"
+                                    ColumnSpacing="{DynamicResource Gap.Inline}"
+                                    RowDefinitions="Auto,Auto,Auto"
+                                    RowSpacing="{DynamicResource Gap.FormField}">
+                                    <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource Gap.FormField}">
+                                        <TextBlock Classes="body" Text="{Binding Field.Label}" />
+                                        <TextBlock
+                                            Classes="caption secondary"
+                                            IsVisible="{Binding HasHelp}"
+                                            Text="{Binding Help}"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="{Binding Field.Label}"
+                                        IsChecked="{Binding BoolValue}"
+                                        IsVisible="{Binding IsToggle}"
+                                        OffContent=""
+                                        OnContent="" />
+                                    <ComboBox
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="{Binding Field.Label}"
+                                        IsVisible="{Binding IsChoice}"
+                                        ItemsSource="{Binding Choices}"
+                                        SelectedItem="{Binding Value}" />
+                                    <TextBox
+                                        Grid.Row="1"
+                                        Grid.ColumnSpan="2"
+                                        AutomationProperties.Name="{Binding Field.Label}"
+                                        IsVisible="{Binding IsTextInput}"
+                                        Text="{Binding Value}" />
+                                    <TextBox
+                                        Grid.Row="1"
+                                        Grid.ColumnSpan="2"
+                                        AutomationProperties.Name="{Binding Field.Label}"
+                                        IsVisible="{Binding IsSecretInput}"
+                                        PasswordChar="•"
+                                        Text="{Binding Value}" />
+                                    <TextBlock
+                                        Grid.Row="2"
+                                        Grid.ColumnSpan="2"
+                                        Classes="caption"
+                                        Foreground="{DynamicResource SystemErrorTextColor}"
+                                        IsVisible="{Binding HasError}"
+                                        Text="{Binding Error}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <CheckBox Content="The build plate is clear and ready" IsChecked="{Binding IsPlateClear}" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Classes="inline">
+            <Button Command="{Binding CancelCommand}" Content="Cancel" />
+            <Button
+                Classes="primary"
+                Command="{Binding StartCommand}"
+                Content="Start print" />
+        </StackPanel>
+    </Grid>
+</UserControl>

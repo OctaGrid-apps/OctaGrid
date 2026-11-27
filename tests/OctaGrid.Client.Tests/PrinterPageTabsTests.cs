@@ -85,7 +85,22 @@ public class PrinterPageTabsTests
 
         public Exception? StartFailure { get; set; }
 
-        public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken)
+        /// <summary>The choices each start came with, in order.</summary>
+        public List<PrintStartChoices?> StartChoices { get; } = [];
+
+        /// <summary>What the printer offers when a file starts; null for a connector without choices.</summary>
+        public PrintStartPlan? Plan { get; set; }
+
+        public Exception? PlanFailure { get; set; }
+
+        /// <summary>Answers plan requests in place of <see cref="Plan"/>, for a test that needs a slow read.</summary>
+        public Func<CancellationToken, Task<PrintStartPlan?>>? PlanSource { get; set; }
+
+        public Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+            PlanSource?.Invoke(cancellationToken)
+            ?? (PlanFailure is { } failure ? Task.FromException<PrintStartPlan?>(failure) : Task.FromResult(Plan));
+
+        public Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken)
         {
             if (StartFailure is not null)
             {
@@ -93,6 +108,7 @@ public class PrinterPageTabsTests
             }
 
             Started.Add(fileName);
+            StartChoices.Add(choices);
             return Task.CompletedTask;
         }
 
@@ -148,8 +164,67 @@ public class PrinterPageTabsTests
         var commands = new FakeCommands();
         commands.ConnectorList.Add(new ConnectorDescriptor(ConnectorId, "Acme printer", "1.0.0", "Acme", capabilities, [], []));
         var item = new PrinterStatusWidget { Id = Guid.NewGuid(), Name = "Voron", State = UniversalPrinterState.Idle, ConnectorId = ConnectorId };
-        var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache(), connectors: commands.Catalog());
+        var card = new PrinterDashboardCardViewModel(item, commands, new ByteArrayImageCache(), connectors: commands.Catalog())
+        {
+            // No one answers a dialog in a headless test: the user confirms with the defaults.
+            AskToStart = _ => Task.FromResult<PrintStartChoices?>(new PrintStartChoices()),
+        };
         return (new PrinterPageViewModel(card, () => { }, new InMemorySettingsStore(), notifications), commands, item);
+    }
+
+    [Fact]
+    public async Task A_print_starts_with_what_the_user_chose_in_the_start_dialog()
+    {
+        var (page, commands, _) = Create();
+        commands.Files.Add(File("benchy.gcode.3mf"));
+        var choices = new PrintStartChoices(2);
+        page.Card.AskToStart = _ => Task.FromResult<PrintStartChoices?>(choices);
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
+
+        Assert.Same(choices, Assert.Single(commands.StartChoices));
+        Assert.Equal((int)PrinterPageTab.Overview, page.SelectedTabIndex);
+    }
+
+    [Fact]
+    public async Task A_start_the_user_cancels_sends_nothing_and_stays_on_the_files()
+    {
+        var (page, commands, _) = Create();
+        commands.Files.Add(File("benchy.gcode.3mf"));
+        page.Card.AskToStart = _ => Task.FromResult<PrintStartChoices?>(null);
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
+
+        Assert.Empty(commands.Started);
+        Assert.Equal((int)PrinterPageTab.Files, page.SelectedTabIndex);
+    }
+
+    [Fact]
+    public async Task Closing_the_start_dialog_stops_reading_the_file()
+    {
+        var (page, commands, _) = Create();
+        commands.Files.Add(File("benchy.gcode.3mf"));
+        var readCancelled = new TaskCompletionSource();
+        commands.PlanSource = async ct =>
+        {
+            await using var registration = ct.Register(readCancelled.SetResult);
+            await Task.Delay(Timeout.Infinite, ct);
+            return null;
+        };
+        page.Card.AskToStart = start =>
+        {
+            // The dialog starts the read and the user cancels before it ends.
+            _ = start.LoadCommand.ExecuteAsync(null);
+            return Task.FromResult<PrintStartChoices?>(null);
+        };
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
+
+        await readCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Empty(commands.Started);
     }
 
     [Fact]

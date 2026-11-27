@@ -46,6 +46,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         _imageCache = imageCache;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<PrinterDashboardCardViewModel>();
+        AskToStart = ShowStartDialogAsync;
 
         WeakReferenceMessenger.Default.Register<PrinterTelemetryData, Guid>(this, item.Id, HandlePrinterTelemetry);
 
@@ -187,13 +188,22 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         }
     }
 
-    /// <summary>Starts printing a file that is already on the printer. Used by the printer page's file list.</summary>
-    [RelayCommand]
-    private async Task StartFile(string fileName, CancellationToken cancellationToken)
+    /// <summary>
+    /// Asks the user how to start a file, in the start dialog. Returns null when they cancel. Tests replace it, because
+    /// a headless test has no one to answer a dialog.
+    /// </summary>
+    internal Func<PrintStartViewModel, Task<PrintStartChoices?>> AskToStart { get; set; }
+
+    /// <summary>
+    /// Starts printing a file that is already on the printer, after the user confirmed it in the start dialog. Used by
+    /// the printer page's file list.
+    /// </summary>
+    /// <returns>False when the user cancelled the start.</returns>
+    internal async Task<bool> StartFileAsync(string fileName, CancellationToken cancellationToken)
     {
         try
         {
-            await StartFileCoreAsync(fileName, cancellationToken);
+            return await StartFileCoreAsync(fileName, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -202,11 +212,38 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         }
     }
 
-    private async Task StartFileCoreAsync(string fileName, CancellationToken cancellationToken)
+    private async Task<PrintStartChoices?> ShowStartDialogAsync(PrintStartViewModel start)
     {
-        _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}')",
-            fileName, Item.Id, Item.Name);
-        await _agentCommands.StartPrintJobAsync(Item.Id, fileName, cancellationToken);
+        _ = start.LoadCommand.ExecuteAsync(null).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        return await this.ShowOverlayDialogAsync($"Start print on {Item.Name}", start);
+    }
+
+    private async Task<bool> StartFileCoreAsync(string fileName, CancellationToken cancellationToken)
+    {
+        var start = new PrintStartViewModel(Item.Id, Item.Name, fileName, _agentCommands, _loggerFactory.CreateLogger<PrintStartViewModel>());
+        PrintStartChoices? answer;
+        using (cancellationToken.Register(start.LoadCommand.Cancel))
+        {
+            try
+            {
+                answer = await AskToStart(start);
+            }
+            finally
+            {
+                // Reading the file can take a while; once the dialog is closed nobody waits for it.
+                start.LoadCommand.Cancel();
+            }
+        }
+
+        if (answer is not { } choices)
+        {
+            _logger.LogInformation("User cancelled starting '{FileName}' on printer {PrinterId}", fileName, Item.Id);
+            return false;
+        }
+
+        _logger.LogInformation("User starting print job '{FileName}' on printer {PrinterId} ('{PrinterName}'), plate {Plate}",
+            fileName, Item.Id, Item.Name, choices.Plate);
+        await _agentCommands.StartPrintJobAsync(Item.Id, fileName, choices, cancellationToken);
 
         // Printers report the file name late (often only once printing), so show the chosen one while preparing.
         _previousFileName = Item.PrintFileName;
@@ -214,6 +251,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         _startedAt = _timeProvider.GetUtcNow();
         Item.PrintFileName = fileName;
         _ = TryGetThumbnail();
+        return true;
     }
 
     [RelayCommand]

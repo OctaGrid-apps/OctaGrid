@@ -101,8 +101,10 @@ public sealed class AgentRequestDispatcher : IDisposable
         switch (request)
         {
             case StartPrintRequest r:
-                await _worker.StartPrintJobAsync(r.PrinterId, r.FileName, ct);
+                await _worker.StartPrintJobAsync(r.PrinterId, r.FileName, r.Choices, ct);
                 return Ack;
+            case GetPrintStartPlanRequest r:
+                return new PrintStartPlanReply(await _worker.GetPrintStartPlanAsync(r.PrinterId, r.FileName, ct));
             case PausePrintRequest r:
                 await _worker.PausePrintJobAsync(r.PrinterId, ct);
                 return Ack;

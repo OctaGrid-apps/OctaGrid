@@ -481,11 +481,27 @@ public static class TailThreeMfFtpReader
         FtpListItem item,
         string entryName,
         ILogger? logger,
+        CancellationToken ct) =>
+        (await ReadEntriesAsync(ftp, item, name => string.Equals(name, entryName, StringComparison.OrdinalIgnoreCase), logger, ct))
+            .GetValueOrDefault(entryName);
+
+    /// <summary>
+    /// Reads the entries of a .3mf on the printer whose names pass <paramref name="isWanted"/>, in as few transfers as
+    /// the file's layout allows, keyed by entry name (case-insensitive). Choosing by name rather than from a list
+    /// lets one read take entries whose names are only known from the archive, such as every plate's picture.
+    /// Entries that cannot be read are left out.
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, byte[]>> ReadEntriesAsync(
+        AsyncFtpClient ftp,
+        FtpListItem item,
+        Func<string, bool> isWanted,
+        ILogger? logger,
         CancellationToken ct)
     {
+        var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         if (item.Size <= 0)
         {
-            return null;
+            return result;
         }
 
         if (item.Size > SmallFileThreshold)
@@ -494,19 +510,19 @@ public static class TailThreeMfFtpReader
             {
                 if (await TryReadDirectoryAsync(ftp, item, ct) is { } directory)
                 {
-                    if (!directory.Entries.TryGetValue(entryName, out var entry))
+                    var wanted = directory.Entries.Values.Where(e => isWanted(e.Name)).ToList();
+                    foreach (var (name, data) in await ReadEntriesAsync(
+                                 ftp, item.FullName, item.Size, wanted, directory.Tail, directory.TailOffset, logger, ct))
                     {
-                        return null;
+                        result[name] = data;
                     }
 
-                    var payloads = await ReadEntriesAsync(
-                        ftp, item.FullName, item.Size, [entry], directory.Tail, directory.TailOffset, logger, ct);
-                    return payloads.GetValueOrDefault(entry.Name);
+                    return result;
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger?.LogWarning(ex, "Ranged read of {Entry} failed for {File}, using full download", entryName, item.FullName);
+                logger?.LogWarning(ex, "Ranged read of entries failed for {File}, using full download", item.FullName);
             }
         }
 
@@ -523,21 +539,25 @@ public static class TailThreeMfFtpReader
         if (!await ftp.DownloadStream(file, item.FullName, token: ct))
         {
             logger?.LogWarning("FTP download returned failure for {File}", item.FullName);
-            return null;
+            return result;
         }
 
         file.Position = 0;
         using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true);
-        var found = archive.GetEntry(entryName);
-        if (found is null || found.Length > MaxEntryBytes)
+        foreach (var found in archive.Entries)
         {
-            return null;
+            if (!isWanted(found.FullName) || found.Length > MaxEntryBytes)
+            {
+                continue;
+            }
+
+            using var content = found.Open();
+            var data = new byte[found.Length];
+            content.ReadExactly(data);
+            result[found.FullName] = data;
         }
 
-        using var content = found.Open();
-        var data = new byte[found.Length];
-        content.ReadExactly(data);
-        return data;
+        return result;
     }
 
     // The zip's central directory, and the tail read to find it, which often already holds the wanted entries.

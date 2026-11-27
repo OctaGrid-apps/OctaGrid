@@ -54,7 +54,7 @@ public sealed class AgentMessageSetTests
             "extensions.approve", "extensions.dev-folder.get", "extensions.dev-folder.reload", "extensions.dev-folder.set",
             "extensions.get", "extensions.install", "extensions.set-enabled", "extensions.uninstall",
             "files.delete", "files.details", "files.list", "files.store", "files.thumbnail",
-            "print.pause", "print.resume", "print.start", "print.stop",
+            "print.pause", "print.plan", "print.resume", "print.start", "print.stop",
             "profiles.apply", "telemetry.backfill", "telemetry.watch", "upload.abort", "upload.begin", "upload.chunk",
         ];
 
@@ -67,7 +67,7 @@ public sealed class AgentMessageSetTests
         string[] expected =
         [
             "ack", "backfill", "connection-test", "connectors", "console", "dev-folder", "events",
-            "extension-change", "extensions", "files", "thumbnail", "upload-started",
+            "extension-change", "extensions", "files", "print-plan", "thumbnail", "upload-started",
         ];
 
         Assert.Equal(expected, WireNames(typeof(AgentReply)).Values.Order(StringComparer.Ordinal));

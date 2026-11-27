@@ -158,6 +158,7 @@ internal sealed class RecordingAgentLink : IAgentLink
             BeginUploadRequest => new UploadStartedReply(UploadId, MaxChunkSize: 4),
             ListPrinterFilesRequest => new PrinterFilesReply([]),
             GetPrinterFileDetailsRequest => new PrinterFilesReply([]),
+            GetPrintStartPlanRequest => new PrintStartPlanReply(null),
             GetConnectorsRequest => new ConnectorsReply(Connectors.ToList()),
             GetExtensionsRequest => new ExtensionsReply([]),
             GetDeveloperFolderRequest => new DeveloperFolderReply(null),

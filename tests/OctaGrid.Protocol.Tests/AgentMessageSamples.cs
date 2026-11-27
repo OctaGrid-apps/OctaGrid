@@ -30,7 +30,11 @@ internal static class AgentMessageSamples
 
     public static IReadOnlyList<AgentRequest> Requests { get; } =
     [
-        new StartPrintRequest(PrinterId, "benchy.gcode"),
+        new StartPrintRequest(PrinterId, "benchy.gcode")
+        {
+            Choices = new PrintStartChoices(2, new Dictionary<string, string> { ["timelapse"] = "true" }),
+        },
+        new GetPrintStartPlanRequest(PrinterId, "benchy.gcode.3mf"),
         new PausePrintRequest(PrinterId),
         new ResumePrintRequest(PrinterId),
         new StopPrintRequest(PrinterId),
@@ -90,6 +94,13 @@ internal static class AgentMessageSamples
                 new PrinterTelemetry(PrinterId) { State = UniversalPrinterState.Idle, NozzleTemperature = 24.5 },
                 [new TelemetrySample(At, [new TelemetryReading(TelemetryReadingKeys.Nozzle, 24.5, 0)])]),
         ]),
+        new PrintStartPlanReply(new PrintStartPlan(
+            "benchy.gcode.3mf",
+            [
+                new PrintPlate(1, "Benchy", 3600, 12.5, [new PlateFilament("PLA", "FFFFFF", "AMS A1")], new PrintThumbnail("image/png", [1, 2])),
+                new PrintPlate(2, Filaments: [new PlateFilament("PETG", "000000")], Problem: "No loaded spool matches PETG #000000."),
+            ],
+            [new SettingField("timelapse", "Timelapse", SettingFieldType.Boolean, Required: false, DefaultValue: "false")])),
     ];
 
     public static IReadOnlyList<AgentNotification> Notifications { get; } =

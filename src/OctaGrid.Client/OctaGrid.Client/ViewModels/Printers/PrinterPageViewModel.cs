@@ -152,10 +152,11 @@ public partial class PrinterPageViewModel : ViewModelBase
     {
         try
         {
-            await Card.StartFileCommand.ExecuteAsync(file.Metadata.FileName);
-
-            // The job is what the user wants to see next.
-            SelectedTabIndex = (int)PrinterPageTab.Overview;
+            // The job is what the user wants to see next, unless they cancelled the start.
+            if (await Card.StartFileAsync(file.Metadata.FileName, cancellationToken))
+            {
+                SelectedTabIndex = (int)PrinterPageTab.Overview;
+            }
         }
         catch (OperationCanceledException)
         {

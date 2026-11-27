@@ -50,7 +50,14 @@ public interface IAgentCommandsService
     /// <exception cref="OctaGrid.Extensions.Models.Exceptions.ValidationException">The command is not acceptable, or the printer cannot take commands.</exception>
     Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken);
 
-    Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
+    /// <summary>
+    /// What starting a file involves: the plates to choose from and the connector's start options. Null when the
+    /// printer's connector offers no choices; the file then starts with <see cref="StartPrintJobAsync"/> as it is.
+    /// </summary>
+    Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken);
+
+    /// <summary>Starts a file, with what the user chose from its start plan, or null for the connector's defaults.</summary>
+    Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken);
 
     Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken);
 

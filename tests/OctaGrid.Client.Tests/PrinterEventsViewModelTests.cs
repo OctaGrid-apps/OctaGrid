@@ -65,7 +65,9 @@ public class PrinterEventsViewModelTests
 
         public Task ResumePrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) => throw new NotSupportedException();
 

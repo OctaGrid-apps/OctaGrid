@@ -1,3 +1,5 @@
+using OctaGrid.Extensions.Models;
+
 namespace OctaGrid.Connectors.BambuLab;
 
 /// <summary>Which spool feeds each filament of a plate, as the start command takes it.</summary>
@@ -76,6 +78,32 @@ internal static class BambuFilamentMatcher
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The plate's filaments for the start dialog, each with the spool it would print from: the one in
+    /// <paramref name="mapping"/> when the plate matched, else any tray that matches it alone.
+    /// </summary>
+    public static IReadOnlyList<PlateFilament> Describe(BambuPlate plate, BambuLoadedFilaments loaded, BambuFilamentMapping? mapping) =>
+        plate.Filaments
+            .Select(f => new PlateFilament(f.Type, f.Color.Length > 0 ? f.Color : null, SourceOf(f, loaded, mapping)))
+            .ToList();
+
+    /// <summary>A tray as Bambu's own apps name it: the AMS unit's letter and the slot, such as "AMS A2".</summary>
+    public static string TrayLabel(int trayId) => $"AMS {(char)('A' + trayId / 4)}{trayId % 4 + 1}";
+
+    private const string ExternalSpoolLabel = "External spool";
+
+    private static string? SourceOf(BambuPlateFilament filament, BambuLoadedFilaments loaded, BambuFilamentMapping? mapping)
+    {
+        if (mapping is not null)
+        {
+            return mapping.UseAms ? TrayLabel(mapping.AmsMapping[filament.Id - 1]) : ExternalSpoolLabel;
+        }
+
+        return loaded.AmsTrays.Where(t => Matches(filament, t)).OrderBy(t => t.TrayId).FirstOrDefault() is { } tray
+            ? TrayLabel(tray.TrayId)
+            : null;
     }
 
     private static bool TryExternalOnly(BambuPlate plate, BambuLoadedFilaments loaded, out BambuFilamentMapping mapping, out string problem)
