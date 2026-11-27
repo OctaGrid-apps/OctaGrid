@@ -481,11 +481,24 @@ public static class TailThreeMfFtpReader
         FtpListItem item,
         string entryName,
         ILogger? logger,
+        CancellationToken ct) =>
+        (await ReadNamedEntriesAsync(ftp, item, [entryName], logger, ct)).GetValueOrDefault(entryName);
+
+    /// <summary>
+    /// Reads several entries of a .3mf on the printer in as few transfers as the file's layout allows, keyed by the
+    /// names asked for. Entries the file does not have, or that cannot be read, are left out.
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, byte[]>> ReadNamedEntriesAsync(
+        AsyncFtpClient ftp,
+        FtpListItem item,
+        IReadOnlyCollection<string> entryNames,
+        ILogger? logger,
         CancellationToken ct)
     {
-        if (item.Size <= 0)
+        var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        if (item.Size <= 0 || entryNames.Count == 0)
         {
-            return null;
+            return result;
         }
 
         if (item.Size > SmallFileThreshold)
@@ -494,19 +507,31 @@ public static class TailThreeMfFtpReader
             {
                 if (await TryReadDirectoryAsync(ftp, item, ct) is { } directory)
                 {
-                    if (!directory.Entries.TryGetValue(entryName, out var entry))
+                    var wanted = new List<(string Name, ZipEntryRef Entry)>();
+                    foreach (var name in entryNames)
                     {
-                        return null;
+                        if (directory.Entries.TryGetValue(name, out var entry))
+                        {
+                            wanted.Add((name, entry));
+                        }
                     }
 
                     var payloads = await ReadEntriesAsync(
-                        ftp, item.FullName, item.Size, [entry], directory.Tail, directory.TailOffset, logger, ct);
-                    return payloads.GetValueOrDefault(entry.Name);
+                        ftp, item.FullName, item.Size, wanted.Select(e => e.Entry).ToList(), directory.Tail, directory.TailOffset, logger, ct);
+                    foreach (var (name, entry) in wanted)
+                    {
+                        if (payloads.TryGetValue(entry.Name, out var data))
+                        {
+                            result[name] = data;
+                        }
+                    }
+
+                    return result;
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger?.LogWarning(ex, "Ranged read of {Entry} failed for {File}, using full download", entryName, item.FullName);
+                logger?.LogWarning(ex, "Ranged read of {EntryCount} entries failed for {File}, using full download", entryNames.Count, item.FullName);
             }
         }
 
@@ -523,21 +548,26 @@ public static class TailThreeMfFtpReader
         if (!await ftp.DownloadStream(file, item.FullName, token: ct))
         {
             logger?.LogWarning("FTP download returned failure for {File}", item.FullName);
-            return null;
+            return result;
         }
 
         file.Position = 0;
         using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true);
-        var found = archive.GetEntry(entryName);
-        if (found is null || found.Length > MaxEntryBytes)
+        foreach (var name in entryNames)
         {
-            return null;
+            var found = archive.GetEntry(name);
+            if (found is null || found.Length > MaxEntryBytes)
+            {
+                continue;
+            }
+
+            using var content = found.Open();
+            var data = new byte[found.Length];
+            content.ReadExactly(data);
+            result[name] = data;
         }
 
-        using var content = found.Open();
-        var data = new byte[found.Length];
-        content.ReadExactly(data);
-        return data;
+        return result;
     }
 
     // The zip's central directory, and the tail read to find it, which often already holds the wanted entries.

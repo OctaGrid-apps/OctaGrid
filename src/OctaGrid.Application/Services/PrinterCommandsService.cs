@@ -17,6 +17,7 @@ namespace OctaGrid.Application.Services;
 public sealed class PrinterCommandsService
 {
     private static readonly FileDetailsRequestValidator FileDetailsValidator = new();
+    private static readonly PrintStartChoicesValidator StartChoicesValidator = new();
 
     private readonly WorkspaceAccess _access;
     private readonly IAgentLink _link;
@@ -76,8 +77,24 @@ public sealed class PrinterCommandsService
     public async Task SendConsoleCommand(Guid userId, Guid printerId, string command, CancellationToken cancellationToken) =>
         await _link.SendAsync(await AgentOf(userId, printerId, Permission.SendCommands, cancellationToken), new SendConsoleCommandRequest(printerId, command), cancellationToken);
 
-    public async Task StartPrint(Guid userId, Guid printerId, string fileName, CancellationToken cancellationToken) =>
-        await _link.SendAsync(await AgentOf(userId, printerId, Permission.ControlPrint, cancellationToken), new StartPrintRequest(printerId, fileName), cancellationToken);
+    /// <summary>
+    /// What starting a file involves: its plates and the start options, which the user chooses from before the print
+    /// starts. Null when the printer's connector offers no choices.
+    /// </summary>
+    public async Task<PrintStartPlan?> GetPrintStartPlan(Guid userId, Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        (await _link.SendAsync(await AgentOf(userId, printerId, Permission.ControlPrint, cancellationToken), new GetPrintStartPlanRequest(printerId, fileName), cancellationToken)).Plan;
+
+    /// <summary>Starts printing a file, with what the user chose from its start plan, or null for the defaults.</summary>
+    public async Task StartPrint(Guid userId, Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken)
+    {
+        var agentId = await AgentOf(userId, printerId, Permission.ControlPrint, cancellationToken);
+        if (choices is not null)
+        {
+            StartChoicesValidator.ValidateOrThrow(choices);
+        }
+
+        await _link.SendAsync(agentId, new StartPrintRequest(printerId, fileName) { Choices = choices }, cancellationToken);
+    }
 
     public async Task StopPrint(Guid userId, Guid printerId, CancellationToken cancellationToken) =>
         await _link.SendAsync(await AgentOf(userId, printerId, Permission.ControlPrint, cancellationToken), new StopPrintRequest(printerId), cancellationToken);

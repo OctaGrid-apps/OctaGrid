@@ -13,7 +13,17 @@ internal sealed record BambuPlateFilament(int Id, string Type, string Color);
 /// <summary>A sliced plate of a .gcode.3mf.</summary>
 /// <param name="Index">The plate's number, from 1: its G-code is <c>Metadata/plate_&lt;Index&gt;.gcode</c>.</param>
 /// <param name="Filaments">The filaments the plate uses.</param>
-internal sealed record BambuPlate(int Index, IReadOnlyList<BambuPlateFilament> Filaments);
+/// <param name="EstimatedTimeSeconds">The slicer's estimate of the print time.</param>
+/// <param name="WeightGrams">The filament the plate uses, in grams.</param>
+internal sealed record BambuPlate(
+    int Index,
+    IReadOnlyList<BambuPlateFilament> Filaments,
+    double? EstimatedTimeSeconds = null,
+    double? WeightGrams = null)
+{
+    /// <summary>The plate's picture in the file.</summary>
+    public string ThumbnailEntry => $"Metadata/plate_{Index}.png";
+}
 
 /// <summary>Reads the sliced plates from <c>Metadata/slice_info.config</c>, which lists only plates that have G-code.</summary>
 internal static class BambuSliceInfo
@@ -39,21 +49,28 @@ internal static class BambuSliceInfo
     /// <summary>The sliced plates in the order the file lists them. Plates without a valid index are skipped.</summary>
     public static IReadOnlyList<BambuPlate> ReadPlates(XDocument sliceInfo) =>
         sliceInfo.Descendants("plate")
-            .Select(plate => (Index: PlateIndex(plate), Plate: plate))
+            .Select(plate => (Index: ParseInt(Metadata(plate, "index")), Plate: plate))
             .Where(p => p.Index > 0)
-            .Select(p => new BambuPlate(p.Index, p.Plate.Elements("filament")
-                .Select(f => (Id: ParseInt((string?)f.Attribute("id")), Filament: f))
-                .Where(f => f.Id > 0)
-                .Select(f => new BambuPlateFilament(
-                    f.Id,
-                    ((string?)f.Filament.Attribute("type"))?.Trim() ?? string.Empty,
-                    BambuAmsTracker.NormalizeColor((string?)f.Filament.Attribute("color")) ?? string.Empty))
-                .ToList()))
+            .Select(p => new BambuPlate(
+                p.Index,
+                p.Plate.Elements("filament")
+                    .Select(f => (Id: ParseInt((string?)f.Attribute("id")), Filament: f))
+                    .Where(f => f.Id > 0)
+                    .Select(f => new BambuPlateFilament(
+                        f.Id,
+                        ((string?)f.Filament.Attribute("type"))?.Trim() ?? string.Empty,
+                        BambuAmsTracker.NormalizeColor((string?)f.Filament.Attribute("color")) ?? string.Empty))
+                    .ToList(),
+                ParseDouble(Metadata(p.Plate, "prediction")),
+                ParseDouble(Metadata(p.Plate, "weight"))))
             .ToList();
 
-    private static int PlateIndex(XElement plate) =>
-        ParseInt(plate.Elements("metadata").FirstOrDefault(m => (string?)m.Attribute("key") == "index")?.Attribute("value")?.Value);
+    private static string? Metadata(XElement plate, string key) =>
+        plate.Elements("metadata").FirstOrDefault(m => (string?)m.Attribute("key") == key)?.Attribute("value")?.Value;
 
     private static int ParseInt(string? value) =>
         int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : 0;
+
+    private static double? ParseDouble(string? value) =>
+        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && number > 0 ? number : null;
 }

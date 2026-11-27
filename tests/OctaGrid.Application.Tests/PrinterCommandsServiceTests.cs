@@ -1,5 +1,6 @@
 using OctaGrid.Application.Services;
 using OctaGrid.Data;
+using OctaGrid.Extensions.Models;
 using OctaGrid.Extensions.Models.Exceptions;
 using OctaGrid.Protocol.AgentLink.Requests;
 
@@ -20,11 +21,51 @@ public sealed class PrinterCommandsServiceTests : IDisposable
         var printer = await _fixture.CreatePrinter();
 
         await using var context = _fixture.NewContext();
-        await NewService(context).StartPrint(_fixture.UserId, printer.Id, "benchy.gcode", CancellationToken.None);
+        await NewService(context).StartPrint(_fixture.UserId, printer.Id, "benchy.gcode", null, CancellationToken.None);
 
         var (agentId, request) = Assert.Single(_fixture.Link.Sent);
         Assert.Equal(_fixture.AgentId, agentId);
         Assert.Equal(new StartPrintRequest(printer.Id, "benchy.gcode"), request);
+    }
+
+    [Fact]
+    public async Task The_users_start_choices_go_with_the_start()
+    {
+        var printer = await _fixture.CreatePrinter();
+        var choices = new PrintStartChoices(2, new Dictionary<string, string> { ["timelapse"] = "true" });
+
+        await using var context = _fixture.NewContext();
+        await NewService(context).StartPrint(_fixture.UserId, printer.Id, "benchy.gcode.3mf", choices, CancellationToken.None);
+
+        var start = Assert.IsType<StartPrintRequest>(Assert.Single(_fixture.Link.Sent).Request);
+        Assert.Same(choices, start.Choices);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 33)]
+    public async Task Start_choices_out_of_bounds_are_refused(int plate, int optionCount)
+    {
+        var printer = await _fixture.CreatePrinter();
+        var options = Enumerable.Range(0, optionCount).ToDictionary(i => $"option{i}", _ => "true");
+
+        await using var context = _fixture.NewContext();
+        await Assert.ThrowsAsync<ValidationException>(() => NewService(context)
+            .StartPrint(_fixture.UserId, printer.Id, "benchy.gcode.3mf", new PrintStartChoices(plate, options), CancellationToken.None));
+        Assert.Empty(_fixture.Link.Sent);
+    }
+
+    [Fact]
+    public async Task The_start_plan_is_asked_of_the_printers_agent()
+    {
+        var printer = await _fixture.CreatePrinter();
+
+        await using var context = _fixture.NewContext();
+        await NewService(context).GetPrintStartPlan(_fixture.UserId, printer.Id, "benchy.gcode.3mf", CancellationToken.None);
+
+        var (agentId, request) = Assert.Single(_fixture.Link.Sent);
+        Assert.Equal(_fixture.AgentId, agentId);
+        Assert.Equal(new GetPrintStartPlanRequest(printer.Id, "benchy.gcode.3mf"), request);
     }
 
     [Fact]

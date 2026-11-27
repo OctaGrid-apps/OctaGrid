@@ -18,6 +18,23 @@ public interface IPrintControl
     Task StopPrintAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Optional part of <see cref="IPrintControl"/>: what the user chooses when starting a file, such as the plate of a
+/// file that has several, or calibration steps. Before a print starts the app asks <see cref="GetStartPlanAsync"/>,
+/// shows the plan, and starts with <see cref="StartPrintAsync(string, PrintStartChoices, CancellationToken)"/>.
+/// </summary>
+public interface IPrintStartOptions
+{
+    /// <summary>What starting <paramref name="fileName"/> involves: its plates and the start options.</summary>
+    Task<PrintStartPlan> GetStartPlanAsync(string fileName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Starts printing a file with the user's choices. Check them again: a plate that cannot start, or an option value
+    /// that is not allowed, is refused with a message for the user.
+    /// </summary>
+    Task StartPrintAsync(string fileName, PrintStartChoices choices, CancellationToken cancellationToken);
+}
+
 /// <summary>Optional capability: manage files on the printer. Declare <see cref="ConnectorCapabilities.Files"/>.</summary>
 public interface IFileStorage
 {

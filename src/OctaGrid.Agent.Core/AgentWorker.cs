@@ -267,8 +267,11 @@ public class AgentWorker : IAsyncDisposable
         ConnectorsChanged?.Invoke();
     }
 
-    public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-            _orchestrator.StartPrintJobAsync(printerId, fileName, cancellationToken);
+    public Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+            _orchestrator.GetPrintStartPlanAsync(printerId, fileName, cancellationToken);
+
+    public Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken) =>
+            _orchestrator.StartPrintJobAsync(printerId, fileName, choices, cancellationToken);
 
     public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
             _orchestrator.StopPrintJobAsync(printerId, cancellationToken);

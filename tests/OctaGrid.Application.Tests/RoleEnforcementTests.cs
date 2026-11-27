@@ -35,7 +35,8 @@ public sealed class RoleEnforcementTests : IDisposable
         ["printers.enable"] = (Permission.ManagePrinters, (s, u) => s.Printers.SetEnabled(u, s.PrinterId, false, None)),
         ["printers.delete"] = (Permission.ManagePrinters, (s, u) => s.Printers.Delete(u, s.PrinterId, None)),
 
-        ["print.start"] = (Permission.ControlPrint, (s, u) => s.Commands.StartPrint(u, s.PrinterId, "a.gcode", None)),
+        ["print.start"] = (Permission.ControlPrint, (s, u) => s.Commands.StartPrint(u, s.PrinterId, "a.gcode", null, None)),
+        ["print.plan"] = (Permission.ControlPrint, (s, u) => s.Commands.GetPrintStartPlan(u, s.PrinterId, "a.gcode", None)),
         ["print.pause"] = (Permission.ControlPrint, (s, u) => s.Commands.PausePrint(u, s.PrinterId, None)),
         ["print.resume"] = (Permission.ControlPrint, (s, u) => s.Commands.ResumePrint(u, s.PrinterId, None)),
         ["print.stop"] = (Permission.ControlPrint, (s, u) => s.Commands.StopPrint(u, s.PrinterId, None)),

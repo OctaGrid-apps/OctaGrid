@@ -236,9 +236,26 @@ public class PrinterOrchestrator : IAsyncDisposable
         await input.SendCommandAsync(normalized, cancellationToken);
     }
 
-    public async Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken)
+    /// <summary>
+    /// What starting a file involves, from a connector that offers start choices (<see cref="IPrintStartOptions"/>);
+    /// null when it offers none or the printer has no session.
+    /// </summary>
+    public async Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        _sessions.TryGetValue(printerId, out var session) && session.Session is IPrintStartOptions options
+            ? await options.GetStartPlanAsync(fileName, cancellationToken)
+            : null;
+
+    /// <summary>
+    /// Starts a file. The user's <paramref name="choices"/> go to a connector that offers start choices; any other
+    /// starts the file as it always does.
+    /// </summary>
+    public async Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken)
     {
-        if (TryGetCapability<IPrintControl>(printerId, $"start print job '{fileName}'", out var control))
+        if (choices is not null && _sessions.TryGetValue(printerId, out var session) && session.Session is IPrintStartOptions options)
+        {
+            await options.StartPrintAsync(fileName, choices, cancellationToken);
+        }
+        else if (TryGetCapability<IPrintControl>(printerId, $"start print job '{fileName}'", out var control))
         {
             await control.StartPrintAsync(fileName, cancellationToken);
         }

@@ -17,7 +17,7 @@ using ValidationException = OctaGrid.Extensions.Models.Exceptions.ValidationExce
 
 namespace OctaGrid.Connectors.BambuLab;
 
-internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage, IFileDetails, IThumbnails
+internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOptions, IFileStorage, IFileDetails, IThumbnails
 {
     private const int DefaultPort = 8883;
     private const string Username = "bblp";
@@ -341,11 +341,70 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         }
     }
 
+    /// <summary>Prints a .3mf from the SD card's root with the default options; see <see cref="StartPrintAsync(string, PrintStartChoices, CancellationToken)"/>.</summary>
+    public Task StartPrintAsync(string fileName, CancellationToken cancellationToken) =>
+        StartPrintAsync(fileName, new PrintStartChoices(), cancellationToken);
+
     /// <summary>
-    /// Prints a .3mf from the SD card's root. The file must have one sliced plate, and each of its filaments a loaded
-    /// spool of the same type and colour; otherwise nothing is sent and the reason is thrown.
+    /// The plates of a .3mf on the SD card, each with its picture and the spools its filaments would print from, and
+    /// the start options. A plate whose filaments have no matching spool says why it cannot start.
     /// </summary>
-    public async Task StartPrintAsync(string fileName, CancellationToken cancellationToken)
+    public async Task<PrintStartPlan> GetStartPlanAsync(string fileName, CancellationToken cancellationToken)
+    {
+        var (name, plates, loaded) = await ReadPlatesAsync(fileName, cancellationToken);
+        var pictures = await ReadEntriesAsync(name, plates.Select(p => p.ThumbnailEntry).ToList(), cancellationToken);
+        var described = plates
+            .Select(plate =>
+            {
+                var matched = BambuFilamentMatcher.TryMatch(plate, loaded, out var mapping, out var problem);
+                return new PrintPlate(
+                    plate.Index,
+                    EstimatedTimeSeconds: plate.EstimatedTimeSeconds,
+                    FilamentWeightGrams: plate.WeightGrams,
+                    Filaments: BambuFilamentMatcher.Describe(plate, loaded, matched ? mapping : null),
+                    Thumbnail: pictures.TryGetValue(plate.ThumbnailEntry, out var png) ? new PrintThumbnail("image/png", png) : null,
+                    Problem: matched ? null : problem);
+            })
+            .ToList();
+        return new PrintStartPlan(name, described, BambuStartOptions.Fields);
+    }
+
+    /// <summary>
+    /// Prints a plate of a .3mf from the SD card's root. Each of the plate's filaments needs a loaded spool of the same
+    /// type and colour; otherwise, or when the choices do not fit the file, nothing is sent and the reason is thrown.
+    /// </summary>
+    public async Task StartPrintAsync(string fileName, PrintStartChoices choices, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        var (name, plates, loaded) = await ReadPlatesAsync(fileName, cancellationToken);
+        var plate = choices.Plate is { } number
+            ? plates.FirstOrDefault(p => p.Index == number)
+                ?? throw new ValidationException("plate", $"The file has no plate {number}.")
+            : plates.Count == 1
+                ? plates[0]
+                : throw new ValidationException("plate", $"The file has {plates.Count} plates. Choose the one to print.");
+
+        if (!BambuFilamentMatcher.TryMatch(plate, loaded, out var filaments, out var problem))
+        {
+            throw new ValidationException("fileName", problem);
+        }
+
+        if (!BambuStartOptions.TryApply(ProjectFileOptions.FromSdCard(name, plate.Index, filaments), choices.Options, out var options, out var optionProblem))
+        {
+            throw new ValidationException("options", optionProblem);
+        }
+
+        _logger.LogInformation(
+            "Starting plate {Plate} of '{FileName}' on Bambu printer {DeviceId} (AMS: {UseAms}, trays: {AmsMapping}, levelling: {BedLevelling}, flow: {FlowCalibration}, vibration: {VibrationCalibration}, timelapse: {Timelapse})",
+            plate.Index, name, DeviceId, filaments.UseAms, string.Join(",", filaments.AmsMapping),
+            options.BedLevelling, options.FlowCalibration, options.VibrationCalibration, options.Timelapse);
+        await SendAsync(Payload.PrintProjectFile(options), "start the print", cancellationToken);
+    }
+
+    // Checks that a file can be started at all and reads its sliced plates, now rather than from a cache: the file may
+    // have been replaced since it was listed.
+    private async Task<(string Name, IReadOnlyList<BambuPlate> Plates, BambuLoadedFilaments Loaded)> ReadPlatesAsync(
+        string fileName, CancellationToken cancellationToken)
     {
         var name = fileName?.Trim() ?? string.Empty;
         if (name.Length == 0 || name.IndexOfAny(['/', '\\']) >= 0 || name.Any(char.IsControl)
@@ -370,53 +429,39 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             throw new ValidationException("fileName", "The printer has not reported its spools yet. Try again in a moment.");
         }
 
-        // Read now rather than from a cache: the file may have been replaced since it was listed.
-        bool found;
-        byte[]? sliceInfo;
-        try
-        {
-            (found, sliceInfo) = await _ftp.RunAsync(async ftp =>
-            {
-                var item = await ftp.GetObjectInfo("/" + name, token: cancellationToken);
-                return item is null
-                    ? (false, null)
-                    : (true, await TailThreeMfFtpReader.ReadEntryAsync(ftp, item, BambuSliceInfo.EntryName, _logger, cancellationToken));
-            }, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException and not AppException)
-        {
-            // FTP failures and damaged archives alike: nothing was sent, and the user can try again.
-            _logger.LogWarning(ex, "Failed to read '{FileName}' to start it on Bambu printer {DeviceId}", name, DeviceId);
-            throw new StorageUnavailableException($"OctaGrid could not read '{name}' from the printer's SD card. Try again in a moment.");
-        }
-
-        if (!found)
-        {
-            throw new NotFoundException($"'{name}' is not on the printer's SD card.");
-        }
-
-        var plates = sliceInfo is null ? [] : BambuSliceInfo.ReadPlates(sliceInfo);
+        var entries = await ReadEntriesAsync(name, [BambuSliceInfo.EntryName], cancellationToken);
+        var plates = entries.TryGetValue(BambuSliceInfo.EntryName, out var sliceInfo) ? BambuSliceInfo.ReadPlates(sliceInfo) : [];
         if (plates.Count == 0)
         {
             throw new ValidationException("fileName", "The file has no sliced plate. Slice it in Bambu Studio and export the sliced file.");
         }
 
-        if (plates.Count > 1)
+        return (name, plates, loaded);
+    }
+
+    // Reads entries of a file in the card's root. A missing file is NotFound; any other failure means nothing was
+    // sent, and the user can try again.
+    private async Task<IReadOnlyDictionary<string, byte[]>> ReadEntriesAsync(
+        string name, IReadOnlyCollection<string> entryNames, CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<string, byte[]>? entries;
+        try
         {
-            throw new ValidationException("fileName",
-                $"The file has {plates.Count} sliced plates. OctaGrid can start files with one plate for now: export the plate on its own from Bambu Studio.");
+            entries = await _ftp!.RunAsync(async ftp =>
+            {
+                var item = await ftp.GetObjectInfo("/" + name, token: cancellationToken);
+                return item is null
+                    ? null
+                    : await TailThreeMfFtpReader.ReadNamedEntriesAsync(ftp, item, entryNames, _logger, cancellationToken);
+            }, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not AppException)
+        {
+            _logger.LogWarning(ex, "Failed to read '{FileName}' to start it on Bambu printer {DeviceId}", name, DeviceId);
+            throw new StorageUnavailableException($"OctaGrid could not read '{name}' from the printer's SD card. Try again in a moment.");
         }
 
-        var plate = plates[0];
-        if (!BambuFilamentMatcher.TryMatch(plate, loaded, out var filaments, out var problem))
-        {
-            throw new ValidationException("fileName", problem);
-        }
-
-        _logger.LogInformation(
-            "Starting plate {Plate} of '{FileName}' on Bambu printer {DeviceId} (AMS: {UseAms}, trays: {AmsMapping})",
-            plate.Index, name, DeviceId, filaments.UseAms, string.Join(",", filaments.AmsMapping));
-        await SendAsync(Payload.PrintProjectFile(ProjectFileOptions.FromSdCard(name, plate.Index, filaments)), "start the print", cancellationToken);
+        return entries ?? throw new NotFoundException($"'{name}' is not on the printer's SD card.");
     }
 
     public Task StopPrintAsync(CancellationToken cancellationToken) =>

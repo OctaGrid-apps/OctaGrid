@@ -20,4 +20,5 @@ namespace OctaGrid.Protocol.AgentLink;
 [JsonDerivedType(typeof(DeveloperFolderReply), "dev-folder")]
 [JsonDerivedType(typeof(UploadStartedReply), "upload-started")]
 [JsonDerivedType(typeof(PrinterBackfillReply), "backfill")]
+[JsonDerivedType(typeof(PrintStartPlanReply), "print-plan")]
 public abstract record AgentReply;

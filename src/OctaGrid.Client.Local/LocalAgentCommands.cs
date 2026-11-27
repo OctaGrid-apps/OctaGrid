@@ -48,8 +48,11 @@ internal sealed class LocalAgentCommands : IAgentCommandsService
     public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.SendConsoleCommand(userId, printerId, command, cancellationToken), cancellationToken);
 
-    public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StartPrint(userId, printerId, fileName, cancellationToken), cancellationToken);
+    public Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService, PrintStartPlan?>((printers, userId) => printers.GetPrintStartPlan(userId, printerId, fileName, cancellationToken), cancellationToken);
+
+    public Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken) =>
+        _calls.Run<PrinterCommandsService>((printers, userId) => printers.StartPrint(userId, printerId, fileName, choices, cancellationToken), cancellationToken);
 
     public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
         _calls.Run<PrinterCommandsService>((printers, userId) => printers.StopPrint(userId, printerId, cancellationToken), cancellationToken);

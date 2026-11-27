@@ -335,6 +335,27 @@ public class BambuPrintControlTests
     }
 
     [Fact]
+    public void A_plates_time_weight_and_picture_come_from_slice_info()
+    {
+        var sliceInfo = Encoding.UTF8.GetBytes("""
+            <config>
+              <plate>
+                <metadata key="index" value="2"/>
+                <metadata key="prediction" value="2460"/>
+                <metadata key="weight" value="15.30"/>
+                <filament id="1" type="PLA" color="#FFFFFF"/>
+              </plate>
+            </config>
+            """);
+
+        var plate = Assert.Single(BambuSliceInfo.ReadPlates(sliceInfo));
+
+        Assert.Equal(2460, plate.EstimatedTimeSeconds);
+        Assert.Equal(15.3, plate.WeightGrams);
+        Assert.Equal("Metadata/plate_2.png", plate.ThumbnailEntry);
+    }
+
+    [Fact]
     public void Slice_info_that_is_not_XML_has_no_plates() =>
         Assert.Empty(BambuSliceInfo.ReadPlates(Encoding.UTF8.GetBytes("not xml")));
 
@@ -418,9 +439,83 @@ public class BambuPrintControlTests
         Assert.Contains("no AMS", problem);
     }
 
+    [Fact]
+    public void The_start_dialog_shows_each_filament_with_the_tray_it_prints_from()
+    {
+        var plate = Plate(new BambuPlateFilament(1, "PLA", "FF0000"), new BambuPlateFilament(3, "PETG", "000000"));
+        var loaded = Loaded(FullReport);
+        BambuFilamentMatcher.TryMatch(plate, loaded, out var mapping, out _);
+
+        var filaments = BambuFilamentMatcher.Describe(plate, loaded, mapping);
+
+        Assert.Equal([new PlateFilament("PLA", "FF0000", "AMS A4"), new PlateFilament("PETG", "000000", "AMS A3")], filaments);
+    }
+
+    [Fact]
+    public void A_plate_that_cannot_start_still_shows_the_trays_that_match()
+    {
+        var plate = Plate(new BambuPlateFilament(1, "PLA", "FFFFFF"), new BambuPlateFilament(2, "ABS", "123456"));
+
+        var filaments = BambuFilamentMatcher.Describe(plate, Loaded(FullReport), mapping: null);
+
+        Assert.Equal(["AMS A1", null], filaments.Select(f => f.Source));
+    }
+
+    [Theory]
+    [InlineData(0, "AMS A1")]
+    [InlineData(5, "AMS B2")]
+    [InlineData(15, "AMS D4")]
+    public void Trays_are_named_as_in_Bambus_apps(int trayId, string label) =>
+        Assert.Equal(label, BambuFilamentMatcher.TrayLabel(trayId));
+
+    // ───────────────────────── Start options ─────────────────────────
+
+    private static ProjectFileOptions Defaults() =>
+        ProjectFileOptions.FromSdCard("a.gcode.3mf", 1, new BambuFilamentMapping(false, []));
+
+    [Fact]
+    public void The_offered_options_default_to_what_the_start_command_sends()
+    {
+        var defaults = Defaults();
+
+        var values = BambuStartOptions.Fields.ToDictionary(f => f.Key, f => f.DefaultValue!);
+        Assert.True(BambuStartOptions.TryApply(defaults, values, out var applied, out _));
+
+        Assert.Equal(defaults, applied);
+    }
+
+    [Fact]
+    public void The_users_options_change_the_start_command()
+    {
+        var values = new Dictionary<string, string>
+        {
+            [BambuStartOptions.Timelapse] = "true",
+            [BambuStartOptions.BedLevelling] = "false",
+            [BambuStartOptions.FlowCalibration] = "False",
+            [BambuStartOptions.VibrationCalibration] = "false",
+        };
+
+        Assert.True(BambuStartOptions.TryApply(Defaults(), values, out var applied, out _));
+
+        var print = JsonDocument.Parse(Payload.PrintProjectFile(applied).Json).RootElement.GetProperty("print");
+        Assert.True(print.GetProperty("timelapse").GetBoolean());
+        Assert.False(print.GetProperty("bed_levelling").GetBoolean());
+        Assert.False(print.GetProperty("flow_cali").GetBoolean());
+        Assert.False(print.GetProperty("vibration_cali").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("timelapse", "yes")]
+    [InlineData("nozzle_temp", "true")]
+    public void An_unknown_option_or_value_is_refused(string key, string value)
+    {
+        Assert.False(BambuStartOptions.TryApply(Defaults(), new Dictionary<string, string> { [key] = value }, out _, out var problem));
+        Assert.Contains(key, problem);
+    }
+
     // ───────────────────────── Without a connection ─────────────────────────
 
-    public static TheoryData<string> Operations => ["start", "pause", "resume", "stop"];
+    public static TheoryData<string> Operations => ["start", "start-with-choices", "plan", "pause", "resume", "stop"];
 
     [Theory]
     [MemberData(nameof(Operations))]
@@ -434,6 +529,8 @@ public class BambuPrintControlTests
         Task action = operation switch
         {
             "start" => client.StartPrintAsync("benchy.gcode.3mf", ct),
+            "start-with-choices" => client.StartPrintAsync("benchy.gcode.3mf", new PrintStartChoices(2), ct),
+            "plan" => client.GetStartPlanAsync("benchy.gcode.3mf", ct),
             "pause" => client.PausePrintAsync(ct),
             "resume" => client.ResumePrintAsync(ct),
             _ => client.StopPrintAsync(ct),

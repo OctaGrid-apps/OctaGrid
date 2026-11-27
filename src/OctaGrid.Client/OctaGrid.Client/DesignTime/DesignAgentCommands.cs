@@ -54,7 +54,23 @@ internal sealed class DesignAgentCommands : IAgentCommandsService
     public Task SendConsoleCommandAsync(Guid printerId, string command, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
-    public Task StartPrintJobAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+    public Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
+        Task.FromResult<PrintStartPlan?>(DesignPlan(fileName));
+
+    /// <summary>A file with two plates, one of which cannot start, and the Bambu start options.</summary>
+    public static PrintStartPlan DesignPlan(string fileName) => new(
+        fileName,
+        [
+            new PrintPlate(1, "Benchy", 2460, 15.3, [new PlateFilament("PLA", "FFFFFF", "AMS A1"), new PlateFilament("PLA", "D32F2F", "AMS A3")]),
+            new PrintPlate(2, null, 5400, 41.0, [new PlateFilament("PETG", "000000")], Problem: "No loaded spool matches PETG #000000."),
+        ],
+        [
+            new SettingField("bed_levelling", "Bed levelling", SettingFieldType.Boolean, Required: false, DefaultValue: "true"),
+            new SettingField("flow_cali", "Flow calibration", SettingFieldType.Boolean, Required: false, DefaultValue: "true"),
+            new SettingField("timelapse", "Timelapse", SettingFieldType.Boolean, Required: false, DefaultValue: "false"),
+        ]);
+
+    public Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 
     public Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken) =>
