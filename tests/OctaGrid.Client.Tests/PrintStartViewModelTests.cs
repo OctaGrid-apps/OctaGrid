@@ -86,6 +86,37 @@ public class PrintStartViewModelTests
     }
 
     [Fact]
+    public async Task A_plan_without_plates_says_so_instead_of_leaving_start_disabled_silently()
+    {
+        var (start, _) = await LoadedAsync(new PrintStartPlan("benchy.gcode.3mf", [], []));
+        start.IsPlateClear = true;
+
+        Assert.Equal("The file has no plate to print.", start.ErrorMessage);
+        Assert.False(start.StartCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task A_number_option_is_edited_as_text_and_checked_before_the_start()
+    {
+        var plan = new PrintStartPlan(
+            "benchy.gcode.3mf",
+            [new PrintPlate(1)],
+            [new SettingField("bed_temp", "Bed temperature", SettingFieldType.Number, Required: false, DefaultValue: "60")]);
+        var (start, _) = await LoadedAsync(plan);
+        var option = Assert.Single(start.Options);
+        start.IsPlateClear = true;
+
+        Assert.True(option.IsTextInput);
+        option.Value = "hot";
+        start.StartCommand.Execute(null);
+
+        Assert.Equal("Enter a number.", option.Error);
+
+        option.Value = "65";
+        Assert.Equal("65", start.Choices().Options?["bed_temp"]);
+    }
+
+    [Fact]
     public void A_plate_shows_its_time_weight_and_where_each_filament_comes_from()
     {
         var plate = new PrintPlateViewModel(DesignAgentCommands.DesignPlan("a.3mf").Plates[0]);

@@ -93,8 +93,12 @@ public class PrinterPageTabsTests
 
         public Exception? PlanFailure { get; set; }
 
+        /// <summary>Answers plan requests in place of <see cref="Plan"/>, for a test that needs a slow read.</summary>
+        public Func<CancellationToken, Task<PrintStartPlan?>>? PlanSource { get; set; }
+
         public Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-            PlanFailure is { } failure ? Task.FromException<PrintStartPlan?>(failure) : Task.FromResult(Plan);
+            PlanSource?.Invoke(cancellationToken)
+            ?? (PlanFailure is { } failure ? Task.FromException<PrintStartPlan?>(failure) : Task.FromResult(Plan));
 
         public Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken)
         {
@@ -195,6 +199,32 @@ public class PrinterPageTabsTests
 
         Assert.Empty(commands.Started);
         Assert.Equal((int)PrinterPageTab.Files, page.SelectedTabIndex);
+    }
+
+    [Fact]
+    public async Task Closing_the_start_dialog_stops_reading_the_file()
+    {
+        var (page, commands, _) = Create();
+        commands.Files.Add(File("benchy.gcode.3mf"));
+        var readCancelled = new TaskCompletionSource();
+        commands.PlanSource = async ct =>
+        {
+            await using var registration = ct.Register(readCancelled.SetResult);
+            await Task.Delay(Timeout.Infinite, ct);
+            return null;
+        };
+        page.Card.AskToStart = start =>
+        {
+            // The dialog starts the read and the user cancels before it ends.
+            _ = start.LoadCommand.ExecuteAsync(null);
+            return Task.FromResult<PrintStartChoices?>(null);
+        };
+        page.SelectedTabIndex = (int)PrinterPageTab.Files;
+
+        await page.FileRows[0].PrintCommand.ExecuteAsync(null);
+
+        await readCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Empty(commands.Started);
     }
 
     [Fact]

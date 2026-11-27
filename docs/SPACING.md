@@ -62,6 +62,7 @@ Naming: step × 4 = px (`Space5` = 20). This keeps names stable even if a future
 | `Padding.Tab` | 12,0 | tab headers; their height is `MinHeight` = `Space10` (40), not vertical padding, which would push the text onto the selection pipe |
 | `Padding.IconButton` | 4 | "⋮" more-options button |
 | `Padding.DividedSection` | 0,12,0,0 | a section under a top hairline |
+| `Padding.ScrollGutter` | 0,0,12,0 | `ScrollViewer.Padding`, so the scroll bar does not cover the content (dialog bodies) |
 | `Margin.CardStack` | 0,20,0,0 | top margin of a card that has moved below another card when the page is narrow |
 | `Padding.Tile` | 12 | stat tiles inside a card (temperatures) |
 | `Padding.Badge` | 8,2 | status pills |

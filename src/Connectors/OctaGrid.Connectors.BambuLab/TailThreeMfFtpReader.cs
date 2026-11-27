@@ -482,21 +482,24 @@ public static class TailThreeMfFtpReader
         string entryName,
         ILogger? logger,
         CancellationToken ct) =>
-        (await ReadNamedEntriesAsync(ftp, item, [entryName], logger, ct)).GetValueOrDefault(entryName);
+        (await ReadEntriesAsync(ftp, item, name => string.Equals(name, entryName, StringComparison.OrdinalIgnoreCase), logger, ct))
+            .GetValueOrDefault(entryName);
 
     /// <summary>
-    /// Reads several entries of a .3mf on the printer in as few transfers as the file's layout allows, keyed by the
-    /// names asked for. Entries the file does not have, or that cannot be read, are left out.
+    /// Reads the entries of a .3mf on the printer whose names pass <paramref name="isWanted"/>, in as few transfers as
+    /// the file's layout allows, keyed by entry name (case-insensitive). Choosing by name rather than from a list
+    /// lets one read take entries whose names are only known from the archive, such as every plate's picture.
+    /// Entries that cannot be read are left out.
     /// </summary>
-    internal static async Task<IReadOnlyDictionary<string, byte[]>> ReadNamedEntriesAsync(
+    internal static async Task<IReadOnlyDictionary<string, byte[]>> ReadEntriesAsync(
         AsyncFtpClient ftp,
         FtpListItem item,
-        IReadOnlyCollection<string> entryNames,
+        Func<string, bool> isWanted,
         ILogger? logger,
         CancellationToken ct)
     {
         var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        if (item.Size <= 0 || entryNames.Count == 0)
+        if (item.Size <= 0)
         {
             return result;
         }
@@ -507,23 +510,11 @@ public static class TailThreeMfFtpReader
             {
                 if (await TryReadDirectoryAsync(ftp, item, ct) is { } directory)
                 {
-                    var wanted = new List<(string Name, ZipEntryRef Entry)>();
-                    foreach (var name in entryNames)
+                    var wanted = directory.Entries.Values.Where(e => isWanted(e.Name)).ToList();
+                    foreach (var (name, data) in await ReadEntriesAsync(
+                                 ftp, item.FullName, item.Size, wanted, directory.Tail, directory.TailOffset, logger, ct))
                     {
-                        if (directory.Entries.TryGetValue(name, out var entry))
-                        {
-                            wanted.Add((name, entry));
-                        }
-                    }
-
-                    var payloads = await ReadEntriesAsync(
-                        ftp, item.FullName, item.Size, wanted.Select(e => e.Entry).ToList(), directory.Tail, directory.TailOffset, logger, ct);
-                    foreach (var (name, entry) in wanted)
-                    {
-                        if (payloads.TryGetValue(entry.Name, out var data))
-                        {
-                            result[name] = data;
-                        }
+                        result[name] = data;
                     }
 
                     return result;
@@ -531,7 +522,7 @@ public static class TailThreeMfFtpReader
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger?.LogWarning(ex, "Ranged read of {EntryCount} entries failed for {File}, using full download", entryNames.Count, item.FullName);
+                logger?.LogWarning(ex, "Ranged read of entries failed for {File}, using full download", item.FullName);
             }
         }
 
@@ -553,10 +544,9 @@ public static class TailThreeMfFtpReader
 
         file.Position = 0;
         using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true);
-        foreach (var name in entryNames)
+        foreach (var found in archive.Entries)
         {
-            var found = archive.GetEntry(name);
-            if (found is null || found.Length > MaxEntryBytes)
+            if (!isWanted(found.FullName) || found.Length > MaxEntryBytes)
             {
                 continue;
             }
@@ -564,7 +554,7 @@ public static class TailThreeMfFtpReader
             using var content = found.Open();
             var data = new byte[found.Length];
             content.ReadExactly(data);
-            result[name] = data;
+            result[found.FullName] = data;
         }
 
         return result;

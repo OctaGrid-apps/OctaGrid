@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
+using OctaGrid.Extensions.Models;
 
 namespace OctaGrid.Connectors.BambuLab;
 
@@ -19,17 +20,62 @@ internal sealed record BambuPlate(
     int Index,
     IReadOnlyList<BambuPlateFilament> Filaments,
     double? EstimatedTimeSeconds = null,
-    double? WeightGrams = null)
-{
-    /// <summary>The plate's picture in the file.</summary>
-    public string ThumbnailEntry => $"Metadata/plate_{Index}.png";
-}
+    double? WeightGrams = null);
 
 /// <summary>Reads the sliced plates from <c>Metadata/slice_info.config</c>, which lists only plates that have G-code.</summary>
 internal static class BambuSliceInfo
 {
     /// <summary>The entry of a .gcode.3mf that describes its sliced plates.</summary>
     public const string EntryName = "Metadata/slice_info.config";
+
+    private const string PlatePicturePrefix = "Metadata/plate_";
+
+    // Bambu Studio writes PNG; other slicers' 3MFs can carry JPEG, as the file list's thumbnails already allow.
+    // In order of preference, for a plate that has more than one.
+    private static readonly (string Extension, string ContentType)[] PlatePictureFormats =
+    [
+        (".png", "image/png"),
+        (".jpg", "image/jpeg"),
+        (".jpeg", "image/jpeg"),
+    ];
+
+    /// <summary>
+    /// Whether an entry is a plate's picture (<c>Metadata/plate_&lt;n&gt;.png</c>, or .jpg/.jpeg), not one of the
+    /// other pictures Bambu Studio writes per plate, such as <c>plate_1_small.png</c> or <c>plate_no_light_1.png</c>.
+    /// </summary>
+    public static bool IsPlatePicture(string entryName)
+    {
+        if (!entryName.StartsWith(PlatePicturePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        foreach (var (extension, _) in PlatePictureFormats)
+        {
+            if (entryName.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                var number = entryName.AsSpan(PlatePicturePrefix.Length, entryName.Length - PlatePicturePrefix.Length - extension.Length);
+                return number.Length > 0 && !number.ContainsAnyExceptInRange('0', '9');
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The picture of <paramref name="plate"/> among entries read from its file, or null when it has none.</summary>
+    /// <param name="entries">Entries keyed by name, case-insensitively, as the 3MF reader returns them.</param>
+    public static PrintThumbnail? PlatePicture(BambuPlate plate, IReadOnlyDictionary<string, byte[]> entries)
+    {
+        foreach (var (extension, contentType) in PlatePictureFormats)
+        {
+            if (entries.TryGetValue($"{PlatePicturePrefix}{plate.Index}{extension}", out var data) && data.Length > 0)
+            {
+                return new PrintThumbnail(contentType, data);
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>The sliced plates of the entry's content; none when it is not valid XML.</summary>
     public static IReadOnlyList<BambuPlate> ReadPlates(byte[] sliceInfo)

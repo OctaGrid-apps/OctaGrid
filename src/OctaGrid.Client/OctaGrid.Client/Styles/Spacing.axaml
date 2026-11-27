@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 OctaGrid.Client — spacing, radius and control-size tokens.
 See SPACING.md for the rules behind these values.
 
@@ -117,6 +117,8 @@ Merge into App.axaml:
     <!--  Space3 · stat tiles inside a card  -->
     <Thickness x:Key="Padding.Badge">8,2</Thickness>
     <!--  Space2 / Space0_5 · status pills  -->
+    <Thickness x:Key="Padding.ScrollGutter">0,0,12,0</Thickness>
+    <!--  Space3 right · room for the scroll bar, so it does not cover the content of a ScrollViewer  -->
 
     <!--  ═══════════════ 2. SEMANTIC — MARGIN (use sparingly; prefer Gap.*) ═══════════════  -->
     <Thickness x:Key="Margin.SidebarBrand">8,4,8,20</Thickness>

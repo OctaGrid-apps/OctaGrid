@@ -238,27 +238,46 @@ public class PrinterOrchestrator : IAsyncDisposable
 
     /// <summary>
     /// What starting a file involves, from a connector that offers start choices (<see cref="IPrintStartOptions"/>);
-    /// null when it offers none or the printer has no session.
+    /// null when it offers none.
     /// </summary>
+    /// <exception cref="NotFoundException">The printer has no running session.</exception>
+    /// <exception cref="ValidationException">The printer's connector cannot start prints.</exception>
     public async Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-        _sessions.TryGetValue(printerId, out var session) && session.Session is IPrintStartOptions options
+        PrintSession(printerId) is IPrintStartOptions options
             ? await options.GetStartPlanAsync(fileName, cancellationToken)
             : null;
 
     /// <summary>
     /// Starts a file. The user's <paramref name="choices"/> go to a connector that offers start choices; any other
-    /// starts the file as it always does.
+    /// starts the file as it always does. Unlike the other print commands, a start that cannot be sent fails: the user
+    /// just confirmed it, and silence would read as a print that started.
     /// </summary>
+    /// <exception cref="NotFoundException">The printer has no running session.</exception>
+    /// <exception cref="ValidationException">The printer's connector cannot start prints.</exception>
     public async Task StartPrintJobAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken)
     {
-        if (choices is not null && _sessions.TryGetValue(printerId, out var session) && session.Session is IPrintStartOptions options)
+        var session = PrintSession(printerId);
+        if (choices is not null && session is IPrintStartOptions options)
         {
             await options.StartPrintAsync(fileName, choices, cancellationToken);
         }
-        else if (TryGetCapability<IPrintControl>(printerId, $"start print job '{fileName}'", out var control))
+        else
         {
-            await control.StartPrintAsync(fileName, cancellationToken);
+            await ((IPrintControl)session).StartPrintAsync(fileName, cancellationToken);
         }
+    }
+
+    // The session of a printer that can start prints, or why it cannot.
+    private IPrinterSession PrintSession(Guid printerId)
+    {
+        if (!_sessions.TryGetValue(printerId, out var session))
+        {
+            throw new NotFoundException("The printer is not connected.");
+        }
+
+        return session.Session is IPrintControl
+            ? session.Session
+            : throw new ValidationException("fileName", "This printer's connector cannot start prints.");
     }
 
     public async Task StopPrintJobAsync(Guid printerId, CancellationToken cancellationToken)

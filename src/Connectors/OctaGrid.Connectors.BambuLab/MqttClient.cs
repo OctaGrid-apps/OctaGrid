@@ -351,8 +351,8 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOp
     /// </summary>
     public async Task<PrintStartPlan> GetStartPlanAsync(string fileName, CancellationToken cancellationToken)
     {
-        var (name, plates, loaded) = await ReadPlatesAsync(fileName, cancellationToken);
-        var pictures = await ReadEntriesAsync(name, plates.Select(p => p.ThumbnailEntry).ToList(), cancellationToken);
+        // One read for the plates and their pictures: which plates have pictures is only known from the archive.
+        var (name, plates, loaded, pictures) = await ReadPlatesAsync(fileName, BambuSliceInfo.IsPlatePicture, cancellationToken);
         var described = plates
             .Select(plate =>
             {
@@ -362,7 +362,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOp
                     EstimatedTimeSeconds: plate.EstimatedTimeSeconds,
                     FilamentWeightGrams: plate.WeightGrams,
                     Filaments: BambuFilamentMatcher.Describe(plate, loaded, matched ? mapping : null),
-                    Thumbnail: pictures.TryGetValue(plate.ThumbnailEntry, out var png) ? new PrintThumbnail("image/png", png) : null,
+                    Thumbnail: BambuSliceInfo.PlatePicture(plate, pictures),
                     Problem: matched ? null : problem);
             })
             .ToList();
@@ -376,7 +376,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOp
     public async Task StartPrintAsync(string fileName, PrintStartChoices choices, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(choices);
-        var (name, plates, loaded) = await ReadPlatesAsync(fileName, cancellationToken);
+        var (name, plates, loaded, _) = await ReadPlatesAsync(fileName, static _ => false, cancellationToken);
         var plate = choices.Plate is { } number
             ? plates.FirstOrDefault(p => p.Index == number)
                 ?? throw new ValidationException("plate", $"The file has no plate {number}.")
@@ -402,9 +402,9 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOp
     }
 
     // Checks that a file can be started at all and reads its sliced plates, now rather than from a cache: the file may
-    // have been replaced since it was listed.
-    private async Task<(string Name, IReadOnlyList<BambuPlate> Plates, BambuLoadedFilaments Loaded)> ReadPlatesAsync(
-        string fileName, CancellationToken cancellationToken)
+    // have been replaced since it was listed. Entries passing alsoRead come back from the same read.
+    private async Task<(string Name, IReadOnlyList<BambuPlate> Plates, BambuLoadedFilaments Loaded, IReadOnlyDictionary<string, byte[]> Entries)> ReadPlatesAsync(
+        string fileName, Func<string, bool> alsoRead, CancellationToken cancellationToken)
     {
         var name = fileName?.Trim() ?? string.Empty;
         if (name.Length == 0 || name.IndexOfAny(['/', '\\']) >= 0 || name.Any(char.IsControl)
@@ -429,20 +429,23 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOp
             throw new ValidationException("fileName", "The printer has not reported its spools yet. Try again in a moment.");
         }
 
-        var entries = await ReadEntriesAsync(name, [BambuSliceInfo.EntryName], cancellationToken);
+        var entries = await ReadEntriesAsync(
+            name,
+            entry => string.Equals(entry, BambuSliceInfo.EntryName, StringComparison.OrdinalIgnoreCase) || alsoRead(entry),
+            cancellationToken);
         var plates = entries.TryGetValue(BambuSliceInfo.EntryName, out var sliceInfo) ? BambuSliceInfo.ReadPlates(sliceInfo) : [];
         if (plates.Count == 0)
         {
             throw new ValidationException("fileName", "The file has no sliced plate. Slice it in Bambu Studio and export the sliced file.");
         }
 
-        return (name, plates, loaded);
+        return (name, plates, loaded, entries);
     }
 
     // Reads entries of a file in the card's root. A missing file is NotFound; any other failure means nothing was
     // sent, and the user can try again.
     private async Task<IReadOnlyDictionary<string, byte[]>> ReadEntriesAsync(
-        string name, IReadOnlyCollection<string> entryNames, CancellationToken cancellationToken)
+        string name, Func<string, bool> isWanted, CancellationToken cancellationToken)
     {
         IReadOnlyDictionary<string, byte[]>? entries;
         try
@@ -452,7 +455,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IPrintStartOp
                 var item = await ftp.GetObjectInfo("/" + name, token: cancellationToken);
                 return item is null
                     ? null
-                    : await TailThreeMfFtpReader.ReadNamedEntriesAsync(ftp, item, entryNames, _logger, cancellationToken);
+                    : await TailThreeMfFtpReader.ReadEntriesAsync(ftp, item, isWanted, _logger, cancellationToken);
             }, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not AppException)

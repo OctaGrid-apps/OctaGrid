@@ -335,7 +335,7 @@ public class BambuPrintControlTests
     }
 
     [Fact]
-    public void A_plates_time_weight_and_picture_come_from_slice_info()
+    public void A_plates_time_and_weight_come_from_slice_info()
     {
         var sliceInfo = Encoding.UTF8.GetBytes("""
             <config>
@@ -352,8 +352,41 @@ public class BambuPrintControlTests
 
         Assert.Equal(2460, plate.EstimatedTimeSeconds);
         Assert.Equal(15.3, plate.WeightGrams);
-        Assert.Equal("Metadata/plate_2.png", plate.ThumbnailEntry);
     }
+
+    [Theory]
+    [InlineData("Metadata/plate_2.png", "image/png")]
+    [InlineData("Metadata/plate_2.jpg", "image/jpeg")]
+    [InlineData("Metadata/PLATE_2.JPEG", "image/jpeg")]
+    public void A_plates_picture_is_found_in_any_format_with_its_content_type(string entry, string contentType)
+    {
+        var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [entry] = [1, 2, 3],
+            ["Metadata/plate_1.png"] = [9],
+        };
+
+        var picture = BambuSliceInfo.PlatePicture(new BambuPlate(2, []), entries);
+
+        Assert.Equal(contentType, picture?.ContentType);
+        Assert.Equal([1, 2, 3], picture?.Data);
+    }
+
+    [Fact]
+    public void A_png_plate_picture_is_preferred_over_a_jpeg()
+    {
+        var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Metadata/plate_1.jpg"] = [1],
+            ["Metadata/plate_1.png"] = [2],
+        };
+
+        Assert.Equal("image/png", BambuSliceInfo.PlatePicture(new BambuPlate(1, []), entries)?.ContentType);
+    }
+
+    [Fact]
+    public void A_plate_without_a_picture_has_none() =>
+        Assert.Null(BambuSliceInfo.PlatePicture(new BambuPlate(3, []), new Dictionary<string, byte[]>()));
 
     [Fact]
     public void Slice_info_that_is_not_XML_has_no_plates() =>
@@ -467,6 +500,22 @@ public class BambuPrintControlTests
     [InlineData(15, "AMS D4")]
     public void Trays_are_named_as_in_Bambus_apps(int trayId, string label) =>
         Assert.Equal(label, BambuFilamentMatcher.TrayLabel(trayId));
+
+    [Theory]
+    [InlineData("Metadata/plate_1.png", true)]
+    [InlineData("Metadata/plate_12.png", true)]
+    [InlineData("metadata/PLATE_3.PNG", true)]
+    [InlineData("Metadata/plate_4.jpg", true)]
+    [InlineData("Metadata/plate_5.jpeg", true)]
+    [InlineData("Metadata/plate_1_small.jpg", false)]
+    [InlineData("Metadata/plate_1.webp", false)]
+    [InlineData("Metadata/plate_1_small.png", false)]
+    [InlineData("Metadata/plate_no_light_1.png", false)]
+    [InlineData("Metadata/plate_.png", false)]
+    [InlineData("Metadata/plate_1.gcode", false)]
+    [InlineData("Metadata/top_1.png", false)]
+    public void The_start_plan_reads_only_the_plate_pictures(string entry, bool isPicture) =>
+        Assert.Equal(isPicture, BambuSliceInfo.IsPlatePicture(entry));
 
     // ───────────────────────── Start options ─────────────────────────
 

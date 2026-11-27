@@ -3,6 +3,7 @@ using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Files;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
+using OctaGrid.Extensions.Models.Exceptions;
 
 namespace OctaGrid.Agent.Core.Tests;
 
@@ -561,11 +562,22 @@ public class PrinterOrchestratorTests
         var unknown = Guid.NewGuid();
         var ct = CancellationToken.None;
 
-        await orchestrator.StartPrintJobAsync(unknown, "a.gcode", null, ct);
         await orchestrator.PausePrintJobAsync(unknown, ct);
 
         Assert.Empty(await orchestrator.GetPrinterFilesAsync(unknown, ct));
         Assert.Null(await orchestrator.GetThumbnailAsync(unknown, "a.gcode", ct));
+    }
+
+    [Fact]
+    public async Task Starting_on_a_printer_without_a_session_fails_instead_of_doing_nothing()
+    {
+        var (orchestrator, _, _, _) = Create();
+        var unknown = Guid.NewGuid();
+        var ct = CancellationToken.None;
+
+        await Assert.ThrowsAsync<NotFoundException>(() => orchestrator.GetPrintStartPlanAsync(unknown, "a.gcode.3mf", ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => orchestrator.StartPrintJobAsync(unknown, "a.gcode.3mf", new PrintStartChoices(), ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => orchestrator.StartPrintJobAsync(unknown, "a.gcode.3mf", null, ct));
     }
 
     [Fact]
@@ -579,11 +591,14 @@ public class PrinterOrchestratorTests
         var ct = CancellationToken.None;
         await orchestrator.ApplyProfilesAsync([profile]);
 
-        await orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", null, ct);
         await orchestrator.DeleteFileAsync(profile.PrinterId, "a.gcode", ct);
 
         Assert.Empty(await orchestrator.GetPrinterFilesAsync(profile.PrinterId, ct));
         Assert.Null(await orchestrator.GetThumbnailAsync(profile.PrinterId, "a.gcode", ct));
+
+        // A start the user confirmed must not vanish: it says the printer cannot print.
+        await Assert.ThrowsAsync<ValidationException>(() => orchestrator.StartPrintJobAsync(profile.PrinterId, "a.gcode", null, ct));
+        await Assert.ThrowsAsync<ValidationException>(() => orchestrator.GetPrintStartPlanAsync(profile.PrinterId, "a.gcode", ct));
         await orchestrator.DisposeAsync();
     }
 

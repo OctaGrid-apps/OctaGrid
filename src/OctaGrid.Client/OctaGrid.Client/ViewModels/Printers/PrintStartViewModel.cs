@@ -84,7 +84,13 @@ public partial class PrintStartViewModel : ViewModelBase, IDialogParticipant<Pri
             _plan = await _commands.GetPrintStartPlanAsync(_printerId, FileName, cancellationToken);
             Plates.Clear();
             Options.Clear();
-            if (_plan is not null)
+            SelectedPlate = null;
+            if (_plan is { Plates.Count: 0 })
+            {
+                // A plan must offer a plate to start; without one, Start would stay disabled with no reason given.
+                ErrorMessage = "The file has no plate to print.";
+            }
+            else if (_plan is not null)
             {
                 foreach (var plate in _plan.Plates)
                 {
@@ -128,7 +134,8 @@ public partial class PrintStartViewModel : ViewModelBase, IDialogParticipant<Pri
     [RelayCommand(CanExecute = nameof(CanStart))]
     private void Start()
     {
-        if (!CanStart())
+        // Every option is checked, not just up to the first bad one, so each shows its own problem.
+        if (!CanStart() || Options.Where(o => !o.Validate()).ToList() is { Count: > 0 })
         {
             return;
         }

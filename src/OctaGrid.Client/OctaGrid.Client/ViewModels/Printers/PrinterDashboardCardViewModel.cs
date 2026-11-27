@@ -221,7 +221,21 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     private async Task<bool> StartFileCoreAsync(string fileName, CancellationToken cancellationToken)
     {
         var start = new PrintStartViewModel(Item.Id, Item.Name, fileName, _agentCommands, _loggerFactory.CreateLogger<PrintStartViewModel>());
-        if (await AskToStart(start) is not { } choices)
+        PrintStartChoices? answer;
+        using (cancellationToken.Register(start.LoadCommand.Cancel))
+        {
+            try
+            {
+                answer = await AskToStart(start);
+            }
+            finally
+            {
+                // Reading the file can take a while; once the dialog is closed nobody waits for it.
+                start.LoadCommand.Cancel();
+            }
+        }
+
+        if (answer is not { } choices)
         {
             _logger.LogInformation("User cancelled starting '{FileName}' on printer {PrinterId}", fileName, Item.Id);
             return false;
