@@ -8,7 +8,9 @@ public sealed class ConnectorContext(ILogger logger, string dataDirectory) : ICo
 {
     private bool _created;
 
-    /// <summary>Default parent folder for connector data: <c>%LocalAppData%/OctaGrid.Data/connectors</c>.</summary>
+    /// <summary>
+    /// Default parent folder for connector data: <c>%LocalAppData%/OctaGrid.Data/connectors</c>.
+    /// </summary>
     public static string DefaultRoot { get; } = Path.Combine(AgentLocalData.Root, "connectors");
 
     public ILogger Logger { get; } = logger;

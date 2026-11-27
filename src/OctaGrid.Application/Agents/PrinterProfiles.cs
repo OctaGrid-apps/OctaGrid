@@ -42,4 +42,12 @@ public sealed class PrinterProfiles
             })
             .ToList();
     }
+
+    /// <summary>The agent's disabled printers: not run by the agent, but their data is kept.</summary>
+    public async Task<IReadOnlyList<Guid>> DisabledForAgent(Guid agentId, CancellationToken cancellationToken) =>
+        await _context.Printers
+            .AsNoTracking()
+            .Where(p => p.AgentId == agentId && !p.Enabled)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
 }

@@ -30,9 +30,11 @@ public sealed class AgentProfilesService
     public async Task Push(Guid agentId, CancellationToken cancellationToken)
     {
         var profiles = await _profiles.ForAgent(agentId, cancellationToken);
+        var disabled = await _profiles.DisabledForAgent(agentId, cancellationToken);
 
         // Only the count: the profiles carry the printers' secrets.
         _logger.LogDebug("Sending {ProfileCount} printer profile(s) to agent {AgentId}", profiles.Count, agentId);
-        await _link.SendAsync(agentId, new ApplyPrinterProfilesRequest(profiles), cancellationToken);
+        await _link.SendAsync(
+            agentId, new ApplyPrinterProfilesRequest(profiles) { DisabledPrinterIds = disabled }, cancellationToken);
     }
 }

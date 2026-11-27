@@ -10,10 +10,10 @@ public sealed class AgentProfilesServiceTests : IDisposable
     public void Dispose() => _fixture.Dispose();
 
     [Fact]
-    public async Task An_agent_is_sent_its_enabled_printers_with_their_secrets()
+    public async Task An_agent_is_sent_its_enabled_printers_with_their_secrets_and_which_are_disabled()
     {
         var enabled = await _fixture.CreatePrinter();
-        await _fixture.CreatePrinter(enabled: false);
+        var disabled = await _fixture.CreatePrinter(enabled: false);
         var unassigned = await _fixture.CreatePrinter();
         _fixture.UnassignPrinter(unassigned.Id);
 
@@ -22,9 +22,11 @@ public sealed class AgentProfilesServiceTests : IDisposable
 
         var (agentId, request) = Assert.Single(_fixture.Link.Sent);
         Assert.Equal(_fixture.AgentId, agentId);
-        var profile = Assert.Single(Assert.IsType<ApplyPrinterProfilesRequest>(request).Profiles);
+        var apply = Assert.IsType<ApplyPrinterProfilesRequest>(request);
+        var profile = Assert.Single(apply.Profiles);
         Assert.Equal(enabled.Id, profile.PrinterId);
         Assert.Equal("123456", profile.Get("apiKey"));
+        Assert.Equal([disabled.Id], apply.DisabledPrinterIds);
     }
 
     [Fact]

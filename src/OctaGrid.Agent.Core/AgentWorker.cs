@@ -18,15 +18,17 @@ public class AgentWorker : IAsyncDisposable
     private readonly PrinterConsoleLog _console;
     private readonly PrinterEventLog _events;
     private readonly ExtensionManager _extensions;
+    private readonly PrinterFileCache? _fileCache;
     private readonly ILogger<AgentWorker> _logger;
     private readonly PrinterOrchestrator _orchestrator;
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private readonly PrinterTelemetryLog _telemetry;
     private DeveloperExtensionWatcher? _developerWatcher;
+    private IReadOnlyList<Guid> _disabledPrinterIds = [];
     private IReadOnlyList<PrinterProfile> _profiles = [];
 
     /// <param name="extensions">The installed extensions and which of them are enabled.</param>
-    /// <param name="fileCache">Keeps what was read from printers' files across requests and restarts; optional.</param>
+    /// <param name="fileCache">Caches file details and thumbnails across restarts. Optional.</param>
     public AgentWorker(
         ExtensionManager extensions,
         ILoggerFactory? loggerFactory = null,
@@ -36,6 +38,7 @@ public class AgentWorker : IAsyncDisposable
         var factory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = factory.CreateLogger<AgentWorker>();
         _extensions = extensions;
+        _fileCache = fileCache;
         _events = new PrinterEventLog(timeProvider, logger: factory.CreateLogger<PrinterEventLog>());
         _console = new PrinterConsoleLog(timeProvider, logger: factory.CreateLogger<PrinterConsoleLog>());
         _telemetry = new PrinterTelemetryLog(timeProvider);
@@ -86,11 +89,22 @@ public class AgentWorker : IAsyncDisposable
     /// again after an extension is turned on or reloaded.
     /// </summary>
     /// <param name="profiles">Every printer the agent has to run, with settings and secrets.</param>
-    /// <param name="cancellationToken">Cancels waiting for an earlier change to finish.</param>
-    public Task ApplyProfilesAsync(IReadOnlyList<PrinterProfile> profiles, CancellationToken cancellationToken)
+    /// <param name="cancellationToken">Cancels waiting for an earlier change and the cache cleanup.</param>
+    public Task ApplyProfilesAsync(IReadOnlyList<PrinterProfile> profiles, CancellationToken cancellationToken) =>
+        ApplyProfilesAsync(profiles, [], cancellationToken);
+
+    /// <inheritdoc cref="ApplyProfilesAsync(IReadOnlyList{PrinterProfile}, CancellationToken)"/>
+    /// <param name="profiles">Every printer the agent has to run, with settings and secrets.</param>
+    /// <param name="disabledPrinterIds">
+    /// The agent's disabled printers: not run, but their cached data is kept.
+    /// </param>
+    /// <param name="cancellationToken">Cancels waiting for an earlier change and the cache cleanup.</param>
+    public Task ApplyProfilesAsync(
+        IReadOnlyList<PrinterProfile> profiles, IReadOnlyList<Guid> disabledPrinterIds, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(profiles);
-        return ApplyAsync(profiles.ToList(), cancellationToken);
+        ArgumentNullException.ThrowIfNull(disabledPrinterIds);
+        return ApplyAsync((profiles.ToList(), disabledPrinterIds.ToList()), cancellationToken);
     }
 
     /// <summary>Trusts an installed extension and loads it. Printers that were waiting for its connector start.</summary>
@@ -151,8 +165,16 @@ public class AgentWorker : IAsyncDisposable
         Guid printerId, IReadOnlyList<string> fileNames, CancellationToken cancellationToken) =>
             _orchestrator.GetPrinterFileDetailsAsync(printerId, fileNames, cancellationToken);
 
+    /// <summary>
+    /// A file's thumbnail. The current print job's thumbnail bypasses the file cache, because its file may
+    /// have been replaced since the last listing.
+    /// </summary>
     public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-            _orchestrator.GetThumbnailAsync(printerId, fileName, cancellationToken);
+            _orchestrator.GetThumbnailAsync(
+                printerId,
+                fileName,
+                fromPrinter: string.Equals(_telemetry.CurrentFileName(printerId), fileName, StringComparison.Ordinal),
+                cancellationToken);
 
     /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
     public ExtensionInstallResult InstallExtension(string packagePath)
@@ -313,14 +335,17 @@ public class AgentWorker : IAsyncDisposable
 
     // One at a time, and the set is replaced and read inside the gate: otherwise a re-apply that read the old set
     // could finish last, stop the session of a printer added in between, and forget its history.
-    private async Task ApplyAsync(IReadOnlyList<PrinterProfile>? replacement, CancellationToken cancellationToken)
+    private async Task ApplyAsync(
+        (IReadOnlyList<PrinterProfile> Profiles, IReadOnlyList<Guid> DisabledPrinterIds)? replacement,
+        CancellationToken cancellationToken)
     {
         await _applyGate.WaitAsync(cancellationToken);
         try
         {
-            if (replacement is not null)
+            if (replacement is { } next)
             {
-                _profiles = replacement;
+                _profiles = next.Profiles;
+                _disabledPrinterIds = next.DisabledPrinterIds;
             }
 
             var profiles = _profiles;
@@ -333,6 +358,12 @@ public class AgentWorker : IAsyncDisposable
             _events.Retain(printerIds);
             _console.Retain(printerIds);
             _telemetry.Retain(printerIds);
+
+            // Disabled printers and printers of disabled connectors keep their file cache.
+            if (_fileCache is not null)
+            {
+                await _fileCache.PruneAsync(printerIds.Concat(_disabledPrinterIds).ToList(), cancellationToken);
+            }
         }
         finally
         {

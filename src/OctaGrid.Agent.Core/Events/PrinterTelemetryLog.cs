@@ -110,6 +110,15 @@ public sealed class PrinterTelemetryLog
         }
     }
 
+    /// <summary>The file of the print job the printer last reported, or null when it reported none.</summary>
+    public string? CurrentFileName(Guid printerId)
+    {
+        lock (_gate)
+        {
+            return _journals.TryGetValue(printerId, out var journal) ? journal.Latest?.PrintStatus.FileName : null;
+        }
+    }
+
     /// <summary>Forgets the history of every printer that is not in <paramref name="printerIds"/>.</summary>
     public void Retain(IReadOnlyCollection<Guid> printerIds)
     {

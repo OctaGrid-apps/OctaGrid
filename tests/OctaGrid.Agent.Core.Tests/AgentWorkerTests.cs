@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OctaGrid.Agent.Core.Connectors;
 using OctaGrid.Agent.Core.Extensions;
+using OctaGrid.Agent.Core.Files;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
 using OctaGrid.Protocol.Extensions;
@@ -72,6 +73,84 @@ public class AgentWorkerTests
 
         Assert.Empty(worker.GetPrinterEvents(printer.PrinterId, null, 10).Events);
         await worker.DisposeAsync();
+    }
+
+    private static (AgentWorker Worker, List<FakeSession> Sessions) WithFileCache(string cacheRoot)
+    {
+        var sessions = new List<FakeSession>();
+        var connector = new FakeConnector("acme.fake", _ =>
+        {
+            var session = new FakeSession();
+            sessions.Add(session);
+            return session;
+        });
+        var extensions = new ExtensionManager(new ConnectorRegistry().Add(connector), new InMemoryStateStore());
+        return (new AgentWorker(extensions, fileCache: new PrinterFileCache(cacheRoot)), sessions);
+    }
+
+    private static string CacheRoot() =>
+        Path.Combine(Path.GetTempPath(), "octagrid-file-cache-tests", Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task A_disabled_printer_keeps_its_file_cache_and_a_deleted_one_loses_it()
+    {
+        var root = CacheRoot();
+        var (worker, _) = WithFileCache(root);
+        var printer = Printer();
+        var folder = Path.Combine(root, printer.PrinterId.ToString("N"));
+        var ct = CancellationToken.None;
+        try
+        {
+            await worker.ApplyProfilesAsync([printer], ct);
+            await worker.GetPrinterFilesAsync(printer.PrinterId, ct);
+            await worker.GetThumbnailAsync(printer.PrinterId, "a.gcode", ct);
+
+            await worker.ApplyProfilesAsync([], [printer.PrinterId], ct);
+            Assert.True(Directory.Exists(folder));
+
+            await worker.ApplyProfilesAsync([], [], ct);
+            Assert.False(Directory.Exists(folder));
+        }
+        finally
+        {
+            await worker.DisposeAsync();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task The_current_print_jobs_thumbnail_is_read_from_the_printer_not_the_file_cache()
+    {
+        var root = CacheRoot();
+        var (worker, sessions) = WithFileCache(root);
+        var printer = Printer();
+        var ct = CancellationToken.None;
+        try
+        {
+            await worker.ApplyProfilesAsync([printer], ct);
+            await sessions[0].Started;
+            await worker.GetPrinterFilesAsync(printer.PrinterId, ct);
+            await worker.GetThumbnailAsync(printer.PrinterId, "a.gcode", ct);
+
+            // The file may have been replaced since the listing the cache knows it from.
+            var telemetry = new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Printing };
+            telemetry.PrintStatus.FileName = "a.gcode";
+            sessions[0].Telemetry!.Send(telemetry);
+            await worker.GetThumbnailAsync(printer.PrinterId, "a.gcode", ct);
+
+            Assert.Equal(["list", "thumb:a.gcode", "thumb:a.gcode"], sessions[0].Calls);
+        }
+        finally
+        {
+            await worker.DisposeAsync();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [Fact]
