@@ -10,7 +10,10 @@ using MQTTnet.Formatter;
 using MQTTnet.Protocol;
 using OctaGrid.Extensions.Abstractions;
 using OctaGrid.Extensions.Models;
+using AppException = OctaGrid.Extensions.Models.Exceptions.AppException;
+using NotFoundException =OctaGrid.Extensions.Models.Exceptions.NotFoundException;
 using StorageUnavailableException = OctaGrid.Extensions.Models.Exceptions.StorageUnavailableException;
+using ValidationException = OctaGrid.Extensions.Models.Exceptions.ValidationException;
 
 namespace OctaGrid.Connectors.BambuLab;
 
@@ -25,11 +28,14 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
     private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan PushAllMinInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ReplyTimeout = TimeSpan.FromSeconds(10);
     private const string NoSdCardMessage =
         "This printer has no SD card. Files in its internal storage can only be started from the printer's screen.";
+    private const string NotConnectedMessage = "The printer is not connected.";
 
     private readonly MqttClientFactory _factory = new();
     private readonly BambuFileCache _files = new();
+    private readonly BambuCommandReplies _replies = new();
     private readonly BambuFtpPool<AsyncFtpClient>? _ftp;
     private readonly ILogger<MqttClient> _logger;
     private readonly PrinterProfile _profile;
@@ -40,6 +46,9 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
 
     // The files of the last listing by name, replaced as a whole on each listing.
     private volatile IReadOnlyDictionary<string, FtpListItem> _listed = new Dictionary<string, FtpListItem>();
+
+    // The spools of the current session's reports. Written by the MQTT thread.
+    private volatile BambuLoadedFilaments _loaded = BambuLoadedFilaments.None;
 
     // -1 until the first report, then 0 (no card) or 1. Written by the MQTT thread.
     private int _sdCard = -1;
@@ -255,15 +264,11 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         return entry;
     }
 
-    public Task PausePrintAsync(CancellationToken cancellationToken)
-    {
-        throw new NotImplementedException();
-    }
+    public Task PausePrintAsync(CancellationToken cancellationToken) =>
+        SendAsync(Payload.Pause(), "pause the print", cancellationToken);
 
-    public Task ResumePrintAsync(CancellationToken cancellationToken)
-    {
-        throw new NotImplementedException();
-    }
+    public Task ResumePrintAsync(CancellationToken cancellationToken) =>
+        SendAsync(Payload.Resume(), "resume the print", cancellationToken);
 
     public async Task RunAsync(ITelemetrySink telemetry, CancellationToken cancellationToken)
     {
@@ -336,14 +341,149 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         }
     }
 
-    public Task StartPrintAsync(string fileName, CancellationToken cancellationToken)
+    /// <summary>
+    /// Prints a .3mf from the SD card's root. The file must have one sliced plate, and each of its filaments a loaded
+    /// spool of the same type and colour; otherwise nothing is sent and the reason is thrown.
+    /// </summary>
+    public async Task StartPrintAsync(string fileName, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        var name = fileName?.Trim() ?? string.Empty;
+        if (name.Length == 0 || name.IndexOfAny(['/', '\\']) >= 0 || name.Any(char.IsControl)
+            || !name.EndsWith(".3mf", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ValidationException("fileName", "Only .3mf files on the printer's SD card can be started.");
+        }
+
+        if (_client is not { IsConnected: true } || _ftp is null)
+        {
+            throw new NotFoundException(NotConnectedMessage);
+        }
+
+        if (HasNoSdCard)
+        {
+            throw new StorageUnavailableException(NoSdCardMessage);
+        }
+
+        var loaded = _loaded;
+        if (!loaded.Known)
+        {
+            throw new ValidationException("fileName", "The printer has not reported its spools yet. Try again in a moment.");
+        }
+
+        // Read now rather than from a cache: the file may have been replaced since it was listed.
+        bool found;
+        byte[]? sliceInfo;
+        try
+        {
+            (found, sliceInfo) = await _ftp.RunAsync(async ftp =>
+            {
+                var item = await ftp.GetObjectInfo("/" + name, token: cancellationToken);
+                return item is null
+                    ? (false, null)
+                    : (true, await TailThreeMfFtpReader.ReadEntryAsync(ftp, item, BambuSliceInfo.EntryName, _logger, cancellationToken));
+            }, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not AppException)
+        {
+            // FTP failures and damaged archives alike: nothing was sent, and the user can try again.
+            _logger.LogWarning(ex, "Failed to read '{FileName}' to start it on Bambu printer {DeviceId}", name, DeviceId);
+            throw new StorageUnavailableException($"OctaGrid could not read '{name}' from the printer's SD card. Try again in a moment.");
+        }
+
+        if (!found)
+        {
+            throw new NotFoundException($"'{name}' is not on the printer's SD card.");
+        }
+
+        var plates = sliceInfo is null ? [] : BambuSliceInfo.ReadPlates(sliceInfo);
+        if (plates.Count == 0)
+        {
+            throw new ValidationException("fileName", "The file has no sliced plate. Slice it in Bambu Studio and export the sliced file.");
+        }
+
+        if (plates.Count > 1)
+        {
+            throw new ValidationException("fileName",
+                $"The file has {plates.Count} sliced plates. OctaGrid can start files with one plate for now: export the plate on its own from Bambu Studio.");
+        }
+
+        var plate = plates[0];
+        if (!BambuFilamentMatcher.TryMatch(plate, loaded, out var filaments, out var problem))
+        {
+            throw new ValidationException("fileName", problem);
+        }
+
+        _logger.LogInformation(
+            "Starting plate {Plate} of '{FileName}' on Bambu printer {DeviceId} (AMS: {UseAms}, trays: {AmsMapping})",
+            plate.Index, name, DeviceId, filaments.UseAms, string.Join(",", filaments.AmsMapping));
+        await SendAsync(Payload.PrintProjectFile(ProjectFileOptions.FromSdCard(name, plate.Index, filaments)), "start the print", cancellationToken);
     }
 
-    public Task StopPrintAsync(CancellationToken cancellationToken)
+    public Task StopPrintAsync(CancellationToken cancellationToken) =>
+        SendAsync(Payload.Stop(), "stop the print", cancellationToken);
+
+    /// <summary>
+    /// Publishes a command and waits for the printer's answer. A refusal is thrown with the printer's reason. No answer
+    /// in time is logged and not thrown: not every firmware answers every command, and the next report shows whether
+    /// it took effect.
+    /// </summary>
+    private async Task SendAsync(BambuCommand command, string action, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        if (_client is not { IsConnected: true } client || _serial is not { } serial)
+        {
+            throw new NotFoundException(NotConnectedMessage);
+        }
+
+        var reply = _replies.Expect(command);
+        try
+        {
+            // The session may have ended since the check above. Its end clears _client before failing the waiting
+            // commands, so a command registered too late for that is caught here instead of timing out as sent.
+            if (!ReferenceEquals(_client, client))
+            {
+                throw new NotFoundException(NotConnectedMessage);
+            }
+
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(BambuTopics.Request(serial))
+                .WithPayload(command.Json)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .Build();
+            try
+            {
+                await client.PublishAsync(message, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is MqttCommunicationException or ObjectDisposedException)
+            {
+                _logger.LogWarning(ex, "Failed to send the {Command} command to Bambu printer {DeviceId}", command.Name, DeviceId);
+                throw new NotFoundException(NotConnectedMessage);
+            }
+
+            BambuCommandReply answer;
+            try
+            {
+                answer = await reply.WaitAsync(ReplyTimeout, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Bambu printer {DeviceId} did not answer the {Command} command within {TimeoutSeconds}s",
+                    DeviceId, command.Name, ReplyTimeout.TotalSeconds);
+                return;
+            }
+
+            if (!answer.Succeeded)
+            {
+                _logger.LogWarning("Bambu printer {DeviceId} refused the {Command} command: {Result} ({Reason})",
+                    DeviceId, command.Name, answer.Result, answer.Reason);
+                throw new ValidationException("printer", answer.RefusalMessage(action));
+            }
+
+            _logger.LogDebug("Bambu printer {DeviceId} accepted the {Command} command", DeviceId, command.Name);
+        }
+        finally
+        {
+            _replies.Forget(command);
+        }
     }
 
     public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken)
@@ -434,6 +574,9 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
             Volatile.Write(ref _sdCard, hasSdCard ? 1 : 0);
         }
 
+        _loaded = mapper.LoadedFilaments;
+        _replies.TryComplete(print);
+
         firstReport.TrySetResult();
 
         if (changed)
@@ -475,7 +618,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         {
             var message = new MqttApplicationMessageBuilder()
                 .WithTopic(BambuTopics.Request(serial))
-                .WithPayload(Payload.PushAll())
+                .WithPayload(Payload.PushAll().Json)
                 .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                 .Build();
 
@@ -500,6 +643,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         var firstReport = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         _serial = _profile.Settings.GetValueOrDefault("serialNumber") is { Length: > 0 } configured ? configured : null;
+        _loaded = BambuLoadedFilaments.None;
         Interlocked.Exchange(ref _lastPushAll, 0);
 
         // Handlers must never throw into MQTTnet's receive loop.
@@ -603,6 +747,7 @@ internal sealed class MqttClient : IPrinterSession, IPrintControl, IFileStorage,
         finally
         {
             _client = null;
+            _replies.FailAll(new NotFoundException(NotConnectedMessage));
         }
     }
 
