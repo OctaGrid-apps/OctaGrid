@@ -51,7 +51,13 @@ public sealed class PrinterFileCache
         _logger = logger ?? NullLogger<PrinterFileCache>.Instance;
         _maxAge = maxAge ?? DefaultMaxAge;
         _maxBytes = maxBytes;
+
+        // A folder whose name is not a printer id, so the cache's own loading and cleanup leave it alone.
+        Jobs = new PrinterJobPictures(Path.Combine(root, "jobs"), _logger);
     }
+
+    /// <summary>The pictures of the prints OctaGrid started, one per printer; cleaned up with the cache.</summary>
+    public PrinterJobPictures Jobs { get; }
 
     /// <summary>The default folder: <c>%LocalAppData%/OctaGrid.Data/file-cache</c>.</summary>
     public static string DefaultRoot { get; } = Path.Combine(AgentLocalData.Root, "file-cache");
@@ -254,6 +260,8 @@ public sealed class PrinterFileCache
         {
             _gate.Release();
         }
+
+        await Jobs.PruneAsync(printers, cancellationToken);
     }
 
     private void RemoveExpired(PrinterIndex printer, DateTimeOffset now)

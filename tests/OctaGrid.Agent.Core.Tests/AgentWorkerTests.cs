@@ -122,6 +122,68 @@ public class AgentWorkerTests
     }
 
     [Fact]
+    public async Task The_job_OctaGrid_started_shows_its_kept_picture_without_asking_the_printer()
+    {
+        var root = CacheRoot();
+        var (worker, sessions) = WithFileCache(root);
+        var printer = Printer();
+        var ct = CancellationToken.None;
+        try
+        {
+            await worker.ApplyProfilesAsync([printer], ct);
+            await sessions[0].Started;
+            await worker.StartPrintJobAsync(printer.PrinterId, "a.gcode", null, ct);
+            var telemetry = new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Printing };
+            telemetry.PrintStatus.FileName = "a";
+            sessions[0].Telemetry!.Send(telemetry);
+
+            var picture = await worker.GetThumbnailAsync(printer.PrinterId, "a", ct);
+
+            Assert.Equal([9], picture?.Data);
+            Assert.Equal(["start:a.gcode", "thumb:a.gcode"], sessions[0].Calls);
+        }
+        finally
+        {
+            await worker.DisposeAsync();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task A_kept_picture_is_not_shown_for_a_job_the_printer_is_not_running()
+    {
+        var root = CacheRoot();
+        var (worker, sessions) = WithFileCache(root);
+        var printer = Printer();
+        var ct = CancellationToken.None;
+        try
+        {
+            await worker.ApplyProfilesAsync([printer], ct);
+            await sessions[0].Started;
+            await worker.StartPrintJobAsync(printer.PrinterId, "a.gcode", null, ct);
+            var telemetry = new PrinterTelemetry(printer.PrinterId) { State = UniversalPrinterState.Printing };
+            telemetry.PrintStatus.FileName = "b";
+            sessions[0].Telemetry!.Send(telemetry);
+
+            await worker.GetThumbnailAsync(printer.PrinterId, "a", ct);
+
+            // Asked of the printer, not answered from the picture of a job that is not running.
+            Assert.Equal(["start:a.gcode", "thumb:a.gcode", "thumb:a"], sessions[0].Calls);
+        }
+        finally
+        {
+            await worker.DisposeAsync();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task The_current_print_jobs_thumbnail_is_read_from_the_printer_not_the_file_cache()
     {
         var root = CacheRoot();

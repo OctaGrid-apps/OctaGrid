@@ -28,6 +28,9 @@ public class PrinterOrchestrator : IAsyncDisposable
     private readonly PrinterFileCache? _fileCache;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<PrinterOrchestrator> _logger;
+
+    // The last start plan asked for per printer, until the start that follows takes the plate's picture from it.
+    private readonly ConcurrentDictionary<Guid, PrintStartPlan> _plans = new();
     private readonly ConnectorRegistry _registry;
     private readonly ConcurrentDictionary<Guid, RunningPrinter> _sessions = new();
     private readonly TimeSpan _stopTimeout;
@@ -242,10 +245,19 @@ public class PrinterOrchestrator : IAsyncDisposable
     /// </summary>
     /// <exception cref="NotFoundException">The printer has no running session.</exception>
     /// <exception cref="ValidationException">The printer's connector cannot start prints.</exception>
-    public async Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-        PrintSession(printerId) is IPrintStartOptions options
-            ? await options.GetStartPlanAsync(fileName, cancellationToken)
-            : null;
+    public async Task<PrintStartPlan?> GetPrintStartPlanAsync(Guid printerId, string fileName, CancellationToken cancellationToken)
+    {
+        if (PrintSession(printerId) is not IPrintStartOptions options)
+        {
+            return null;
+        }
+
+        var plan = await options.GetStartPlanAsync(fileName, cancellationToken);
+
+        // Kept for the start that usually follows, which takes the started plate's picture from it.
+        _plans[printerId] = plan;
+        return plan;
+    }
 
     /// <summary>
     /// Starts a file. The user's <paramref name="choices"/> go to a connector that offers start choices; any other
@@ -264,6 +276,45 @@ public class PrinterOrchestrator : IAsyncDisposable
         else
         {
             await ((IPrintControl)session).StartPrintAsync(fileName, cancellationToken);
+        }
+
+        await RememberJobPictureAsync(printerId, fileName, choices, cancellationToken);
+    }
+
+    /// <summary>
+    /// The picture of the print OctaGrid last started on the printer, when <paramref name="name"/> is that file's
+    /// name or the job name the printer reports for it; null otherwise.
+    /// </summary>
+    public async Task<PrintThumbnail?> GetJobPictureAsync(Guid printerId, string name, CancellationToken cancellationToken) =>
+        _fileCache is null ? null : await _fileCache.Jobs.FindAsync(printerId, name, cancellationToken);
+
+    // Keeps the started plate's picture, from the plan the start dialog showed, or the file's own thumbnail. The
+    // print has started by now, so nothing here may fail the start: a missing picture only means the card asks the
+    // printer, as before.
+    private async Task RememberJobPictureAsync(Guid printerId, string fileName, PrintStartChoices? choices, CancellationToken cancellationToken)
+    {
+        _plans.TryRemove(printerId, out var plan);
+        if (_fileCache is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var plate = plan is not null && string.Equals(plan.FileName, fileName, StringComparison.Ordinal)
+                ? choices?.Plate is { } number
+                    ? plan.Plates.FirstOrDefault(p => p.Number == number)
+                    : plan.Plates.Count == 1 ? plan.Plates[0] : null
+                : null;
+            var picture = plate?.Thumbnail ?? await GetThumbnailAsync(printerId, fileName, cancellationToken);
+            if (picture is not null)
+            {
+                await _fileCache.Jobs.RememberAsync(printerId, fileName, picture, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not keep the picture of '{FileName}' started on printer {PrinterId}", fileName, printerId);
         }
     }
 

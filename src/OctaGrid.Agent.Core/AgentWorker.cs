@@ -166,15 +166,26 @@ public class AgentWorker : IAsyncDisposable
             _orchestrator.GetPrinterFileDetailsAsync(printerId, fileNames, cancellationToken);
 
     /// <summary>
-    /// A file's thumbnail. The current print job's thumbnail bypasses the file cache, because its file may
-    /// have been replaced since the last listing.
+    /// A file's thumbnail. For the job the printer is running, the picture of the plate OctaGrid started comes first;
+    /// otherwise the current job's thumbnail bypasses the file cache, because its file may have been replaced since
+    /// the last listing.
     /// </summary>
-    public Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken) =>
-            _orchestrator.GetThumbnailAsync(
-                printerId,
-                fileName,
-                fromPrinter: string.Equals(_telemetry.CurrentFileName(printerId), fileName, StringComparison.Ordinal),
-                cancellationToken);
+    public async Task<PrintThumbnail?> GetThumbnailAsync(Guid printerId, string fileName, CancellationToken cancellationToken)
+    {
+        var current = _telemetry.CurrentFileName(printerId);
+        if (current is not null
+            && (string.Equals(fileName, current, StringComparison.Ordinal) || PrinterJobPictures.IsJobOf(fileName, current))
+            && await _orchestrator.GetJobPictureAsync(printerId, fileName, cancellationToken) is { } picture)
+        {
+            return picture;
+        }
+
+        return await _orchestrator.GetThumbnailAsync(
+            printerId,
+            fileName,
+            fromPrinter: string.Equals(current, fileName, StringComparison.Ordinal),
+            cancellationToken);
+    }
 
     /// <summary>Installs an extension package. Nothing from it runs until the user approves it.</summary>
     public ExtensionInstallResult InstallExtension(string packagePath)
