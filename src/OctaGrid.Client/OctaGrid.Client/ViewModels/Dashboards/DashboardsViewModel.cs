@@ -291,7 +291,7 @@ public partial class DashboardsViewModel : ViewModelBase, IDialogParticipant
                     Name = printer.Name,
                     ConnectorId = printer.ConnectorId,
                     IsConnectorAvailable = isAvailable,
-                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions, watcher: _watcher, connectors: _connectors);
+                }, _agentCommands, _imageCache, _loggerFactory, temperatureHistory: _temperatureHistories?.GetOrCreate(printer.Id), permissions: Permissions, watcher: _watcher, connectors: _connectors, settings: _settings);
                 created.Item.PropertyChanged += OnPrinterPropertyChanged;
                 return created;
             }).ToList();

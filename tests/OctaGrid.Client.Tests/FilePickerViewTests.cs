@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OctaGrid.Client.Dialogs;
+using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Extensions.Models;

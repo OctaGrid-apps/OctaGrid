@@ -20,6 +20,9 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
     private readonly IByteArrayImageCache _imageCache;
     private readonly ILogger<PrinterDashboardCardViewModel> _logger;
     private readonly ILoggerFactory _loggerFactory;
+
+    // Where the file lists keep the chosen sort order; without it they open newest first.
+    private readonly IAppSettingsStore? _settings;
     private readonly TimeProvider _timeProvider;
     private readonly IDisposable? _watch;
     private string? _previousFileName;
@@ -35,9 +38,11 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
         TemperatureHistory? temperatureHistory = null,
         WorkspacePermissions? permissions = null,
         PrinterWatcher? watcher = null,
-        ConnectorCatalog? connectors = null)
+        ConnectorCatalog? connectors = null,
+        IAppSettingsStore? settings = null)
     {
         _connectors = connectors;
+        _settings = settings;
         _timeProvider = timeProvider ?? TimeProvider.System;
         TemperatureHistory = temperatureHistory ?? new TemperatureHistory(_timeProvider);
         Item = item;
@@ -86,7 +91,7 @@ public partial class PrinterDashboardCardViewModel : ViewModelBase, IDialogParti
 
     /// <summary>The files on this printer, for the file dialog and for the printer page. Loads nothing until asked.</summary>
     internal FilePickerViewModel CreateFilesViewModel() =>
-        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>(), Permissions);
+        new(Item.Id, _agentCommands, _imageCache, _loggerFactory.CreateLogger<FilePickerViewModel>(), Permissions, _settings);
 
     private void HandlePrinterTelemetry(object recipient, PrinterTelemetryData message)
     {

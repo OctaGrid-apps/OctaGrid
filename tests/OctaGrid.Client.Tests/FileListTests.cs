@@ -1,4 +1,5 @@
 using System.Globalization;
+using OctaGrid.Client.Models;
 using OctaGrid.Client.Services;
 using OctaGrid.Client.ViewModels;
 using OctaGrid.Extensions.Models;
@@ -48,6 +49,56 @@ public class FileListTests
         picker.SelectedSort = FileSortOption.All.Single(o => o.Order == order);
 
         Assert.Equal(expected, Names(picker));
+    }
+
+    [Fact]
+    public async Task A_list_opens_in_the_order_chosen_last()
+    {
+        var settings = new InMemorySettingsStore(new ClientSettings { FileSortOrder = FileSortOrder.LargestFirst });
+        var commands = new PrinterPageTabsTests.FakeCommands();
+        commands.Files.AddRange([File("small.3mf", size: 1), File("large.3mf", size: 2)]);
+        var picker = new FilePickerViewModel(Guid.NewGuid(), commands, new ByteArrayImageCache(), settings: settings);
+
+        await picker.LoadDataCommand.ExecuteAsync(null);
+
+        Assert.Equal(FileSortOrder.LargestFirst, picker.SelectedSort.Order);
+        Assert.Equal(["large.3mf", "small.3mf"], Names(picker));
+    }
+
+    [Fact]
+    public void The_chosen_order_is_kept_for_the_next_list_of_any_printer()
+    {
+        var settings = new InMemorySettingsStore();
+        var commands = new PrinterPageTabsTests.FakeCommands();
+        var first = new FilePickerViewModel(Guid.NewGuid(), commands, new ByteArrayImageCache(), settings: settings);
+
+        first.SelectedSort = FileSortOption.Of(FileSortOrder.NameAscending);
+        var next = new FilePickerViewModel(Guid.NewGuid(), commands, new ByteArrayImageCache(), settings: settings);
+
+        Assert.Equal(FileSortOrder.NameAscending, settings.ClientSettings.FileSortOrder);
+        Assert.Equal(FileSortOrder.NameAscending, next.SelectedSort.Order);
+    }
+
+    [Fact]
+    public void Opening_a_list_does_not_save_the_settings()
+    {
+        var settings = new InMemorySettingsStore(new ClientSettings { FileSortOrder = FileSortOrder.OldestFirst });
+        var saves = 0;
+        settings.SettingsChanged += (_, _) => saves++;
+
+        _ = new FilePickerViewModel(Guid.NewGuid(), new PrinterPageTabsTests.FakeCommands(), new ByteArrayImageCache(), settings: settings);
+
+        Assert.Equal(0, saves);
+    }
+
+    [Fact]
+    public void The_order_is_saved_by_name_and_an_unknown_one_falls_back_to_newest_first()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new ClientSettings { FileSortOrder = FileSortOrder.SmallestFirst });
+
+        Assert.Contains("\"SmallestFirst\"", json, StringComparison.Ordinal);
+        Assert.Equal(FileSortOrder.NewestFirst, FileSortOption.Of(null).Order);
+        Assert.Equal(FileSortOrder.NewestFirst, FileSortOption.Of((FileSortOrder)99).Order);
     }
 
     [Fact]
